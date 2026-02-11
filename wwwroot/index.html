@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnswerCode - Code Q&A System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border-color: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-color: #58a6ff;
+            --accent-hover: #79c0ff;
+            --success-color: #3fb950;
+            --warning-color: #d29922;
+            --danger-color: #f85149;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #1a1f35 0%, #0d1117 100%);
+            border-bottom: 1px solid var(--border-color);
+            padding: 30px 0;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, var(--accent-color), #a371f7, #f778ba);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        /* Input Section */
+        .input-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .input-group input,
+        .input-group textarea,
+        .input-group select {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-group input:focus,
+        .input-group textarea:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+        }
+
+        .input-group textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .input-group input::placeholder,
+        .input-group textarea::placeholder {
+            color: var(--text-secondary);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-color), #a371f7);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        /* Answer Section */
+        .answer-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .answer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .answer-header h3 {
+            color: var(--text-primary);
+            font-size: 1.1rem;
+        }
+
+        .answer-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .answer-content {
+            padding: 24px;
+            min-height: 200px;
+        }
+
+        .answer-content.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* ===== Tool Steps (OpenCode-style) ===== */
+        .steps-section {
+            margin-bottom: 16px;
+        }
+
+        .steps-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: var(--warning-color);
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 8px 0;
+            user-select: none;
+        }
+
+        .steps-toggle:hover {
+            color: var(--accent-hover);
+        }
+
+        .steps-toggle .arrow {
+            font-size: 0.7rem;
+            transition: transform 0.2s;
+        }
+
+        .steps-toggle .arrow.open {
+            transform: rotate(90deg);
+        }
+
+        .steps-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: 8px;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: rgba(22, 27, 34, 0.8);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .step-item.running {
+            border-left-color: var(--warning-color);
+            background: rgba(210, 153, 34, 0.08);
+        }
+
+        .step-item.done {
+            border-left-color: var(--border-color);
+        }
+
+        .step-icon {
+            font-size: 0.9rem;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .step-icon.running {
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .step-tool {
+            color: var(--accent-color);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .step-separator {
+            color: var(--text-secondary);
+        }
+
+        .step-summary {
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .step-duration {
+            margin-left: auto;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* Active thinking indicator */
+        .thinking-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .thinking-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .thinking-dots span {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+
+        .thinking-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .thinking-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: translateY(0);
+            }
+
+            40% {
+                transform: translateY(-6px);
+            }
+        }
+
+        /* Markdown Styling */
+        .markdown-body {
+            color: var(--text-primary);
+        }
+
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3 {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            margin-top: 24px;
+            margin-bottom: 16px;
+        }
+
+        .markdown-body code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+
+        .markdown-body pre {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        .markdown-body pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        .markdown-body ul,
+        .markdown-body ol {
+            padding-left: 24px;
+            margin: 16px 0;
+        }
+
+        .markdown-body li {
+            margin: 4px 0;
+        }
+
+        .markdown-body blockquote {
+            border-left: 3px solid var(--accent-color);
+            padding-left: 16px;
+            margin: 16px 0;
+            color: var(--text-secondary);
+        }
+
+        /* Relevant Files */
+        .relevant-files {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .relevant-files h4 {
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .file-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .file-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 100px;
+            font-size: 0.875rem;
+            color: var(--accent-color);
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Error */
+        .error {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid var(--danger-color);
+            border-radius: 8px;
+            padding: 16px;
+            color: var(--danger-color);
+        }
+
+        /* Mermaid Diagrams */
+        .mermaid {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+        }
+
+        .mermaid svg {
+            max-width: 100%;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+
+            .container {
+                padding: 16px;
+            }
+
+            .input-section {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <h1>🔍 AnswerCode</h1>
+            <p>AI-Powered Code Q&A System - Ask questions about your project and get intelligent answers</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="input-section">
+            <div class="input-group">
+                <label for="projectPath">📁 Project Path <small style="color: var(--text-secondary);">(defaults to
+                        project-code directory)</small></label>
+                <input type="text" id="projectPath"
+                    placeholder="Place your code in the project-code directory, or enter another path"
+                    value="project-code">
+            </div>
+
+            <div class="input-group">
+                <label for="modelProvider">🤖 Model Provider</label>
+                <select id="modelProvider">
+                    <option value="">Loading providers...</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="question">💬 Your Question</label>
+                <textarea id="question"
+                    placeholder="Example: How does the authentication logic work in this project? Or: Help me find all classes related to UserService"></textarea>
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-primary" id="askBtn" onclick="askQuestion()">
+                    <span>🚀</span>
+                    <span>Ask</span>
+                </button>
+                <button class="btn btn-secondary" onclick="clearAll()">
+                    <span>🗑️</span>
+                    <span>Clear</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="answer-section">
+            <div class="answer-header">
+                <h3>📝 AI Answer</h3>
+                <div class="answer-meta" id="answerMeta" style="display: none;">
+                    <span id="processingTime">⏱️ --ms</span>
+                    <span id="sessionId">🔗 --</span>
+                </div>
+            </div>
+            <div class="answer-content" id="answerContent">
+                <div class="empty">Enter your question and click the "Ask" button to begin...</div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script>
+        // Initialize Mermaid with dark theme
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#21262d',
+                primaryColor: '#58a6ff',
+                primaryTextColor: '#e6edf3',
+                lineColor: '#8b949e',
+                secondaryColor: '#30363d',
+                tertiaryColor: '#161b22'
+            }
+        });
+
+        // Custom renderer: convert ```mermaid blocks into <pre class="mermaid"> 
+        const renderer = new marked.Renderer();
+        renderer.code = function (token) {
+            // marked v12 passes a token object; safely extract text and lang
+            const text = (typeof token === 'string' ? token : (token.text || token.code || '')) || '';
+            const lang = (typeof token === 'string' ? '' : (token.lang || '')) || '';
+
+            if (lang === 'mermaid') {
+                return `<pre class="mermaid">${text}</pre>`;
+            }
+
+            // Syntax highlight with highlight.js
+            try {
+                if (lang && hljs.getLanguage(lang)) {
+                    const highlighted = hljs.highlight(text, { language: lang }).value;
+                    return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+                }
+                if (text) {
+                    const auto = hljs.highlightAuto(text).value;
+                    return `<pre><code class="hljs">${auto}</code></pre>`;
+                }
+            } catch (e) {
+                console.warn('Highlight.js error in renderer:', e);
+            }
+
+            // Fallback: plain escaped text
+            const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<pre><code>${escaped}</code></pre>`;
+        };
+
+        marked.setOptions({
+            renderer: renderer,
+            breaks: true,
+            gfm: true
+        });
+
+        let currentSessionId = null;
+        let stepsVisible = true;
+        let stepCounter = 0;
+        let startTime = 0;
+
+        async function loadProviders() {
+            try {
+                const response = await fetch('/api/CodeQA/providers');
+                if (!response.ok) throw new Error('Failed to load providers');
+                const providers = await response.json();
+
+                const select = document.getElementById('modelProvider');
+                select.innerHTML = '';
+
+                for (const [key, displayName] of Object.entries(providers)) {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = displayName;
+                    select.appendChild(option);
+                }
+
+                if (select.options.length > 0) select.selectedIndex = 0;
+            } catch (error) {
+                console.error('Error loading providers:', error);
+                document.getElementById('modelProvider').innerHTML = '<option value="">Error loading providers</option>';
+            }
+        }
+
+        loadProviders();
+
+        async function askQuestion() {
+            const projectPath = document.getElementById('projectPath').value.trim();
+            const question = document.getElementById('question').value.trim();
+            const modelProvider = document.getElementById('modelProvider').value;
+
+            if (!projectPath) { showError('Please enter a project path'); return; }
+            if (!question) { showError('Please enter your question'); return; }
+
+            // Disable button
+            const askBtn = document.getElementById('askBtn');
+            askBtn.disabled = true;
+
+            stepCounter = 0;
+            startTime = Date.now();
+            showStreamingUI();
+
+            try {
+                const response = await fetch('/api/CodeQA/ask/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectPath, question,
+                        sessionId: currentSessionId,
+                        modelProvider
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // Parse SSE events from buffer
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // keep incomplete line
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const event = JSON.parse(line.slice(6));
+                                handleEvent(event);
+                            } catch (e) {
+                                console.warn('Failed to parse SSE event:', line, e);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                askBtn.disabled = false;
+            }
+        }
+
+        function showStreamingUI() {
+            const content = document.getElementById('answerContent');
+            content.innerHTML = `
+                <div class="steps-section" id="stepsSection">
+                    <div class="steps-toggle" onclick="toggleSteps()">
+                        <span class="arrow open" id="stepsArrow">▶</span>
+                        <span>⚠ Steps</span>
+                        <span style="margin-left: 4px; color: var(--text-secondary);">·</span>
+                        <span id="elapsedTime" style="color: var(--text-secondary);">0s</span>
+                    </div>
+                    <div class="steps-list" id="stepsList"></div>
+                </div>
+                <div class="thinking-indicator" id="thinkingIndicator">
+                    <div class="thinking-dots"><span></span><span></span><span></span></div>
+                    <span>Agent is thinking...</span>
+                </div>
+            `;
+
+            // Update elapsed time
+            if (window._elapsedTimer) clearInterval(window._elapsedTimer);
+            window._elapsedTimer = setInterval(() => {
+                const el = document.getElementById('elapsedTime');
+                if (el) {
+                    const elapsed = Math.round((Date.now() - startTime) / 1000);
+                    el.textContent = `${elapsed}s`;
+                }
+            }, 1000);
+
+            document.getElementById('answerMeta').style.display = 'none';
+        }
+
+        function handleEvent(event) {
+            switch (event.type) {
+                case 'Started':
+                    break;
+
+                case 'ToolCallStart':
+                    addStepItem(event, true);
+                    updateThinkingText(`Running ${formatToolName(event.toolName)}...`);
+                    break;
+
+                case 'ToolCallEnd':
+                    markStepDone(event);
+                    updateThinkingText('Agent is thinking...');
+                    break;
+
+                case 'Answer':
+                    if (window._elapsedTimer) clearInterval(window._elapsedTimer);
+                    try {
+                        showFinalAnswer(event.result);
+                    } catch (e) {
+                        console.error('showFinalAnswer error:', e, 'event:', event);
+                        removeThinking();
+                        showError('Failed to render answer: ' + e.message);
+                    }
+                    break;
+
+                case 'Error':
+                    if (window._elapsedTimer) clearInterval(window._elapsedTimer);
+                    removeThinking();
+                    showError(event.summary);
+                    break;
+            }
+        }
+
+        function addStepItem(event, running) {
+            const list = document.getElementById('stepsList');
+            if (!list) return;
+
+            stepCounter++;
+            const id = `step-${stepCounter}`;
+
+            const icon = getToolIcon(event.toolName);
+            const toolLabel = formatToolName(event.toolName);
+
+            const item = document.createElement('div');
+            item.className = `step-item ${running ? 'running' : 'done'}`;
+            item.id = id;
+            item.dataset.toolName = event.toolName;
+            item.innerHTML = `
+                <span class="step-icon ${running ? 'running' : ''}">${icon}</span>
+                <span class="step-tool">${toolLabel}</span>
+                <span class="step-separator">/</span>
+                <span class="step-summary">${escapeHtml(event.summary || '')}</span>
+                <span class="step-duration" id="${id}-dur">${running ? '...' : ''}</span>
+            `;
+
+            list.appendChild(item);
+            item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // Update toggle label
+            updateStepsLabel();
+        }
+
+        function markStepDone(event) {
+            // Find the last running step with matching tool name
+            const list = document.getElementById('stepsList');
+            if (!list) return;
+
+            const items = list.querySelectorAll('.step-item.running');
+            for (let i = items.length - 1; i >= 0; i--) {
+                if (items[i].dataset.toolName === event.toolName) {
+                    items[i].className = 'step-item done';
+                    const icon = items[i].querySelector('.step-icon');
+                    if (icon) {
+                        icon.className = 'step-icon';
+                        icon.textContent = '∞';
+                    }
+                    const dur = items[i].querySelector('.step-duration');
+                    if (dur && event.durationMs != null) {
+                        dur.textContent = event.durationMs < 1000
+                            ? `${event.durationMs}ms`
+                            : `${(event.durationMs / 1000).toFixed(1)}s`;
+                    }
+                    break;
+                }
+            }
+        }
+
+        function getToolIcon(toolName) {
+            switch (toolName) {
+                case 'grep_search': return '🔍';
+                case 'glob_search': return '🔍';
+                case 'read_file': return '∞';
+                case 'list_directory': return '📁';
+                default: return '⚙';
+            }
+        }
+
+        function formatToolName(toolName) {
+            switch (toolName) {
+                case 'grep_search': return 'Grep';
+                case 'glob_search': return 'Glob';
+                case 'read_file': return 'Read';
+                case 'list_directory': return 'ListDir';
+                default: return toolName;
+            }
+        }
+
+        function updateStepsLabel() {
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            const el = document.getElementById('elapsedTime');
+            if (el) el.textContent = `${elapsed}s`;
+        }
+
+        function updateThinkingText(text) {
+            const el = document.getElementById('thinkingIndicator');
+            if (el) {
+                const span = el.querySelector('span:last-child');
+                if (span) span.textContent = text;
+            }
+        }
+
+        function removeThinking() {
+            const el = document.getElementById('thinkingIndicator');
+            if (el) el.remove();
+        }
+
+        function showFinalAnswer(data) {
+            if (!data) {
+                console.warn('showFinalAnswer: no data received');
+                return;
+            }
+
+            console.log('showFinalAnswer received:', data);
+            removeThinking();
+
+            try {
+                const meta = document.getElementById('answerMeta');
+                meta.style.display = 'flex';
+                document.getElementById('processingTime').textContent = `⏱️ ${data.processingTimeMs}ms`;
+                document.getElementById('sessionId').textContent = `🔗 ${(data.sessionId || '').substring(0, 8)}...`;
+
+                currentSessionId = data.sessionId;
+
+                // Update steps elapsed time
+                const elapsed = Math.round((data.processingTimeMs || 0) / 1000);
+                const elapsedEl = document.getElementById('elapsedTime');
+                if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
+
+                // Hide steps toggle text update
+                const toggleEl = document.querySelector('.steps-toggle');
+                if (toggleEl) {
+                    const label = toggleEl.querySelector('span:nth-child(2)');
+                    if (label) label.textContent = `Hide steps`;
+                }
+            } catch (e) {
+                console.warn('Error updating metadata:', e);
+            }
+
+            // Add response section after steps
+            const content = document.getElementById('answerContent');
+            const responseDiv = document.createElement('div');
+            responseDiv.style.marginTop = '16px';
+            responseDiv.style.paddingTop = '16px';
+            responseDiv.style.borderTop = '1px solid var(--border-color)';
+
+            const answerText = data.answer || '(No answer returned)';
+            let parsedHtml = '';
+
+            try {
+                parsedHtml = marked.parse(answerText);
+            } catch (e) {
+                console.warn('marked.parse failed, using raw text:', e);
+                parsedHtml = `<pre style="white-space: pre-wrap;">${escapeHtml(answerText)}</pre>`;
+            }
+
+            let html = `<div style="color: var(--accent-color); font-size: 0.85rem; font-weight: 600; margin-bottom: 12px;">Response</div>`;
+            html += `<div class="markdown-body">${parsedHtml}</div>`;
+
+            if (data.relevantFiles && data.relevantFiles.length > 0) {
+                html += `
+                    <div class="relevant-files">
+                        <h4>📂 Analyzed Files</h4>
+                        <div class="file-list">
+                            ${data.relevantFiles.map(f => `<span class="file-tag">📄 ${f}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            responseDiv.innerHTML = html;
+            content.appendChild(responseDiv);
+
+            // Post-process: convert mermaid code blocks to <pre class="mermaid">
+            // This catches blocks that the renderer didn't intercept
+            responseDiv.querySelectorAll('pre code').forEach(codeEl => {
+                const classList = Array.from(codeEl.classList);
+                const isMermaidClass = classList.some(c => c.includes('mermaid'));
+                const text = codeEl.textContent.trim();
+                const isMermaidContent = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|mindmap|timeline|journey)\b/i.test(text);
+
+                if (isMermaidClass || isMermaidContent) {
+                    const pre = codeEl.parentElement;
+                    pre.className = 'mermaid';
+                    pre.textContent = text;  // Replace <code> with raw text for mermaid
+                }
+            });
+
+            // Scroll to the response
+            responseDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Re-highlight code blocks
+            try {
+                responseDiv.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            } catch (e) {
+                console.warn('Highlight.js error:', e);
+            }
+
+            // Render Mermaid diagrams
+            renderMermaid(responseDiv);
+        }
+
+        async function renderMermaid(container) {
+            const mermaidBlocks = container.querySelectorAll('pre.mermaid');
+            if (mermaidBlocks.length > 0) {
+                try {
+                    await mermaid.run({ nodes: mermaidBlocks });
+                } catch (e) {
+                    console.warn('Mermaid rendering error:', e);
+                }
+            }
+        }
+
+        function toggleSteps() {
+            const list = document.getElementById('stepsList');
+            const arrow = document.getElementById('stepsArrow');
+            if (!list) return;
+
+            stepsVisible = !stepsVisible;
+            list.style.display = stepsVisible ? 'flex' : 'none';
+            arrow.className = `arrow ${stepsVisible ? 'open' : ''}`;
+        }
+
+        function showError(message) {
+            const content = document.getElementById('answerContent');
+            // Keep existing steps if any
+            const existing = content.querySelector('.error');
+            if (existing) existing.remove();
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.innerHTML = `❌ ${escapeHtml(message)}`;
+            content.appendChild(errorDiv);
+        }
+
+        function clearAll() {
+            if (window._elapsedTimer) clearInterval(window._elapsedTimer);
+            document.getElementById('question').value = '';
+            document.getElementById('answerContent').innerHTML = '<div class="empty">Enter your question and click the "Ask" button to begin...</div>';
+            document.getElementById('answerMeta').style.display = 'none';
+            currentSessionId = null;
+            stepCounter = 0;
+        }
+
+        function escapeHtml(text) {
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        // Support Ctrl+Enter / Cmd+Enter
+        document.getElementById('question').addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                askQuestion();
+            }
+        });
+    </script>
+</body>
+
+</html>

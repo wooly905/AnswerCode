@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.2.0-beta.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="appsettings.Local.json" />
+    <Content Include="appsettings.Local.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('appsettings.Local.json')" />
+  </ItemGroup>
+
+  <!-- exclude project-code folder -->
+  <ItemGroup>
+    <Compile Remove="project-code\**\*" />
+    <Content Remove="project-code\**\*" />
+    <None Remove="project-code\**\*" />
+    <EmbeddedResource Remove="project-code\**\*" />
+  </ItemGroup>
+
+</Project>

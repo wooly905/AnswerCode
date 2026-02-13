@@ -11,6 +11,7 @@ public class LLMServiceFactory : ILLMServiceFactory
 {
     private readonly LLMSettings _settings;
     private readonly ILogger<LLMServiceFactory> _logger;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly Dictionary<string, ILLMProvider> _providers = new(StringComparer.OrdinalIgnoreCase);
 
     private const string CodeAnalysisSystemPrompt = @"
@@ -31,10 +32,11 @@ When analyzing code:
 - Explain the code flow when relevant
 ";
 
-    public LLMServiceFactory(IOptions<LLMSettings> options, ILogger<LLMServiceFactory> logger)
+    public LLMServiceFactory(IOptions<LLMSettings> options, ILogger<LLMServiceFactory> logger, ILoggerFactory loggerFactory)
     {
         _settings = options.Value;
         _logger = logger;
+        _loggerFactory = loggerFactory;
 
         if (_settings.Providers == null || _settings.Providers.Count == 0)
         {
@@ -57,11 +59,11 @@ When analyzing code:
             {
                 if (providerKey.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
                 {
-                    _providers[providerKey] = new AzureOpenAIProvider(providerSettings, CodeAnalysisSystemPrompt);
+                    _providers[providerKey] = new AzureOpenAIProvider(providerSettings, CodeAnalysisSystemPrompt, _loggerFactory.CreateLogger<AzureOpenAIProvider>());
                 }
                 else
                 {
-                    _providers[providerKey] = new OpenAIProvider(providerSettings, CodeAnalysisSystemPrompt, providerKey);
+                    _providers[providerKey] = new OpenAIProvider(providerSettings, CodeAnalysisSystemPrompt, _loggerFactory.CreateLogger<OpenAIProvider>(), providerKey);
                 }
                 _logger.LogInformation("✓ Initialized {Provider} provider", providerKey);
             }

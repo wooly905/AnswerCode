@@ -1,7 +1,19 @@
 using AnswerCode.Models;
 using AnswerCode.Services;
 
+using Serilog;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .WriteTo.Console()
+    .WriteTo.File($"logs/log-{DateTime.Now:yyyy-MM-dd_HHmmss}.txt")
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
 
 // Load appsettings.Local.json for local overrides (gitignored - copy from appsettings.Example.json)
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true);

@@ -1,8 +1,10 @@
+using System.ClientModel.Primitives;
+using System.Text.Json;
 using AnswerCode.Models;
 using Azure;
 using Azure.AI.OpenAI;
+using Microsoft.Extensions.Logging;
 using OpenAI.Chat;
-using System.Text.Json;
 
 namespace AnswerCode.Services.Providers;
 
@@ -14,7 +16,7 @@ public class AzureOpenAIProvider : ILLMProvider
     public string Name => "AzureOpenAI";
     public bool SupportsToolCalling => true;
 
-    public AzureOpenAIProvider(LLMProviderSettings settings, string systemPromptBase)
+    public AzureOpenAIProvider(LLMProviderSettings settings, string systemPromptBase, ILogger<AzureOpenAIProvider> logger)
     {
         ArgumentNullException.ThrowIfNull(settings);
         var endpoint = settings.Endpoint ?? throw new InvalidOperationException("AzureOpenAI:Endpoint not configured");
@@ -22,7 +24,13 @@ public class AzureOpenAIProvider : ILLMProvider
         var deploymentName = settings.DeploymentName ?? throw new InvalidOperationException("AzureOpenAI:DeploymentName not configured");
         _systemPromptBase = systemPromptBase;
 
-        var azureClient = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
+        var loggingHandler = new LLMRequestLoggingHandler(logger);
+        var options = new AzureOpenAIClientOptions
+        {
+            Transport = new HttpClientPipelineTransport(new HttpClient(loggingHandler))
+        };
+
+        var azureClient = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey), options);
         _chatClient = azureClient.GetChatClient(deploymentName);
     }
 
@@ -52,10 +60,12 @@ public class AzureOpenAIProvider : ILLMProvider
         };
         var completion = await _chatClient.CompleteChatAsync(messages);
         var response = completion.Value.Content[0].Text.Trim();
-        try {
+        try
+        {
             if (response.StartsWith("```")) response = response.Split('\n').Skip(1).TakeWhile(l => !l.StartsWith("```")).Aggregate("", (a, b) => a + b);
             return JsonSerializer.Deserialize<List<string>>(response) ?? new List<string>();
-        } catch { return new List<string>(); }
+        }
+        catch { return new List<string>(); }
     }
 
     public async Task<string> ChatAsync(IList<ChatMessage> messages)

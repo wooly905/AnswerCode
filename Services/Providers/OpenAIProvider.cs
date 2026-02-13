@@ -1,8 +1,10 @@
-using AnswerCode.Models;
-using OpenAI.Chat;
-using OpenAI;
 using System.ClientModel;
+using System.ClientModel.Primitives;
 using System.Text.Json;
+using AnswerCode.Models;
+using Microsoft.Extensions.Logging;
+using OpenAI;
+using OpenAI.Chat;
 
 namespace AnswerCode.Services.Providers;
 
@@ -16,7 +18,7 @@ public class OpenAIProvider : ILLMProvider
     public string Name => _providerName;
     public bool SupportsToolCalling => true;
 
-    public OpenAIProvider(LLMProviderSettings settings, string systemPromptBase, string providerKey = "OpenAI")
+    public OpenAIProvider(LLMProviderSettings settings, string systemPromptBase, ILogger<OpenAIProvider> logger, string providerKey = "OpenAI")
     {
         ArgumentNullException.ThrowIfNull(settings);
         _providerName = providerKey;
@@ -26,7 +28,11 @@ public class OpenAIProvider : ILLMProvider
         _modelName = settings.Model ?? "gpt-oss-120b";
         _systemPromptBase = systemPromptBase;
 
-        var openAIClient = new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions { Endpoint = new Uri(endpoint) });
+        var openAIClient = new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions
+        {
+            Endpoint = new Uri(endpoint),
+            Transport = new HttpClientPipelineTransport(new HttpClient(new LLMRequestLoggingHandler(logger)))
+        });
         _chatClient = openAIClient.GetChatClient(_modelName);
     }
 

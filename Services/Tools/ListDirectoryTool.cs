@@ -9,7 +9,9 @@ namespace AnswerCode.Services.Tools;
 /// </summary>
 public class ListDirectoryTool : ITool
 {
-    public string Name => "list_directory";
+    public const string ToolName = "list_directory";
+
+    public string Name => ToolName;
 
     public string Description =>
 """

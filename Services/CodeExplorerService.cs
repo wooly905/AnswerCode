@@ -40,13 +40,14 @@ public class CodeExplorerService : ICodeExplorerService
         ".json", ".xml", ".yaml", ".yml", ".toml",      // Config
         ".css", ".scss", ".sass", ".less",              // Styles
         ".html", ".htm", ".cshtml", ".razor",           // Markup
-        ".sh", ".bash", ".ps1", ".psm1", ".bat", ".cmd" // Scripts
+        ".sh", ".bash", ".ps1", ".psm1", ".bat", ".cmd", // Scripts
+        ".log", ".txt", ".ini", ".conf", ".config"      // Logs and Configs
     };
 
     // Documentation file extensions to exclude from search
     private static readonly HashSet<string> DocumentationExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".md", ".txt", ".rst", ".doc", ".docx", ".pdf", ".rtf"
+        ".md", ".rst", ".doc", ".docx", ".pdf", ".rtf"
     };
 
     // Directories to exclude
@@ -72,14 +73,10 @@ public class CodeExplorerService : ICodeExplorerService
                                                            bool caseInsensitive = true,
                                                            string? include = null)
     {
-        _logger.LogInformation("Grep search: pattern={Pattern}, rootPath={RootPath}", pattern, rootPath);
+        _logger.LogInformation("Grep search (C# Only): pattern='{Pattern}', rootPath='{RootPath}', include='{Include}'", pattern, rootPath, include);
 
-        string? rgPath = FindRipgrep();
-
-        if (!string.IsNullOrEmpty(rgPath))
-        {
-            return await RunRipgrepSearchAsync(rgPath, pattern, rootPath, caseInsensitive, include);
-        }
+        // Force C# fallback to avoid OS-dependent issues with external tools like ripgrep
+        // string? rgPath = FindRipgrep(); 
 
         var results = new List<SearchResult>();
         var options = caseInsensitive ? RegexOptions.IgnoreCase : RegexOptions.None;
@@ -95,12 +92,34 @@ public class CodeExplorerService : ICodeExplorerService
             regex = new Regex(Regex.Escape(pattern), options | RegexOptions.Compiled);
         }
 
+        // Prepare include pattern regex if provided
+        Regex? includeRegex = null;
+        if (!string.IsNullOrWhiteSpace(include))
+        {
+            try 
+            {
+                // Simple glob to regex conversion for filters
+                var includePattern = "^" + Regex.Escape(include).Replace("\\*", ".*").Replace("\\?", ".") + "$";
+                includeRegex = new Regex(includePattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            }
+            catch
+            {
+                _logger.LogWarning("Invalid include pattern: {Include}, ignoring.", include);
+            }
+        }
+
         await Task.Run(() =>
         {
             var files = GetCodeFiles(rootPath);
 
             foreach (var file in files)
             {
+                // Filter by include pattern if specified
+                if (includeRegex != null && !includeRegex.IsMatch(Path.GetFileName(file)))
+                {
+                    continue;
+                }
+
                 try
                 {
                     var lines = File.ReadAllLines(file);
@@ -128,9 +147,12 @@ public class CodeExplorerService : ICodeExplorerService
                 {
                     _logger.LogWarning("Failed to read file {File}: {Error}", file, ex.Message);
                 }
+                
+                if (results.Count >= GrepResultLimit) break;
             }
         });
 
+        _logger.LogInformation("C# search found {Count} matches.", results.Count);
         return results;
     }
 

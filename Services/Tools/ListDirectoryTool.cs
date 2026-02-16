@@ -12,33 +12,97 @@ public class ListDirectoryTool : ITool
     public string Name => "list_directory";
 
     public string Description =>
-        "List the contents of a directory as a tree structure. " +
-        "Shows subdirectories and code files. Use 'max_depth' to control traversal depth (default: 3). " +
-        "Path can be absolute or relative to the project root. " +
-        "Use this tool first to understand the project structure before searching for specific code.";
+"""
+List the contents of a specific subdirectory as a tree structure.
+Shows subdirectories and code files. Use 'max_depth' to control traversal depth (default: 3).
+Path can be absolute or relative to the project root.
+The project root structure is already provided in context — use this tool only 
+when you need to explore a subdirectory in more detail than the overview shows.
+""";
 
-    private static readonly HashSet<string> ExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> _excludedDirectories = new(StringComparer.OrdinalIgnoreCase)
     {
-        "node_modules", "bin", "obj", "packages", ".git", ".svn", ".hg",
-        ".vs", ".vscode", ".idea", "dist", "build", "out", "target",
-        "__pycache__", ".pytest_cache", ".mypy_cache", "venv", "env",
-        "vendor", "bower_components", ".nuget"
+        "node_modules",
+        "bin",
+        "obj",
+        "packages",
+        ".git",
+        ".svn",
+        ".hg",
+        ".vs",
+        ".vscode",
+        ".idea",
+        "dist",
+        "build",
+        "out",
+        "target",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        "venv",
+        "env",
+        "vendor",
+        "bower_components",
+        ".nuget"
     };
 
-    private static readonly HashSet<string> CodeExtensions = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> _codeExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".cs", ".csx", ".vb", ".fs", ".fsx",
-        ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
-        ".py", ".pyw", ".pyi",
-        ".java", ".kt", ".kts", ".scala",
-        ".go", ".rs", ".c", ".cpp", ".h", ".hpp",
-        ".rb", ".php", ".swift", ".m", ".mm",
-        ".sql", ".graphql", ".gql",
-        ".json", ".xml", ".yaml", ".yml", ".toml",
-        ".css", ".scss", ".sass", ".less",
-        ".html", ".htm", ".cshtml", ".razor",
-        ".sh", ".bash", ".ps1", ".psm1", ".bat", ".cmd",
-        ".csproj", ".sln", ".props", ".targets"
+        ".cs",
+        ".csx",
+        ".vb",
+        ".fs",
+        ".fsx",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".mjs",
+        ".cjs",
+        ".py",
+        ".pyw",
+        ".pyi",
+        ".java",
+        ".kt",
+        ".kts",
+        ".scala",
+        ".go",
+        ".rs",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".rb",
+        ".php",
+        ".swift",
+        ".m",
+        ".mm",
+        ".sql",
+        ".graphql",
+        ".gql",
+        ".json",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
+        ".html",
+        ".htm",
+        ".cshtml",
+        ".razor",
+        ".sh",
+        ".bash",
+        ".ps1",
+        ".psm1",
+        ".bat",
+        ".cmd",
+        ".csproj",
+        ".sln",
+        ".props",
+        ".targets"
     };
 
     public ChatTool GetChatToolDefinition()
@@ -77,7 +141,9 @@ public class ListDirectoryTool : ITool
             : Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(context.RootPath, path));
 
         if (!Directory.Exists(dirPath))
+        {
             return Task.FromResult($"Error: Directory not found: {dirPath}");
+        }
 
         var sb = new StringBuilder();
         var relRoot = Path.GetRelativePath(context.RootPath, dirPath);
@@ -91,20 +157,22 @@ public class ListDirectoryTool : ITool
 
     private static void BuildTree(DirectoryInfo dir, StringBuilder sb, string indent, int maxDepth, int currentDepth)
     {
-        if (currentDepth >= maxDepth || ExcludedDirectories.Contains(dir.Name))
+        if (currentDepth >= maxDepth || _excludedDirectories.Contains(dir.Name))
+        {
             return;
+        }
 
         try
         {
             var subDirs = dir.GetDirectories()
-                .Where(d => !ExcludedDirectories.Contains(d.Name))
-                .OrderBy(d => d.Name)
-                .ToList();
+                             .Where(d => !_excludedDirectories.Contains(d.Name))
+                             .OrderBy(d => d.Name)
+                             .ToList();
 
             var files = dir.GetFiles()
-                .Where(f => CodeExtensions.Contains(f.Extension))
-                .OrderBy(f => f.Name)
-                .ToList();
+                           .Where(f => _codeExtensions.Contains(f.Extension))
+                           .OrderBy(f => f.Name)
+                           .ToList();
 
             foreach (var subDir in subDirs)
             {

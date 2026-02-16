@@ -73,10 +73,15 @@ The agent uses these tools to explore your codebase:
 
 | Tool | Description |
 |------|-------------|
-| `list_directory` | List files and subdirectories in a path |
+| `get_file_outline` | Get structural outline of a file (classes, methods, properties) with line numbers — much more token-efficient than reading the whole file |
+| `find_definition` | Find where a symbol (class, interface, method, etc.) is defined — more precise than grep |
+| `get_related_files` | Find a file's dependencies (imports) and dependents (files that reference it) |
 | `grep_search` | Search file contents by pattern (regex) |
 | `glob_search` | Find files by name pattern (e.g. `*.cs`) |
 | `read_file` | Read file contents (with optional line range) |
+| `list_directory` | List files in a subdirectory (project root structure is auto-injected) |
+
+**Auto-injected context:** The agent automatically receives a project overview (directory structure, language, framework, dependencies) at the start of each conversation, eliminating the need for an initial `list_directory` call and saving one full LLM round-trip.
 
 ## Project Structure
 

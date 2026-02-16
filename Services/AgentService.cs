@@ -1,5 +1,6 @@
-using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AnswerCode.Models;
 using AnswerCode.Services.Providers;
 using AnswerCode.Services.Tools;
@@ -17,19 +18,25 @@ public class AgentService : IAgentService
     private readonly ILLMServiceFactory _llmFactory;
     private readonly ToolRegistry _toolRegistry;
 
-    private const int MaxIterations = 30;
+    private const int _maxIterations = 30;
 
-    private const string AgentSystemPrompt = @"
+    private const string _agentSystemPrompt = @"
 You are an expert code analyst with access to tools for exploring a codebase.
 Your task is to answer user questions about the code by using the available tools.
 
+A project overview (directory structure and metadata) is automatically provided with the user's question.
+Use this overview to plan your exploration — do NOT call list_directory on the project root.
+
 ## Strategy
-1. Start by using `list_directory` to understand the project structure.
-2. Use `grep_search` to find relevant code by searching for keywords, class names, function names, or patterns.
-3. Use `glob_search` to find files by name (faster than grep when you know the filename pattern).
-4. Use `read_file` to examine the full contents of specific files found in search results.
-5. If your initial search doesn't find what you need, try different keywords, patterns, or file filters.
-6. Continue searching until you have enough context to answer the question confidently.
+1. Review the project overview already provided — it includes directory structure and key metadata.
+2. Use `get_file_outline` to understand a file's structure before reading it (much more efficient than reading the whole file).
+3. Use `grep_search` to find relevant code by searching for keywords, class names, function names, or patterns.
+4. Use `find_definition` to locate where a class, method, interface, or type is defined.
+5. Use `get_related_files` to discover a file's dependencies and dependents.
+6. Use `glob_search` to find files by name pattern (faster when you know the filename pattern).
+7. Use `read_file` to read specific sections of files — use offset and max_lines for efficiency.
+8. Use `list_directory` only if you need to explore a subdirectory not shown in the overview.
+9. If your initial search doesn't find what you need, try different keywords, patterns, or file filters.
 
 ## Rules
 - Be thorough: search with multiple keywords and patterns if the first search doesn't fully answer the question.
@@ -39,6 +46,8 @@ Your task is to answer user questions about the code by using the available tool
 - Respond in the same language as the user's question.
 - Focus on the code that exists — don't make assumptions about code you haven't read.
 - When analyzing code flow, trace through function calls and class relationships.
+- Prefer get_file_outline over read_file when you only need to understand a file's structure.
+- Prefer find_definition over grep_search when looking for where something is defined.
 ";
 
     public AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory)
@@ -51,6 +60,9 @@ Your task is to answer user questions about the code by using the available tool
         _toolRegistry.Register(new ReadFileTool());
         _toolRegistry.Register(new ListDirectoryTool());
         _toolRegistry.Register(new GlobTool());
+        _toolRegistry.Register(new FileOutlineTool());
+        _toolRegistry.Register(new FindDefinitionTool());
+        _toolRegistry.Register(new RelatedFilesTool());
     }
 
     /// <summary>
@@ -96,16 +108,17 @@ Your task is to answer user questions about the code by using the available tool
         var chatTools = _toolRegistry.GetChatToolDefinitions();
         var filesAccessed = new HashSet<string>();
 
+        var projectOverview = BuildProjectOverview(rootPath);
         var messages = new List<ChatMessage>
         {
-            new SystemChatMessage(AgentSystemPrompt),
-            new UserChatMessage($"Project root: {rootPath}\n\nQuestion: {question}")
+            new SystemChatMessage(_agentSystemPrompt),
+            new UserChatMessage($"## Project Overview\n{projectOverview}\n\n## Question\n{question}")
         };
 
-        for (int iteration = 0; iteration < MaxIterations; iteration++)
+        for (int iteration = 0; iteration < _maxIterations; iteration++)
         {
             result.IterationCount = iteration + 1;
-            _logger.LogInformation("Agent iteration {Iteration}/{Max}", iteration + 1, MaxIterations);
+            _logger.LogInformation("Agent iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
 
             LLMChatResponse response;
             try
@@ -125,8 +138,7 @@ Your task is to answer user questions about the code by using the available tool
             if (!response.IsToolCall)
             {
                 result.Answer = response.TextContent ?? "";
-                _logger.LogInformation("Agent finished after {Iterations} iterations, {ToolCalls} tool calls",
-                    iteration + 1, result.TotalToolCalls);
+                _logger.LogInformation("Agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
                 break;
             }
 
@@ -188,7 +200,10 @@ Your task is to answer user questions about the code by using the available tool
                         {
                             var filePath = fp.GetString() ?? "";
                             if (!Path.IsPathRooted(filePath))
+                            {
                                 filePath = Path.GetFullPath(Path.Combine(rootPath, filePath));
+                            }
+
                             filesAccessed.Add(Path.GetRelativePath(rootPath, filePath));
                         }
                     }
@@ -216,11 +231,10 @@ Your task is to answer user questions about the code by using the available tool
 
         if (string.IsNullOrEmpty(result.Answer))
         {
-            result.Answer = "I was unable to complete my analysis within the allowed number of iterations. " +
-                            "Please try asking a more specific question.";
+            result.Answer = "I was unable to complete my analysis within the allowed number of iterations. Please try asking a more specific question.";
         }
 
-        result.RelevantFiles = filesAccessed.ToList();
+        result.RelevantFiles = [.. filesAccessed];
         return result;
     }
 
@@ -234,18 +248,13 @@ Your task is to answer user questions about the code by using the available tool
             var args = JsonSerializer.Deserialize<JsonElement>(argsJson);
             return toolName switch
             {
-                "grep_search" =>
-                    $"pattern={args.GetProperty("pattern").GetString()}" +
-                    (args.TryGetProperty("include", out var gi) ? $"  include={gi.GetString()}" : ""),
+                "grep_search" => $"pattern={args.GetProperty("pattern").GetString()}" + (args.TryGetProperty("include", out var gi) ? $"  include={gi.GetString()}" : ""),
 
-                "glob_search" =>
-                    $"pattern={args.GetProperty("pattern").GetString()}",
+                "glob_search" => $"pattern={args.GetProperty("pattern").GetString()}",
 
-                "read_file" =>
-                    ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
+                "read_file" => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
 
-                "list_directory" =>
-                    args.TryGetProperty("path", out var lp) && lp.GetString() is string p && p.Length > 0
+                "list_directory" => args.TryGetProperty("path", out var lp) && lp.GetString() is string p && p.Length > 0
                         ? ExtractFileName(p, rootPath)
                         : "(project root)",
 
@@ -260,13 +269,303 @@ Your task is to answer user questions about the code by using the available tool
 
     private static string ExtractFileName(string filePath, string rootPath)
     {
-        if (string.IsNullOrEmpty(filePath)) return "(unknown)";
+        if (string.IsNullOrEmpty(filePath))
+        {
+            return "(unknown)";
+        }
+
         try
         {
             var full = Path.IsPathRooted(filePath) ? filePath : Path.GetFullPath(Path.Combine(rootPath, filePath));
             return Path.GetFileName(full);
         }
-        catch { return Path.GetFileName(filePath); }
+        catch
+        {
+            return Path.GetFileName(filePath);
+        }
+    }
+
+    // ── Project Overview Builder ───────────────────────────────────────
+
+    /// <summary>
+    /// Build a compact project overview containing metadata and directory structure.
+    /// This is auto-injected into the initial user message so the agent can start
+    /// exploring immediately without wasting an iteration on list_directory.
+    /// </summary>
+    private string BuildProjectOverview(string rootPath)
+    {
+        var sb = new StringBuilder();
+
+        // Project name
+        sb.AppendLine($"Project root: {rootPath}");
+        sb.AppendLine($"Project name: {Path.GetFileName(rootPath)}");
+
+        // Detect project type and parse metadata
+        BuildProjectMetadata(rootPath, sb);
+
+        // Compact directory tree
+        sb.AppendLine();
+        sb.AppendLine("Directory structure:");
+        BuildCompactTree(new DirectoryInfo(rootPath), sb, "  ", maxDepth: 3, currentDepth: 0);
+
+        return sb.ToString();
+    }
+
+    private static void BuildProjectMetadata(string rootPath, StringBuilder sb)
+    {
+        // .NET projects (.csproj)
+        try
+        {
+            var csprojFiles = Directory.GetFiles(rootPath, "*.csproj", SearchOption.TopDirectoryOnly);
+            if (csprojFiles.Length > 0)
+            {
+                var content = File.ReadAllText(csprojFiles[0]);
+                var tfm = Regex.Match(content, @"<TargetFramework>(.*?)</TargetFramework>");
+                var sdk = Regex.Match(content, @"<Project\s+Sdk=""(.*?)""");
+                sb.AppendLine($"Type: .NET ({(tfm.Success ? tfm.Groups[1].Value : "unknown")})");
+
+                if (sdk.Success)
+                {
+                    sb.AppendLine($"SDK: {sdk.Groups[1].Value}");
+                }
+
+                var packages = Regex.Matches(content, @"<PackageReference\s+Include=""([^""]+)""\s+Version=""([^""]+)""");
+
+                if (packages.Count > 0)
+                {
+                    sb.AppendLine("Dependencies:");
+                    foreach (Match m in packages.Cast<Match>().Take(15))
+                    {
+                        sb.AppendLine($"  - {m.Groups[1].Value} ({m.Groups[2].Value})");
+                    }
+                }
+                return;
+            }
+        }
+        catch { /* continue */ }
+
+        // Node.js (package.json)
+        try
+        {
+            var packageJsonPath = Path.Combine(rootPath, "package.json");
+            if (File.Exists(packageJsonPath))
+            {
+                var content = File.ReadAllText(packageJsonPath);
+                using var doc = JsonDocument.Parse(content);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("name", out var name))
+                {
+                    sb.AppendLine($"Package: {name.GetString()}");
+                }
+
+                sb.AppendLine("Type: Node.js");
+
+                if (root.TryGetProperty("dependencies", out var deps))
+                {
+                    sb.AppendLine("Dependencies:");
+                    int count = 0;
+                    foreach (var prop in deps.EnumerateObject().Take(15))
+                    {
+                        sb.AppendLine($"  - {prop.Name} ({prop.Value.GetString()})");
+                        count++;
+                    }
+                }
+                return;
+            }
+        }
+        catch { /* continue */ }
+
+        // Python (pyproject.toml, requirements.txt, setup.py)
+        try
+        {
+            if (File.Exists(Path.Combine(rootPath, "pyproject.toml")))
+            {
+                sb.AppendLine("Type: Python (pyproject.toml)");
+                return;
+            }
+
+            if (File.Exists(Path.Combine(rootPath, "requirements.txt")))
+            {
+                sb.AppendLine("Type: Python");
+                var reqs = File.ReadAllLines(Path.Combine(rootPath, "requirements.txt"))
+                    .Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith('#'))
+                    .Take(15);
+                if (reqs.Any())
+                {
+                    sb.AppendLine("Dependencies:");
+                    foreach (var r in reqs)
+                    {
+                        sb.AppendLine($"  - {r.Trim()}");
+                    }
+                }
+                return;
+            }
+        }
+        catch
+        {
+            /* continue */
+        }
+
+        // Go (go.mod)
+        try
+        {
+            var goModPath = Path.Combine(rootPath, "go.mod");
+            if (File.Exists(goModPath))
+            {
+                var content = File.ReadAllText(goModPath);
+                var module = Regex.Match(content, @"^module\s+(.+)$", RegexOptions.Multiline);
+                if (module.Success)
+                {
+                    sb.AppendLine($"Module: {module.Groups[1].Value.Trim()}");
+                }
+
+                sb.AppendLine("Type: Go");
+                return;
+            }
+        }
+        catch
+        {
+            /* continue */
+        }
+
+        // Rust (Cargo.toml)
+        try
+        {
+            if (File.Exists(Path.Combine(rootPath, "Cargo.toml")))
+            {
+                sb.AppendLine("Type: Rust (Cargo)");
+                return;
+            }
+        }
+        catch { /* continue */ }
+
+        // Java (pom.xml, build.gradle)
+        try
+        {
+            if (File.Exists(Path.Combine(rootPath, "pom.xml")))
+            {
+                sb.AppendLine("Type: Java (Maven)");
+                return;
+            }
+            if (File.Exists(Path.Combine(rootPath, "build.gradle"))
+                || File.Exists(Path.Combine(rootPath, "build.gradle.kts")))
+            {
+                sb.AppendLine("Type: Java (Gradle)");
+                return;
+            }
+        }
+        catch { /* continue */ }
+    }
+
+    private static readonly HashSet<string> _overviewExcludedDirs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "node_modules",
+        "bin",
+        "obj",
+        "packages",
+        ".git",
+        ".svn",
+        ".hg",
+        ".vs",
+        ".vscode",
+        ".idea",
+        "dist",
+        "build",
+        "out",
+        "target",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        "venv",
+        "env",
+        "vendor",
+        "bower_components",
+        ".nuget"
+    };
+
+    private static readonly HashSet<string> _overviewCodeExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".cs",
+        ".csx",
+        ".vb",
+        ".fs",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".mjs",
+        ".py",
+        ".java",
+        ".kt",
+        ".go",
+        ".rs",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".rb",
+        ".php",
+        ".swift",
+        ".sql",
+        ".graphql",
+        ".json",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".css",
+        ".scss",
+        ".html",
+        ".cshtml",
+        ".razor",
+        ".sh",
+        ".ps1",
+        ".csproj",
+        ".sln",
+        ".props"
+    };
+
+    private static void BuildCompactTree(DirectoryInfo dir,
+                                         StringBuilder sb,
+                                         string indent,
+                                         int maxDepth,
+                                         int currentDepth)
+    {
+        if (currentDepth >= maxDepth || _overviewExcludedDirs.Contains(dir.Name))
+        {
+            return;
+        }
+
+        try
+        {
+            var subDirs = dir.GetDirectories()
+                             .Where(d => !_overviewExcludedDirs.Contains(d.Name))
+                             .OrderBy(d => d.Name)
+                             .ToList();
+
+            var files = dir.GetFiles()
+                           .Where(f => _overviewCodeExtensions.Contains(f.Extension))
+                           .OrderBy(f => f.Name)
+                           .ToList();
+
+            foreach (var subDir in subDirs)
+            {
+                sb.AppendLine($"{indent}{subDir.Name}/");
+                BuildCompactTree(subDir, sb, indent + "  ", maxDepth, currentDepth + 1);
+            }
+
+            foreach (var file in files.Take(30))
+            {
+                sb.AppendLine($"{indent}  {file.Name}");
+            }
+
+            if (files.Count > 30)
+            {
+                sb.AppendLine($"{indent}  ... and {files.Count - 30} more files");
+            }
+        }
+        catch (UnauthorizedAccessException) { }
     }
 
     /// <summary>
@@ -289,16 +588,17 @@ Your task is to answer user questions about the code by using the available tool
         var toolDescriptions = _toolRegistry.GetReActToolDescriptions();
         var systemPrompt = ReActParser.BuildReActSystemPrompt(toolDescriptions);
 
+        var projectOverview = BuildProjectOverview(rootPath);
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(systemPrompt),
-            new UserChatMessage($"Project root: {rootPath}\n\nQuestion: {question}")
+            new UserChatMessage($"## Project Overview\n{projectOverview}\n\n## Question\n{question}")
         };
 
-        for (int iteration = 0; iteration < MaxIterations; iteration++)
+        for (int iteration = 0; iteration < _maxIterations; iteration++)
         {
             result.IterationCount = iteration + 1;
-            _logger.LogInformation("ReAct iteration {Iteration}/{Max}", iteration + 1, MaxIterations);
+            _logger.LogInformation("ReAct iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
 
             // Call LLM (plain text chat, no tool definitions)
             string llmResponse;
@@ -325,8 +625,7 @@ Your task is to answer user questions about the code by using the available tool
                 // No tool calls — LLM is giving the final answer
                 // Strip any residual tool_call tags just in case
                 result.Answer = llmResponse;
-                _logger.LogInformation("ReAct agent finished after {Iterations} iterations, {ToolCalls} tool calls",
-                    iteration + 1, result.TotalToolCalls);
+                _logger.LogInformation("ReAct agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
                 break;
             }
 
@@ -390,7 +689,10 @@ Your task is to answer user questions about the code by using the available tool
                         {
                             var filePath = fp.GetString() ?? "";
                             if (!Path.IsPathRooted(filePath))
+                            {
                                 filePath = Path.GetFullPath(Path.Combine(rootPath, filePath));
+                            }
+
                             filesAccessed.Add(Path.GetRelativePath(rootPath, filePath));
                         }
                     }

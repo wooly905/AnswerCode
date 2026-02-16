@@ -19,9 +19,7 @@ public static class ReActParser
     /// Regex to match &lt;tool_call&gt;...&lt;/tool_call&gt; blocks in LLM output.
     /// Supports optional whitespace/newlines inside the tags.
     /// </summary>
-    private static readonly Regex ToolCallRegex = new(
-        @"<tool_call>\s*(\{.*?\})\s*</tool_call>",
-        RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex _toolCallRegex = new(@"<tool_call>\s*(\{.*?\})\s*</tool_call>", RegexOptions.Singleline | RegexOptions.Compiled);
 
     /// <summary>
     /// Parse all tool calls from an LLM text response.
@@ -30,7 +28,7 @@ public static class ReActParser
     public static List<ReActToolCall> ParseToolCalls(string llmResponse)
     {
         var results = new List<ReActToolCall>();
-        var matches = ToolCallRegex.Matches(llmResponse);
+        var matches = _toolCallRegex.Matches(llmResponse);
 
         foreach (Match match in matches)
         {
@@ -68,7 +66,7 @@ public static class ReActParser
     /// </summary>
     public static bool HasToolCalls(string llmResponse)
     {
-        return ToolCallRegex.IsMatch(llmResponse);
+        return _toolCallRegex.IsMatch(llmResponse);
     }
 
     /// <summary>
@@ -78,7 +76,7 @@ public static class ReActParser
     public static string ExtractThinkingText(string llmResponse)
     {
         // Remove all <tool_call>...</tool_call> blocks
-        return ToolCallRegex.Replace(llmResponse, "").Trim();
+        return _toolCallRegex.Replace(llmResponse, "").Trim();
     }
 
     /// <summary>
@@ -92,8 +90,7 @@ public static class ReActParser
             return $"<tool_result name=\"{name}\">\n{result}\n</tool_result>";
         }
 
-        var parts = toolResults.Select(tr =>
-            $"<tool_result name=\"{tr.ToolName}\">\n{tr.Result}\n</tool_result>");
+        var parts = toolResults.Select(tr => $"<tool_result name=\"{tr.ToolName}\">\n{tr.Result}\n</tool_result>");
 
         return string.Join("\n\n", parts);
     }
@@ -126,12 +123,16 @@ IMPORTANT RULES:
 - When you have enough information to answer, respond directly WITHOUT any <tool_call> tags.
 
 ## Strategy
-1. Start by using `list_directory` to understand the project structure.
-2. Use `grep_search` to find relevant code by searching for keywords, class names, function names, or patterns.
-3. Use `glob_search` to find files by name (faster than grep when you know the filename pattern).
-4. Use `read_file` to examine the full contents of specific files found in search results.
-5. If your initial search doesn't find what you need, try different keywords, patterns, or file filters.
-6. Continue searching until you have enough context to answer the question confidently.
+A project overview (directory structure and metadata) is automatically provided with the user's question.
+1. Review the project overview already provided — it includes directory structure and key metadata.
+2. Use `get_file_outline` to understand a file's structure before reading it (much more efficient than reading the whole file).
+3. Use `grep_search` to find relevant code by searching for keywords, class names, function names, or patterns.
+4. Use `find_definition` to locate where a class, method, interface, or type is defined.
+5. Use `get_related_files` to discover a file's dependencies and dependents.
+6. Use `glob_search` to find files by name pattern (faster when you know the filename pattern).
+7. Use `read_file` to read specific sections of files — use offset and max_lines for efficiency.
+8. Use `list_directory` only if you need to explore a subdirectory not shown in the overview.
+9. If your initial search doesn't find what you need, try different keywords, patterns, or file filters.
 
 ## Rules
 - Be thorough: search with multiple keywords and patterns if the first search doesn't fully answer the question.
@@ -141,6 +142,8 @@ IMPORTANT RULES:
 - Respond in the same language as the user's question.
 - Focus on the code that exists — don't make assumptions about code you haven't read.
 - When analyzing code flow, trace through function calls and class relationships.
+- Prefer get_file_outline over read_file when you only need to understand a file's structure.
+- Prefer find_definition over grep_search when looking for where something is defined.
 ";
     }
 }
@@ -153,10 +156,16 @@ public class ReActToolCall
     /// <summary>
     /// The tool/function name to call
     /// </summary>
-    public required string FunctionName { get; init; }
+    public required string FunctionName
+    {
+        get; init;
+    }
 
     /// <summary>
     /// The arguments as a JSON string
     /// </summary>
-    public required string Arguments { get; init; }
+    public required string Arguments
+    {
+        get; init;
+    }
 }

@@ -14,15 +14,15 @@ namespace AnswerCode.Services.Tools;
 /// </summary>
 public class FindDefinitionTool : ITool
 {
-    public string Name => "find_definition";
+    public const string ToolName = "find_definition";
+
+    public string Name => ToolName;
 
     public string Description =>
-"""
-Find where a symbol (class, interface, method, function, enum, type, etc.) is defined in the codebase.
-More precise than grep_search — returns only definition sites, not every usage.
-Supports C#, TypeScript/JavaScript, Python, Java, and Go.
-Optionally filter by file pattern (e.g. \"*.cs\").
-""";
+        "Find where a symbol (class, interface, method, function, enum, type, etc.) is defined in the codebase. " +
+        "More precise than grep_search — returns only definition sites, not every usage. " +
+        "Supports C#, TypeScript/JavaScript, Python, Java, and Go. " +
+        "Optionally filter by file pattern (e.g. \"*.cs\"). ";
 
     private const int _maxResults = 20;
 

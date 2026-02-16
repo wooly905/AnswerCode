@@ -7,11 +7,13 @@ using OpenAI.Chat;
 namespace AnswerCode.Services.Tools;
 
 /// <summary>
-/// Grep tool — searches file contents using regex (via ripgrep or built-in)
+/// Grep tool — searches file contents using regex
 /// </summary>
 public class GrepTool : ITool
 {
-    public string Name => "grep_search";
+    public const string ToolName = "grep_search";
+
+    public string Name => ToolName;
 
     public string Description =>
         "Search file contents using regular expressions. " +
@@ -82,6 +84,10 @@ public class GrepTool : ITool
         var args = new List<string>
         {
             "-nH", "--hidden", "--no-messages",
+            "--no-ignore", // Ignore .gitignore to search in folders like project-code
+            "--glob", "!**/.git/**", // Explicitly exclude .git
+            "--glob", "!**/bin/**",  // Explicitly exclude bin
+            "--glob", "!**/obj/**",  // Explicitly exclude obj
             "--field-match-separator=|",
             "-i", // case insensitive
             "--regexp", pattern
@@ -170,7 +176,10 @@ public class GrepTool : ITool
         await Task.Run(() =>
         {
             foreach (var file in Directory.EnumerateFiles(rootPath, "*", new EnumerationOptions
-                     { RecurseSubdirectories = true, IgnoreInaccessible = true }))
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true
+            }))
             {
                 var ext = Path.GetExtension(file);
                 if (!codeExtensions.Contains(ext)) continue;

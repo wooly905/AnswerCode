@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using OpenAI.Chat;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
+using OpenAI.Chat;
 
 namespace AnswerCode.Services.Tools;
 
@@ -12,7 +12,9 @@ namespace AnswerCode.Services.Tools;
 /// </summary>
 public class GlobTool : ITool
 {
-    public string Name => "glob_search";
+    public const string ToolName = "glob_search";
+
+    public string Name => ToolName;
 
     public string Description =>
         "Find files by name pattern using glob syntax. " +

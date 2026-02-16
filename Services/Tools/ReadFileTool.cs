@@ -9,7 +9,9 @@ namespace AnswerCode.Services.Tools;
 /// </summary>
 public class ReadFileTool : ITool
 {
-    public string Name => "read_file";
+    public const string ToolName = "read_file";
+
+    public string Name => ToolName;
 
     public string Description =>
         "Read the contents of a file. Returns file content with line numbers. " +
@@ -24,11 +26,42 @@ public class ReadFileTool : ITool
 
     private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".dll", ".pdb", ".obj", ".bin", ".zip", ".rar", ".7z", ".tar", ".gz",
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp",
-        ".mp3", ".mp4", ".avi", ".mov", ".wav", ".flac",
-        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-        ".woff", ".woff2", ".ttf", ".eot", ".otf"
+        ".7z",
+        ".avi",
+        ".bin",
+        ".bmp",
+        ".dll",
+        ".doc",
+        ".docx",
+        ".eot",
+        ".exe",
+        ".flac",
+        ".gif",
+        ".gz",
+        ".ico",
+        ".jpeg",
+        ".jpg",
+        ".mov",
+        ".mp3",
+        ".mp4",
+        ".obj",
+        ".otf",
+        ".pdb",
+        ".pdf",
+        ".png",
+        ".ppt",
+        ".pptx",
+        ".rar",
+        ".svg",
+        ".tar",
+        ".ttf",
+        ".wav",
+        ".webp",
+        ".woff",
+        ".woff2",
+        ".xls",
+        ".xlsx",
+        ".zip"
     };
 
     public ChatTool GetChatToolDefinition()
@@ -69,18 +102,26 @@ public class ReadFileTool : ITool
         int maxLines = args.TryGetProperty("max_lines", out var ml) ? ml.GetInt32() : DefaultMaxLines;
 
         if (string.IsNullOrWhiteSpace(filePath))
+        {
             return "Error: file_path is required";
+        }
 
         // Resolve relative paths
         if (!Path.IsPathRooted(filePath))
+        {
             filePath = Path.GetFullPath(Path.Combine(context.RootPath, filePath));
+        }
 
         if (!File.Exists(filePath))
+        {
             return $"Error: File not found: {filePath}";
+        }
 
         var ext = Path.GetExtension(filePath);
         if (BinaryExtensions.Contains(ext))
+        {
             return $"[Binary file: {filePath}]";
+        }
 
         try
         {
@@ -114,11 +155,17 @@ public class ReadFileTool : ITool
             }
 
             if (truncatedByBytes)
+            {
                 sb.AppendLine($"\n(Output truncated at {MaxBytes / 1024}KB. Use 'offset' to read beyond this point.)");
+            }
             else if (end < lines.Length)
+            {
                 sb.AppendLine($"\n(File has {lines.Length - end} more lines. Use offset={end} to continue reading.)");
+            }
             else
+            {
                 sb.AppendLine($"\n(End of file — {lines.Length} total lines)");
+            }
 
             return sb.ToString();
         }

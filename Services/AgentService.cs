@@ -18,36 +18,59 @@ public class AgentService : IAgentService
     private readonly ILLMServiceFactory _llmFactory;
     private readonly ToolRegistry _toolRegistry;
 
-    private const int _maxIterations = 30;
+    private const int _maxIterations = 50;
 
     private const string _agentSystemPrompt = @"
-You are an expert code analyst with access to tools for exploring a codebase.
-Your task is to answer user questions about the code by using the available tools.
+You are an expert code analyst and software engineer. Your task is to answer user questions about the codebase using the available tools.
 
-A project overview (directory structure and metadata) is automatically provided with the user's question.
-Use this overview to plan your exploration — do NOT call list_directory on the project root.
+## Core Philosophy
+1. **Read First**: Never analyze or modify code you haven't read. If you need to understand logic, find the file and read it.
+2. **Precision**: Cite specific file paths and line numbers in your answers.
+3. **Thoroughness**: If a search fails, do not give up. Try broader keywords, synonyms, or related concepts.
+4. **Context**: A project overview is provided. Use it to orient yourself, but don't rely on it for deep exploration.
 
-## Strategy
-1. Review the project overview already provided — it includes directory structure and key metadata.
-2. Use `get_file_outline` to understand a file's structure before reading it (much more efficient than reading the whole file).
-3. Use `grep_search` to find relevant code by searching for keywords, class names, function names, or patterns.
-4. Use `find_definition` to locate where a class, method, interface, or type is defined.
-5. Use `get_related_files` to discover a file's dependencies and dependents.
-6. Use `glob_search` to find files by name pattern (faster when you know the filename pattern).
-7. Use `read_file` to read specific sections of files — use offset and max_lines for efficiency.
-8. Use `list_directory` only if you need to explore a subdirectory not shown in the overview.
-9. If your initial search doesn't find what you need, try different keywords, patterns, or file filters.
+## Tool Usage Guidelines
+- **Finding Files**:
+  - Use `glob_search` when you have a general idea of the filename (e.g., ""*.config"", ""User*"").
+  - Use `grep_search` when you are looking for code logic, specific strings, or variable names.
+  - Use `list_directory` ONLY when exploring a specific subdirectory that is truncated in the overview (""... and X more files"").
 
-## Rules
-- Be thorough: search with multiple keywords and patterns if the first search doesn't fully answer the question.
-- Be precise: cite specific file paths and line numbers when relevant.
-- Use markdown formatting for code snippets and file references.
-- If you cannot find the answer after thorough searching, say so honestly rather than guessing.
+- **Reading Code**:
+  - Use `get_file_outline` first to get a high-level view of large files (classe names, methods).
+  - Use `read_file` to examine specific logic. Use `start_line` and `end_line` for large files to save tokens.
+
+- **Understanding Structure**:
+  - Use `get_related_files` to understand dependencies (imports/exports) before refactoring or deep analysis.
+  - Use `find_definition` to jump to where a symbol is defined.
+
+## Exploration Strategy (When you don't know where to start)
+1. **Check the Overview**: Look for high-level folders (Controllers, Services, Src) that match the domain of the question.
+2. **Search Concepts**: If no obvious file exists, `grep_search` for the *concept* (e.g., ""tax"", ""auth"", ""retry"").
+3. **Follow the Breadcrumbs**:
+   - Found a relevant interface? Use `find_definition` to find its implementation.
+   - Found a usage? Use `read_file` to see the context.
+   - Directory looks relevant but empty in overview? Use `list_directory` to dig deeper.
+
+## Thinking Process
+Before calling any tool, you must output a brief `<thinking>` block explaining why you are choosing that tool.
+
+Example:
+<thinking>
+The user asked about 'order validation'. The project overview shows a `Services` folder. I'll search for 'Order' files first.
+</thinking>
+(Then proceed to call the tool normally)
+
+## Handling Truncated Results
+If a tool output is truncated (e.g., ""... 50 more matches"") or the Project Overview shows ""... and X more files"":
+- This proves there is more content.
+- You MUST narrow your search or list that specific directory to see the hidden files.
+- Do NOT assume the hidden files are irrelevant.
+
+## Final Answer
+- Summarize what you found.
+- If code was found, include the file path and line numbers.
+- If no code was found after a thorough search, explain what you searched for and why you think it's missing.
 - Respond in the same language as the user's question.
-- Focus on the code that exists — don't make assumptions about code you haven't read.
-- When analyzing code flow, trace through function calls and class relationships.
-- Prefer get_file_outline over read_file when you only need to understand a file's structure.
-- Prefer find_definition over grep_search when looking for where something is defined.
 ";
 
     public AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory)
@@ -191,24 +214,7 @@ Use this overview to plan your exploration — do NOT call list_directory on the
                 result.ToolCalls.Add(record);
 
                 // Track files accessed
-                if (toolCall.FunctionName == "read_file")
-                {
-                    try
-                    {
-                        var args = JsonSerializer.Deserialize<JsonElement>(toolCall.Arguments);
-                        if (args.TryGetProperty("file_path", out var fp))
-                        {
-                            var filePath = fp.GetString() ?? "";
-                            if (!Path.IsPathRooted(filePath))
-                            {
-                                filePath = Path.GetFullPath(Path.Combine(rootPath, filePath));
-                            }
-
-                            filesAccessed.Add(Path.GetRelativePath(rootPath, filePath));
-                        }
-                    }
-                    catch { /* ignore */ }
-                }
+                ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
 
                 messages.Add(new ToolChatMessage(toolCall.CallId, toolResult));
 
@@ -238,6 +244,88 @@ Use this overview to plan your exploration — do NOT call list_directory on the
         return result;
     }
 
+    private void ExtractRelevantFiles(string toolName, string toolArgs, string toolResult, string rootPath, HashSet<string> filesAccessed)
+    {
+        if (toolName == ReadFileTool.ToolName)
+        {
+            try
+            {
+                var args = JsonSerializer.Deserialize<JsonElement>(toolArgs);
+                if (args.TryGetProperty("file_path", out var fp))
+                {
+                    var filePath = fp.GetString();
+                    if (!string.IsNullOrWhiteSpace(filePath))
+                    {
+                        var fullPath = Path.IsPathRooted(filePath)
+                            ? filePath
+                            : Path.GetFullPath(Path.Combine(rootPath, filePath));
+                        filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
+                    }
+                }
+            }
+            catch { /* ignore */ }
+        }
+        else if (toolName == GrepTool.ToolName)
+        {
+            var lines = toolResult.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var trimmed = line.TrimEnd();
+                // GrepTool outputs "RelativePath:"
+                if (trimmed.EndsWith(":") && !line.StartsWith(" ") && !line.StartsWith("\t"))
+                {
+                    if (trimmed.StartsWith("Found ") && trimmed.Contains(" matches:"))
+                    {
+                        continue;
+                    }
+
+                    var relPath = trimmed[..^1];
+                    try
+                    {
+                        var fullPath = Path.GetFullPath(Path.Combine(rootPath, relPath));
+                        filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
+                    }
+                    catch { /* ignore */ }
+                }
+            }
+        }
+        else if (toolName == GlobTool.ToolName)
+        {
+            var lines = toolResult.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed))
+                {
+                    continue;
+                }
+                if (trimmed.StartsWith("Found ") && trimmed.Contains(" files:"))
+                {
+                    continue;
+                }
+                if (trimmed == "No files found.")
+                {
+                    continue;
+                }
+                if (trimmed.StartsWith("Error"))
+                {
+                    continue;
+                }
+                if (trimmed.StartsWith("(Results truncated"))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var fullPath = Path.GetFullPath(Path.Combine(rootPath, trimmed));
+                    filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
+                }
+                catch { /* ignore */ }
+            }
+        }
+    }
+
     /// <summary>
     /// Format a human-readable one-line summary for a tool call
     /// </summary>
@@ -248,13 +336,13 @@ Use this overview to plan your exploration — do NOT call list_directory on the
             var args = JsonSerializer.Deserialize<JsonElement>(argsJson);
             return toolName switch
             {
-                "grep_search" => $"pattern={args.GetProperty("pattern").GetString()}" + (args.TryGetProperty("include", out var gi) ? $"  include={gi.GetString()}" : ""),
+                GrepTool.ToolName => $"pattern={args.GetProperty("pattern").GetString()}" + (args.TryGetProperty("include", out var gi) ? $"  include={gi.GetString()}" : ""),
 
-                "glob_search" => $"pattern={args.GetProperty("pattern").GetString()}",
+                GlobTool.ToolName => $"pattern={args.GetProperty("pattern").GetString()}",
 
-                "read_file" => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
+                ReadFileTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
 
-                "list_directory" => args.TryGetProperty("path", out var lp) && lp.GetString() is string p && p.Length > 0
+                ListDirectoryTool.ToolName => args.TryGetProperty("path", out var lp) && lp.GetString() is string p && p.Length > 0
                         ? ExtractFileName(p, rootPath)
                         : "(project root)",
 
@@ -680,24 +768,8 @@ Use this overview to plan your exploration — do NOT call list_directory on the
                 result.ToolCalls.Add(record);
 
                 // Track files accessed
-                if (toolCall.FunctionName == "read_file")
-                {
-                    try
-                    {
-                        var args = JsonSerializer.Deserialize<JsonElement>(toolCall.Arguments);
-                        if (args.TryGetProperty("file_path", out var fp))
-                        {
-                            var filePath = fp.GetString() ?? "";
-                            if (!Path.IsPathRooted(filePath))
-                            {
-                                filePath = Path.GetFullPath(Path.Combine(rootPath, filePath));
-                            }
 
-                            filesAccessed.Add(Path.GetRelativePath(rootPath, filePath));
-                        }
-                    }
-                    catch { /* ignore */ }
-                }
+                ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
 
                 toolResults.Add((toolCall.FunctionName, toolResult));
 

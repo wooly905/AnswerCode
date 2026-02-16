@@ -12,7 +12,9 @@ namespace AnswerCode.Services.Tools;
 /// </summary>
 public class FileOutlineTool : ITool
 {
-    public string Name => "get_file_outline";
+    public const string ToolName = "get_file_outline";
+
+    public string Name => ToolName;
 
     public string Description =>
         "Get the structural outline of a code file — classes, methods, properties, interfaces, " +

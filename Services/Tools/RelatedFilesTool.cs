@@ -12,7 +12,9 @@ namespace AnswerCode.Services.Tools;
 /// </summary>
 public class RelatedFilesTool : ITool
 {
-    public string Name => "get_related_files";
+    public const string ToolName = "get_related_files";
+
+    public string Name => ToolName;
 
     public string Description =>
 """
@@ -26,37 +28,37 @@ Helps you understand code relationships without multiple grep calls.
 
     private static readonly HashSet<string> _codeExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
+        ".cjs",
         ".cs",
+        ".go",
+        ".java",
         ".js",
+        ".jsx",
+        ".kt",
+        ".mjs",
+        ".php",
+        ".py",
+        ".rb",
+        ".rs",
+        ".scala",
         ".ts",
         ".tsx",
-        ".jsx",
-        ".mjs",
-        ".cjs",
-        ".py",
-        ".java",
-        ".go",
-        ".rs",
-        ".rb",
-        ".php",
-        ".kt",
-        ".scala"
     };
 
     private static readonly HashSet<string> _excludedDirs = new(StringComparer.OrdinalIgnoreCase)
     {
-        "node_modules",
-        "bin",
-        "obj",
         ".git",
-        "dist",
-        "build",
-        "out",
-        "target",
+        ".vs",
         "__pycache__",
-        "vendor",
+        "bin",
+        "build",
+        "dist",
+        "node_modules",
+        "obj",
+        "out",
         "packages",
-        ".vs"
+        "target",
+        "vendor",
     };
 
     public ChatTool GetChatToolDefinition()
@@ -111,10 +113,10 @@ Helps you understand code relationships without multiple grep calls.
         var imports = ext switch
         {
             ".cs" => ParseCSharpImports(lines),
-            ".ts" or ".tsx" or ".js" or ".jsx" or ".mjs" or ".cjs" => ParseTsImports(lines, filePath),
-            ".py" or ".pyw" => ParsePythonImports(lines),
-            ".java" or ".kt" or ".scala" => ParseJavaImports(lines),
             ".go" => ParseGoImports(lines),
+            ".java" or ".kt" or ".scala" => ParseJavaImports(lines),
+            ".py" or ".pyw" => ParsePythonImports(lines),
+            ".ts" or ".tsx" or ".js" or ".jsx" or ".mjs" or ".cjs" => ParseTsImports(lines, filePath),
             _ => []
         };
 
@@ -139,10 +141,10 @@ Helps you understand code relationships without multiple grep calls.
         var typeNames = ext switch
         {
             ".cs" => ExtractCSharpTypeNames(lines),
-            ".ts" or ".tsx" or ".js" or ".jsx" or ".mjs" or ".cjs" => ExtractTsExportNames(lines),
-            ".py" or ".pyw" => ExtractPythonNames(lines),
-            ".java" or ".kt" or ".scala" => ExtractJavaTypeNames(lines),
             ".go" => ExtractGoExportNames(lines),
+            ".java" or ".kt" or ".scala" => ExtractJavaTypeNames(lines),
+            ".py" or ".pyw" => ExtractPythonNames(lines),
+            ".ts" or ".tsx" or ".js" or ".jsx" or ".mjs" or ".cjs" => ExtractTsExportNames(lines),
             _ => new List<string>()
         };
 
@@ -343,14 +345,14 @@ Helps you understand code relationships without multiple grep calls.
         return names;
     }
 
-    private static readonly Regex PyClassDefRegex = new(@"^\s*class\s+(\w+)", RegexOptions.Compiled);
+    private static readonly Regex _pyClassDefRegex = new(@"^\s*class\s+(\w+)", RegexOptions.Compiled);
 
     private static List<string> ExtractPythonNames(string[] lines)
     {
         var names = new List<string>();
         foreach (var line in lines)
         {
-            var m = PyClassDefRegex.Match(line);
+            var m = _pyClassDefRegex.Match(line);
             if (m.Success)
             {
                 names.Add(m.Groups[1].Value);

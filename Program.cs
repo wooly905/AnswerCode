@@ -21,6 +21,10 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true);
 // Add services to the container.
 builder.Services.AddControllers();
 
+// Configure QASourceCodePath from appsettings
+builder.Services.Configure<ProjectSettings>(
+    builder.Configuration.GetSection(ProjectSettings.SectionName));
+
 // Configure LLM options from appsettings
 builder.Services.Configure<LLMSettings>(
     builder.Configuration.GetSection(LLMSettings.SectionName));

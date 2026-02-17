@@ -219,13 +219,24 @@ If a tool output is truncated (e.g., ""... 50 more matches"") or the Project Ove
                 messages.Add(new ToolChatMessage(toolCall.CallId, toolResult));
 
                 // Emit tool end event
+                var resultSummary = FormatToolResultSummary(toolCall.FunctionName, toolResult);
+                var resultDetails = toolResult.Length > 5000
+                    ? toolResult[..5000] + "\n... (truncated)"
+                    : toolResult;
+                var (detailLabel, detailItems) = ExtractToolDetailItems(toolCall.FunctionName, toolResult, rootPath);
+
                 await onProgress(new AgentEvent
                 {
                     Type = AgentEventType.ToolCallEnd,
                     ToolName = toolCall.FunctionName,
+                    ToolArgs = toolCall.Arguments,
                     Summary = argsSummary,
                     DurationMs = (DateTime.Now - startTime).Milliseconds,
-                    TotalToolCalls = result.TotalToolCalls
+                    TotalToolCalls = result.TotalToolCalls,
+                    ResultSummary = resultSummary,
+                    ResultDetails = resultDetails,
+                    DetailLabel = detailLabel,
+                    DetailItems = detailItems
                 });
 
                 _logger.LogInformation("Tool {Tool} completed in {Ms}ms, result: {Length} chars",
@@ -346,6 +357,12 @@ If a tool output is truncated (e.g., ""... 50 more matches"") or the Project Ove
                         ? ExtractFileName(p, rootPath)
                         : "(project root)",
 
+                FindDefinitionTool.ToolName => $"symbol={args.GetProperty("symbol").GetString()}" + (args.TryGetProperty("include", out var fi) ? $"  include={fi.GetString()}" : ""),
+
+                FileOutlineTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
+
+                RelatedFilesTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
+
                 _ => argsJson.Length > 100 ? argsJson[..100] + "..." : argsJson
             };
         }
@@ -353,6 +370,437 @@ If a tool output is truncated (e.g., ""... 50 more matches"") or the Project Ove
         {
             return argsJson.Length > 100 ? argsJson[..100] + "..." : argsJson;
         }
+    }
+
+    /// <summary>
+    /// Format a brief result summary for a completed tool call, based on the tool output.
+    /// These summaries appear in the UI next to the tool step (e.g. "5 matches in 3 files").
+    /// </summary>
+    private static string FormatToolResultSummary(string toolName, string toolResult)
+    {
+        if (string.IsNullOrWhiteSpace(toolResult))
+        {
+            return "";
+        }
+
+        try
+        {
+            return toolName switch
+            {
+                GrepTool.ToolName => ParseGrepResultSummary(toolResult),
+                GlobTool.ToolName => ParseGlobResultSummary(toolResult),
+                FindDefinitionTool.ToolName => ParseFindDefResultSummary(toolResult),
+                ReadFileTool.ToolName => ParseReadFileResultSummary(toolResult),
+                ListDirectoryTool.ToolName => ParseListDirResultSummary(toolResult),
+                FileOutlineTool.ToolName => ParseOutlineResultSummary(toolResult),
+                RelatedFilesTool.ToolName => ParseRelatedResultSummary(toolResult),
+                _ => ""
+            };
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static string ParseGrepResultSummary(string result)
+    {
+        if (result.StartsWith("No matches"))
+        {
+            return "no matches";
+        }
+
+        if (result.StartsWith("Error"))
+        {
+            return "";
+        }
+
+        var matchCount = Regex.Match(result, @"Found (\d+) matches:");
+        if (!matchCount.Success)
+        {
+            return "";
+        }
+
+        var lines = result.Split('\n');
+        var fileCount = lines.Count(l =>
+        {
+            var t = l.TrimEnd();
+            return t.EndsWith(":") && !t.StartsWith("Found ") && !t.StartsWith(" ") && !t.StartsWith("\t");
+        });
+
+        return $"{matchCount.Groups[1].Value} matches in {fileCount} files";
+    }
+
+    private static string ParseGlobResultSummary(string result)
+    {
+        if (result.StartsWith("No files"))
+        {
+            return "no files found";
+        }
+
+        var m = Regex.Match(result, @"Found (\d+) files:");
+        return m.Success ? $"{m.Groups[1].Value} files found" : "";
+    }
+
+    private static string ParseFindDefResultSummary(string result)
+    {
+        if (result.StartsWith("No definitions"))
+        {
+            return result.TrimEnd();
+        }
+
+        var m = Regex.Match(result, @"Found (\d+) definition\(s\) for '([^']+)'");
+        if (!m.Success)
+        {
+            return "";
+        }
+
+        // Extract first definition signature for extra context
+        var lines = result.Split('\n');
+        var firstSig = lines
+            .Where(l => l.StartsWith("  ") && !string.IsNullOrWhiteSpace(l.Trim()))
+            .Select(l => l.Trim())
+            .FirstOrDefault();
+
+        var summary = $"{m.Groups[1].Value} definition(s) for '{m.Groups[2].Value}'";
+        if (!string.IsNullOrEmpty(firstSig) && firstSig.Length <= 80)
+        {
+            summary += $": {firstSig}";
+        }
+
+        return summary;
+    }
+
+    private static string ParseReadFileResultSummary(string result)
+    {
+        var m = Regex.Match(result, @"File: (.+?) \((\d+) total lines\)");
+        return m.Success ? $"{m.Groups[1].Value} ({m.Groups[2].Value} lines)" : "";
+    }
+
+    private static string ParseListDirResultSummary(string result)
+    {
+        var lines = result.Split('\n')
+            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Directory:"))
+            .ToList();
+
+        return lines.Count > 0 ? $"{lines.Count} items" : "";
+    }
+
+    private static string ParseOutlineResultSummary(string result)
+    {
+        var fileMatch = Regex.Match(result, @"File: (.+?) \((\d+) lines\)");
+        var symbolCount = result.Split('\n')
+            .Count(l => l.TrimStart().Length > 0
+                && Regex.IsMatch(l, @"^\s*\d+:"));
+
+        if (fileMatch.Success)
+        {
+            return $"{symbolCount} symbols in {fileMatch.Groups[1].Value}";
+        }
+
+        return symbolCount > 0 ? $"{symbolCount} symbols" : "";
+    }
+
+    private static string ParseRelatedResultSummary(string result)
+    {
+        var lines = result.Split('\n');
+        int depCount = 0, depntCount = 0;
+        bool inDeps = false, inDependents = false;
+
+        foreach (var line in lines)
+        {
+            if (line.Contains("Dependencies"))
+            {
+                inDeps = true;
+                inDependents = false;
+                continue;
+            }
+
+            if (line.Contains("Dependents"))
+            {
+                inDeps = false;
+                inDependents = true;
+                continue;
+            }
+
+            var t = line.Trim();
+            if (string.IsNullOrWhiteSpace(t) || t.StartsWith("("))
+            {
+                continue;
+            }
+
+            if (inDeps)
+            {
+                depCount++;
+            }
+
+            if (inDependents)
+            {
+                depntCount++;
+            }
+        }
+
+        return $"{depCount} dependencies, {depntCount} dependents";
+    }
+
+    // ── Detail Items Extraction (for expandable bullet lists in the UI) ────
+
+    /// <summary>
+    /// Extract structured detail items from a tool result for display as a bullet list.
+    /// Returns a label for the section and a list of items.
+    /// </summary>
+    private static (string? Label, List<string>? Items) ExtractToolDetailItems(
+        string toolName, string toolResult, string rootPath)
+    {
+        if (string.IsNullOrWhiteSpace(toolResult))
+        {
+            return (null, null);
+        }
+
+        try
+        {
+            return toolName switch
+            {
+                GrepTool.ToolName => ExtractGrepDetailItems(toolResult),
+                GlobTool.ToolName => ExtractGlobDetailItems(toolResult),
+                FindDefinitionTool.ToolName => ExtractFindDefDetailItems(toolResult),
+                ReadFileTool.ToolName => ExtractReadFileDetailItems(toolResult),
+                ListDirectoryTool.ToolName => ExtractListDirDetailItems(toolResult),
+                FileOutlineTool.ToolName => ExtractOutlineDetailItems(toolResult),
+                RelatedFilesTool.ToolName => ExtractRelatedDetailItems(toolResult),
+                _ => (null, null)
+            };
+        }
+        catch
+        {
+            return (null, null);
+        }
+    }
+
+    /// <summary>
+    /// Grep: list each matched file with its match count.
+    /// e.g. "Services/AgentService.cs (5 matches)"
+    /// </summary>
+    private static (string?, List<string>?) ExtractGrepDetailItems(string result)
+    {
+        if (result.StartsWith("No matches") || result.StartsWith("Error"))
+        {
+            return ("Result", new List<string> { result.Split('\n')[0] });
+        }
+
+        var lines = result.Split('\n');
+        var fileMatchCounts = new List<(string File, int Count)>();
+        string? currentFile = null;
+        int currentCount = 0;
+
+        foreach (var line in lines)
+        {
+            var t = line.TrimEnd();
+
+            // File header line: "relative/path.cs:"
+            if (t.EndsWith(":") && !t.StartsWith("Found ") && !t.StartsWith(" ") && !t.StartsWith("\t"))
+            {
+                // Save previous file
+                if (currentFile != null)
+                {
+                    fileMatchCounts.Add((currentFile, currentCount));
+                }
+
+                currentFile = t[..^1]; // remove trailing ":"
+                currentCount = 0;
+            }
+            else if (currentFile != null && t.TrimStart().StartsWith("Line "))
+            {
+                currentCount++;
+            }
+        }
+
+        // Save last file
+        if (currentFile != null)
+        {
+            fileMatchCounts.Add((currentFile, currentCount));
+        }
+
+        if (fileMatchCounts.Count == 0)
+        {
+            return (null, null);
+        }
+
+        var items = fileMatchCounts
+            .Select(f => f.Count > 0 ? $"{f.File} ({f.Count} matches)" : f.File)
+            .ToList();
+
+        return ("Matched Files", items);
+    }
+
+    /// <summary>
+    /// Glob: list each found file path.
+    /// </summary>
+    private static (string?, List<string>?) ExtractGlobDetailItems(string result)
+    {
+        if (result.StartsWith("No files"))
+        {
+            return ("Result", new List<string> { "No files found." });
+        }
+
+        var lines = result.Split('\n');
+        var items = lines
+            .Where(l =>
+            {
+                var t = l.Trim();
+                return !string.IsNullOrWhiteSpace(t)
+                    && !t.StartsWith("Found ")
+                    && !t.StartsWith("(Results truncated")
+                    && !t.StartsWith("Error");
+            })
+            .Select(l => l.Trim())
+            .ToList();
+
+        return items.Count > 0 ? ("Found Files", items) : (null, null);
+    }
+
+    /// <summary>
+    /// FindDefinition: list each definition with file:line and signature.
+    /// e.g. "Services/AgentService.cs:76 — public class AgentService"
+    /// </summary>
+    private static (string?, List<string>?) ExtractFindDefDetailItems(string result)
+    {
+        if (result.StartsWith("No definitions"))
+        {
+            return ("Result", new List<string> { result.Split('\n')[0] });
+        }
+
+        var lines = result.Split('\n');
+        var items = new List<string>();
+        string? pendingLocation = null;
+
+        foreach (var line in lines)
+        {
+            var t = line.Trim();
+            if (string.IsNullOrWhiteSpace(t) || t.StartsWith("Found "))
+            {
+                continue;
+            }
+
+            // Location line: "relpath.cs:123"
+            if (!t.StartsWith(" ") && t.Contains(':') && !line.StartsWith("  "))
+            {
+                pendingLocation = t;
+            }
+            // Signature line (indented): "  public class AgentService"
+            else if (pendingLocation != null && line.StartsWith("  "))
+            {
+                items.Add($"{pendingLocation} — {t}");
+                pendingLocation = null;
+            }
+        }
+
+        // Add any leftover location without signature
+        if (pendingLocation != null)
+        {
+            items.Add(pendingLocation);
+        }
+
+        return items.Count > 0 ? ("Definitions", items) : (null, null);
+    }
+
+    /// <summary>
+    /// ReadFile: show file path and line range info.
+    /// </summary>
+    private static (string?, List<string>?) ExtractReadFileDetailItems(string result)
+    {
+        var items = new List<string>();
+
+        var fileMatch = Regex.Match(result, @"File: (.+?) \((\d+) total lines\)");
+        if (fileMatch.Success)
+        {
+            items.Add($"{fileMatch.Groups[1].Value} — {fileMatch.Groups[2].Value} total lines");
+        }
+
+        var truncMatch = Regex.Match(result, @"File has (\d+) more lines\. Use offset=(\d+)");
+        if (truncMatch.Success)
+        {
+            items.Add($"Showing up to line {truncMatch.Groups[2].Value}, {truncMatch.Groups[1].Value} more lines remaining");
+        }
+
+        var endMatch = Regex.Match(result, @"End of file — (\d+) total lines");
+        if (endMatch.Success)
+        {
+            items.Add("Read complete (end of file)");
+        }
+
+        return items.Count > 0 ? ("File Info", items) : (null, null);
+    }
+
+    /// <summary>
+    /// ListDirectory: list each directory entry.
+    /// </summary>
+    private static (string?, List<string>?) ExtractListDirDetailItems(string result)
+    {
+        var lines = result.Split('\n');
+        var items = lines
+            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Directory:"))
+            .Select(l => l.Trim())
+            .Where(l => l.Length > 0)
+            .ToList();
+
+        return items.Count > 0 ? ("Contents", items) : (null, null);
+    }
+
+    /// <summary>
+    /// FileOutline: list each symbol with its line number.
+    /// </summary>
+    private static (string?, List<string>?) ExtractOutlineDetailItems(string result)
+    {
+        var lines = result.Split('\n');
+        var items = lines
+            .Where(l => Regex.IsMatch(l, @"^\s*\d+:"))
+            .Select(l => l.Trim())
+            .ToList();
+
+        return items.Count > 0 ? ("Symbols", items) : (null, null);
+    }
+
+    /// <summary>
+    /// RelatedFiles: list dependencies and dependents with sub-labels.
+    /// </summary>
+    private static (string?, List<string>?) ExtractRelatedDetailItems(string result)
+    {
+        var lines = result.Split('\n');
+        var items = new List<string>();
+        bool inDeps = false, inDependents = false;
+
+        foreach (var line in lines)
+        {
+            if (line.Contains("Dependencies"))
+            {
+                items.Add("── Dependencies ──");
+                inDeps = true;
+                inDependents = false;
+                continue;
+            }
+
+            if (line.Contains("Dependents"))
+            {
+                items.Add("── Dependents ──");
+                inDeps = false;
+                inDependents = true;
+                continue;
+            }
+
+            var t = line.Trim();
+            if (string.IsNullOrWhiteSpace(t) || t.StartsWith("File:"))
+            {
+                continue;
+            }
+
+            if ((inDeps || inDependents) && !t.StartsWith("("))
+            {
+                items.Add(t);
+            }
+        }
+
+        return items.Count > 0 ? ("Related Files", items) : (null, null);
     }
 
     private static string ExtractFileName(string filePath, string rootPath)
@@ -774,13 +1222,24 @@ If a tool output is truncated (e.g., ""... 50 more matches"") or the Project Ove
                 toolResults.Add((toolCall.FunctionName, toolResult));
 
                 // Emit tool end event
+                var resultSummary = FormatToolResultSummary(toolCall.FunctionName, toolResult);
+                var resultDetails = toolResult.Length > 5000
+                    ? toolResult[..5000] + "\n... (truncated)"
+                    : toolResult;
+                var (detailLabel, detailItems) = ExtractToolDetailItems(toolCall.FunctionName, toolResult, rootPath);
+
                 await onProgress(new AgentEvent
                 {
                     Type = AgentEventType.ToolCallEnd,
                     ToolName = toolCall.FunctionName,
+                    ToolArgs = toolCall.Arguments,
                     Summary = argsSummary,
                     DurationMs = (DateTime.Now - startTime).Milliseconds,
-                    TotalToolCalls = result.TotalToolCalls
+                    TotalToolCalls = result.TotalToolCalls,
+                    ResultSummary = resultSummary,
+                    ResultDetails = resultDetails,
+                    DetailLabel = detailLabel,
+                    DetailItems = detailItems
                 });
 
                 _logger.LogInformation("ReAct tool {Tool} completed in {Ms}ms, result: {Length} chars",

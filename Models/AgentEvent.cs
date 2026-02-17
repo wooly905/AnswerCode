@@ -30,6 +30,30 @@ public class AgentEvent
     public int? Iteration { get; set; }
     public int? TotalToolCalls { get; set; }
 
+    /// <summary>
+    /// Brief human-readable result summary for ToolCallEnd
+    /// (e.g. "5 matches in 3 files", "Found 2 definition(s)")
+    /// </summary>
+    public string? ResultSummary { get; set; }
+
+    /// <summary>
+    /// Full tool result text for the expandable detail section in the UI.
+    /// Only set for ToolCallEnd events. Truncated to a reasonable size.
+    /// </summary>
+    public string? ResultDetails { get; set; }
+
+    /// <summary>
+    /// Structured detail items for the expandable section (rendered as bullet list).
+    /// Each item is a human-readable string (e.g. file path with match count).
+    /// Only set for ToolCallEnd events.
+    /// </summary>
+    public List<string>? DetailItems { get; set; }
+
+    /// <summary>
+    /// Optional label for the DetailItems section (e.g. "Matched Files", "Found Files").
+    /// </summary>
+    public string? DetailLabel { get; set; }
+
     /// <summary>Only set for Answer/Error events</summary>
     public AnswerResponse? Result { get; set; }
 }

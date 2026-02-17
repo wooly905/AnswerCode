@@ -234,10 +234,6 @@
         }
 
         .step-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
             background: rgba(22, 27, 34, 0.8);
             border-radius: 6px;
             font-size: 0.85rem;
@@ -245,6 +241,7 @@
             border-left: 3px solid transparent;
             transition: all 0.2s;
             animation: fadeIn 0.3s ease-out;
+            overflow: hidden;
         }
 
         @keyframes fadeIn {
@@ -266,6 +263,32 @@
 
         .step-item.done {
             border-left-color: var(--border-color);
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .step-header:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .step-expander {
+            font-size: 0.6rem;
+            color: var(--text-secondary);
+            transition: transform 0.2s;
+            flex-shrink: 0;
+            width: 10px;
+            text-align: center;
+        }
+
+        .step-expander.open {
+            transform: rotate(90deg);
         }
 
         .step-icon {
@@ -308,12 +331,128 @@
             text-overflow: ellipsis;
         }
 
+        .step-result {
+            color: var(--success-color);
+            font-size: 0.8rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-shrink: 1;
+            min-width: 0;
+        }
+
         .step-duration {
             margin-left: auto;
             color: var(--text-secondary);
             font-size: 0.75rem;
             white-space: nowrap;
             flex-shrink: 0;
+        }
+
+        /* Expandable details section */
+        .step-details {
+            display: none;
+            padding: 0 12px 10px 42px;
+            border-top: 1px solid rgba(48, 54, 61, 0.5);
+            font-size: 0.8rem;
+        }
+
+        .step-details.open {
+            display: block;
+        }
+
+        .step-details-section {
+            margin-top: 8px;
+        }
+
+        .step-details-label {
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .step-details-content {
+            background: rgba(13, 17, 23, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px 10px;
+            color: var(--text-primary);
+            font-size: 0.78rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 0;
+            font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+        }
+
+        /* Bullet list inside expander */
+        .step-detail-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .step-detail-list li {
+            padding: 3px 0;
+            color: var(--text-primary);
+            font-size: 0.78rem;
+            font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .step-detail-list li::before {
+            content: '•';
+            color: var(--accent-color);
+            font-size: 0.9em;
+            flex-shrink: 0;
+        }
+
+        .step-detail-list li.section-header {
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.75rem;
+            margin-top: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        .step-detail-list li.section-header::before {
+            content: '';
+        }
+
+        /* Raw output toggle */
+        .step-raw-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+            padding: 2px 0;
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            cursor: pointer;
+            user-select: none;
+            border: none;
+            background: none;
+            font-family: inherit;
+        }
+
+        .step-raw-toggle:hover {
+            color: var(--accent-color);
+        }
+
+        .step-raw-toggle .raw-arrow {
+            font-size: 0.55rem;
+            transition: transform 0.2s;
+        }
+
+        .step-raw-toggle .raw-arrow.open {
+            transform: rotate(90deg);
         }
 
         /* Active thinking indicator */
@@ -522,11 +661,11 @@
     <main class="container">
         <section class="input-section">
             <div class="input-group">
-                <label for="projectPath">📁 Project Path <small style="color: var(--text-secondary);">(defaults to
-                        project-code directory)</small></label>
+                <label for="projectPath">📁 Project Path <small style="color: var(--text-secondary);">(configured in
+                        appsettings.json)</small></label>
                 <input type="text" id="projectPath"
-                    placeholder="Place your code in the project-code directory, or enter another path"
-                    value="project-code">
+                    placeholder="Loading default path from settings..."
+                    value="">
             </div>
 
             <div class="input-group">
@@ -651,7 +790,25 @@
             }
         }
 
+        async function loadDefaultPath() {
+            try {
+                const response = await fetch('/api/CodeQA/settings/defaultPath');
+                if (!response.ok) throw new Error('Failed to load default path');
+                const data = await response.json();
+
+                const input = document.getElementById('projectPath');
+                if (data.defaultPath) {
+                    input.value = data.defaultPath;
+                    input.placeholder = 'Enter project path or use the configured default';
+                }
+            } catch (error) {
+                console.error('Error loading default path:', error);
+                document.getElementById('projectPath').placeholder = 'Enter the project path';
+            }
+        }
+
         loadProviders();
+        loadDefaultPath();
 
         async function askQuestion() {
             const projectPath = document.getElementById('projectPath').value.trim();
@@ -796,11 +953,16 @@
             item.id = id;
             item.dataset.toolName = event.toolName;
             item.innerHTML = `
-                <span class="step-icon ${running ? 'running' : ''}">${icon}</span>
-                <span class="step-tool">${toolLabel}</span>
-                <span class="step-separator">/</span>
-                <span class="step-summary">${escapeHtml(event.summary || '')}</span>
-                <span class="step-duration" id="${id}-dur">${running ? '...' : ''}</span>
+                <div class="step-header" onclick="toggleStepDetails('${id}')">
+                    <span class="step-expander" id="${id}-exp">▶</span>
+                    <span class="step-icon ${running ? 'running' : ''}">${icon}</span>
+                    <span class="step-tool">${toolLabel}</span>
+                    <span class="step-separator">/</span>
+                    <span class="step-summary">${escapeHtml(event.summary || '')}</span>
+                    <span class="step-result" id="${id}-result"></span>
+                    <span class="step-duration" id="${id}-dur">${running ? '...' : ''}</span>
+                </div>
+                <div class="step-details" id="${id}-details"></div>
             `;
 
             list.appendChild(item);
@@ -830,6 +992,65 @@
                             ? `${event.durationMs}ms`
                             : `${(event.durationMs / 1000).toFixed(1)}s`;
                     }
+
+                    // Show result summary
+                    const resultEl = items[i].querySelector('.step-result');
+                    if (resultEl && event.resultSummary) {
+                        resultEl.textContent = `→ ${event.resultSummary}`;
+                    }
+
+                    // Populate expandable details
+                    const detailsEl = items[i].querySelector('.step-details');
+                    if (detailsEl) {
+                        const stepId = items[i].id;
+                        let detailsHtml = '';
+
+                        // Structured bullet list (primary detail view)
+                        if (event.detailItems && event.detailItems.length > 0) {
+                            const label = event.detailLabel || 'Details';
+                            detailsHtml += `
+                                <div class="step-details-section">
+                                    <div class="step-details-label">${escapeHtml(label)}</div>
+                                    <ul class="step-detail-list">
+                                        ${event.detailItems.map(item => {
+                                            if (item.startsWith('──')) {
+                                                return `<li class="section-header">${escapeHtml(item)}</li>`;
+                                            }
+                                            return `<li>${escapeHtml(item)}</li>`;
+                                        }).join('')}
+                                    </ul>
+                                </div>`;
+                        }
+
+                        // Arguments
+                        if (event.toolArgs) {
+                            let argsDisplay = event.toolArgs;
+                            try {
+                                argsDisplay = JSON.stringify(JSON.parse(event.toolArgs), null, 2);
+                            } catch (e) { /* keep raw */ }
+                            detailsHtml += `
+                                <div class="step-details-section">
+                                    <div class="step-details-label">Arguments</div>
+                                    <pre class="step-details-content">${escapeHtml(argsDisplay)}</pre>
+                                </div>`;
+                        }
+
+                        // Raw output (collapsible)
+                        if (event.resultDetails) {
+                            const rawId = `${stepId}-raw`;
+                            detailsHtml += `
+                                <button class="step-raw-toggle" onclick="toggleRawOutput('${rawId}', event)">
+                                    <span class="raw-arrow" id="${rawId}-arrow">▶</span>
+                                    <span>Raw Output</span>
+                                </button>
+                                <div id="${rawId}" style="display: none;">
+                                    <pre class="step-details-content">${escapeHtml(event.resultDetails)}</pre>
+                                </div>`;
+                        }
+
+                        detailsEl.innerHTML = detailsHtml;
+                    }
+
                     break;
                 }
             }
@@ -839,8 +1060,11 @@
             switch (toolName) {
                 case 'grep_search': return '🔍';
                 case 'glob_search': return '🔍';
-                case 'read_file': return '∞';
+                case 'read_file': return '📄';
                 case 'list_directory': return '📁';
+                case 'find_definition': return '🎯';
+                case 'get_file_outline': return '🏗️';
+                case 'get_related_files': return '🔗';
                 default: return '⚙';
             }
         }
@@ -851,6 +1075,9 @@
                 case 'glob_search': return 'Glob';
                 case 'read_file': return 'Read';
                 case 'list_directory': return 'ListDir';
+                case 'find_definition': return 'FindDef';
+                case 'get_file_outline': return 'Outline';
+                case 'get_related_files': return 'Related';
                 default: return toolName;
             }
         }
@@ -990,6 +1217,34 @@
             stepsVisible = !stepsVisible;
             list.style.display = stepsVisible ? 'flex' : 'none';
             arrow.className = `arrow ${stepsVisible ? 'open' : ''}`;
+        }
+
+        function toggleStepDetails(stepId) {
+            const details = document.getElementById(`${stepId}-details`);
+            const expander = document.getElementById(`${stepId}-exp`);
+            if (!details) return;
+
+            // Only allow expanding if the step has details content
+            if (!details.innerHTML.trim()) return;
+
+            const isOpen = details.classList.contains('open');
+            details.classList.toggle('open');
+            if (expander) {
+                expander.classList.toggle('open', !isOpen);
+            }
+        }
+
+        function toggleRawOutput(rawId, evt) {
+            evt.stopPropagation();
+            const rawEl = document.getElementById(rawId);
+            const arrowEl = document.getElementById(`${rawId}-arrow`);
+            if (!rawEl) return;
+
+            const isVisible = rawEl.style.display !== 'none';
+            rawEl.style.display = isVisible ? 'none' : 'block';
+            if (arrowEl) {
+                arrowEl.classList.toggle('open', !isVisible);
+            }
         }
 
         function showError(message) {

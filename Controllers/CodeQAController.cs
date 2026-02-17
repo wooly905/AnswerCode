@@ -2,6 +2,7 @@ using System.Diagnostics;
 using AnswerCode.Models;
 using AnswerCode.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -17,16 +18,19 @@ public class CodeQAController : ControllerBase
     private readonly IAgentService _agentService;
     private readonly ICodeExplorerService _codeExplorer;
     private readonly ILLMServiceFactory _llmFactory;
+    private readonly ProjectSettings _projectSettings;
     private readonly ILogger<CodeQAController> _logger;
 
     public CodeQAController(IAgentService agentService,
                             ICodeExplorerService codeExplorer,
                             ILLMServiceFactory llmFactory,
+                            IOptions<ProjectSettings> projectSettings,
                             ILogger<CodeQAController> logger)
     {
         _agentService = agentService;
         _codeExplorer = codeExplorer;
         _llmFactory = llmFactory;
+        _projectSettings = projectSettings.Value;
         _logger = logger;
     }
 
@@ -50,13 +54,10 @@ public class CodeQAController : ControllerBase
             return BadRequest(new { error = "Question is required" });
         }
 
-        if (string.IsNullOrWhiteSpace(request.ProjectPath))
-        {
-            return BadRequest(new { error = "ProjectPath is required" });
-        }
-
-        // Convert relative path to absolute path
-        string projectPath = request.ProjectPath;
+        // Use configured default path if not provided
+        string projectPath = string.IsNullOrWhiteSpace(request.ProjectPath)
+            ? _projectSettings.DefaultPath
+            : request.ProjectPath;
 
         if (!Path.IsPathRooted(projectPath))
         {
@@ -121,13 +122,16 @@ public class CodeQAController : ControllerBase
         Response.Headers["Cache-Control"] = "no-cache";
         Response.Headers["Connection"] = "keep-alive";
 
-        if (string.IsNullOrWhiteSpace(request.Question) || string.IsNullOrWhiteSpace(request.ProjectPath))
+        if (string.IsNullOrWhiteSpace(request.Question))
         {
-            await WriteSSE(new AgentEvent { Type = AgentEventType.Error, Summary = "Question and ProjectPath are required" });
+            await WriteSSE(new AgentEvent { Type = AgentEventType.Error, Summary = "Question is required" });
             return;
         }
 
-        string projectPath = request.ProjectPath;
+        // Use configured default path if not provided
+        string projectPath = string.IsNullOrWhiteSpace(request.ProjectPath)
+            ? _projectSettings.DefaultPath
+            : request.ProjectPath;
         if (!Path.IsPathRooted(projectPath))
         {
             projectPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", projectPath));
@@ -242,5 +246,15 @@ public class CodeQAController : ControllerBase
     {
         var providers = _llmFactory.GetProviderDisplayNames();
         return Ok(providers);
+    }
+
+    /// <summary>
+    /// Get the default project path from configuration
+    /// </summary>
+    [HttpGet("settings/defaultPath")]
+    [ProducesResponseType<object>(StatusCodes.Status200OK)]
+    public ActionResult GetDefaultProjectPath()
+    {
+        return Ok(new { defaultPath = _projectSettings.DefaultPath });
     }
 }

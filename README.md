@@ -30,11 +30,30 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 
 4. Open a browser to **http://localhost:5000** (or https://localhost:5001).
 
-5. Enter your project path (e.g. `project-code` or an absolute path), choose a model provider, and ask a question about your code.
+5. The default project path is loaded from configuration (see [Configuration](#configuration)). You can override it in the UI if needed. Choose a model provider and ask a question about your code.
 
 ## Configuration
 
-LLM providers are configured under the `LLM` section in `appsettings.json`:
+All settings are configured in `appsettings.json` (or `appsettings.Local.json` for local overrides).
+
+### Project Settings
+
+The default project path for code exploration is configured under the `QASourceCodePath` section:
+
+```json
+{
+  "QASourceCodePath": {
+    "DefaultPath": "project-code"
+  }
+}
+```
+
+- **`DefaultPath`**: The default directory to explore. Can be a relative path (resolved from the application base directory) or an absolute path (e.g. `C:\\repos\\my-project`).
+- The web UI automatically loads this value on startup. Users can still override it in the input field if needed.
+
+### LLM Providers
+
+LLM providers are configured under the `LLM` section:
 
 ```json
 {
@@ -65,7 +84,7 @@ LLM providers are configured under the `LLM` section in `appsettings.json`:
 
 ### Local Overrides
 
-Use `appsettings.Local.json` for local secrets and overrides. This file is gitignored and will override values from `appsettings.json` when present. Copy the structure from `appsettings.json` and fill in your API keys.
+Use `appsettings.Local.json` for local secrets and overrides. This file is gitignored and will override values from `appsettings.json` when present. Copy the structure from `appsettings.json` and fill in your API keys and project path.
 
 ## Agent Tools
 

@@ -55,7 +55,7 @@ public class OpenAIProvider : ILLMProvider
         return ParseKeywords(completion.Value.Content[0].Text.Trim());
     }
 
-    public async Task<string> ChatAsync(IList<ChatMessage> messages)
+    public async Task<LLMChatResponse> ChatAsync(IList<ChatMessage> messages)
     {
         var options = new ChatCompletionOptions
         {
@@ -65,7 +65,15 @@ public class OpenAIProvider : ILLMProvider
 
         var completion = await _chatClient.CompleteChatAsync(messages, options);
         var value = completion.Value;
-        return value.Content.Count > 0 ? value.Content[0].Text ?? "" : "";
+        var text = value.Content.Count > 0 ? value.Content[0].Text ?? "" : "";
+        return new LLMChatResponse
+        {
+            IsToolCall = false,
+            TextContent = text,
+            AssistantMessage = new AssistantChatMessage(text),
+            InputTokens = value.Usage?.InputTokenCount ?? 0,
+            OutputTokens = value.Usage?.OutputTokenCount ?? 0
+        };
     }
 
     public async Task<LLMChatResponse> ChatWithToolsAsync(
@@ -96,7 +104,9 @@ public class OpenAIProvider : ILLMProvider
                     FunctionName = tc.FunctionName,
                     Arguments = tc.FunctionArguments.ToString()
                 }).ToList(),
-                AssistantMessage = new AssistantChatMessage(value.ToolCalls)
+                AssistantMessage = new AssistantChatMessage(value.ToolCalls),
+                InputTokens = value.Usage?.InputTokenCount ?? 0,
+                OutputTokens = value.Usage?.OutputTokenCount ?? 0
             };
         }
 
@@ -105,7 +115,9 @@ public class OpenAIProvider : ILLMProvider
         {
             IsToolCall = false,
             TextContent = text ?? "",
-            AssistantMessage = new AssistantChatMessage(text ?? "")
+            AssistantMessage = new AssistantChatMessage(text ?? ""),
+            InputTokens = value.Usage?.InputTokenCount ?? 0,
+            OutputTokens = value.Usage?.OutputTokenCount ?? 0
         };
     }
 

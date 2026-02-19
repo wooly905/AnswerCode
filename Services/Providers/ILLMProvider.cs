@@ -38,7 +38,7 @@ public interface ILLMProvider
 
     /// <summary>
     /// Multi-turn chat without tool definitions. Used by ReAct agent loop.
-    /// Returns the assistant's text response.
+    /// Returns a LLMChatResponse with IsToolCall=false and token usage populated.
     /// </summary>
-    Task<string> ChatAsync(IList<ChatMessage> messages);
+    Task<LLMChatResponse> ChatAsync(IList<ChatMessage> messages);
 }

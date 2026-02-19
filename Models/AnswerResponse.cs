@@ -39,4 +39,14 @@ public class AnswerResponse
     /// Detailed record of each tool call made during the agent run
     /// </summary>
     public List<ToolCallRecord> ToolCalls { get; set; } = new();
+
+    /// <summary>
+    /// Total input (prompt) tokens consumed across all LLM calls
+    /// </summary>
+    public int TotalInputTokens { get; set; }
+
+    /// <summary>
+    /// Total output (completion) tokens generated across all LLM calls
+    /// </summary>
+    public int TotalOutputTokens { get; set; }
 }

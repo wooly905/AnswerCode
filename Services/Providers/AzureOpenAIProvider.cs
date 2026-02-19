@@ -68,7 +68,7 @@ public class AzureOpenAIProvider : ILLMProvider
         catch { return new List<string>(); }
     }
 
-    public async Task<string> ChatAsync(IList<ChatMessage> messages)
+    public async Task<LLMChatResponse> ChatAsync(IList<ChatMessage> messages)
     {
         var options = new ChatCompletionOptions
         {
@@ -78,7 +78,15 @@ public class AzureOpenAIProvider : ILLMProvider
 
         var completion = await _chatClient.CompleteChatAsync(messages, options);
         var value = completion.Value;
-        return value.Content.Count > 0 ? value.Content[0].Text ?? "" : "";
+        var text = value.Content.Count > 0 ? value.Content[0].Text ?? "" : "";
+        return new LLMChatResponse
+        {
+            IsToolCall = false,
+            TextContent = text,
+            AssistantMessage = new AssistantChatMessage(text),
+            InputTokens = value.Usage?.InputTokenCount ?? 0,
+            OutputTokens = value.Usage?.OutputTokenCount ?? 0
+        };
     }
 
     public async Task<LLMChatResponse> ChatWithToolsAsync(
@@ -111,7 +119,9 @@ public class AzureOpenAIProvider : ILLMProvider
                     FunctionName = tc.FunctionName,
                     Arguments = tc.FunctionArguments.ToString()
                 }).ToList(),
-                AssistantMessage = new AssistantChatMessage(value.ToolCalls)
+                AssistantMessage = new AssistantChatMessage(value.ToolCalls),
+                InputTokens = value.Usage?.InputTokenCount ?? 0,
+                OutputTokens = value.Usage?.OutputTokenCount ?? 0
             };
         }
 
@@ -120,7 +130,9 @@ public class AzureOpenAIProvider : ILLMProvider
         {
             IsToolCall = false,
             TextContent = text ?? "",
-            AssistantMessage = new AssistantChatMessage(text ?? "")
+            AssistantMessage = new AssistantChatMessage(text ?? ""),
+            InputTokens = value.Usage?.InputTokenCount ?? 0,
+            OutputTokens = value.Usage?.OutputTokenCount ?? 0
         };
     }
 }

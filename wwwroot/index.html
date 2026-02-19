@@ -698,6 +698,7 @@
                 <h3>📝 AI Answer</h3>
                 <div class="answer-meta" id="answerMeta" style="display: none;">
                     <span id="processingTime">⏱️ --ms</span>
+                    <span id="tokenCount">🪙 -- tokens</span>
                     <span id="sessionId">🔗 --</span>
                 </div>
             </div>
@@ -1114,6 +1115,10 @@
                 const meta = document.getElementById('answerMeta');
                 meta.style.display = 'flex';
                 document.getElementById('processingTime').textContent = `⏱️ ${data.processingTimeMs}ms`;
+                const totalTokens = (data.totalInputTokens || 0) + (data.totalOutputTokens || 0);
+                document.getElementById('tokenCount').textContent = totalTokens > 0
+                    ? `🪙 ${totalTokens.toLocaleString()} tokens (↑${(data.totalInputTokens || 0).toLocaleString()} ↓${(data.totalOutputTokens || 0).toLocaleString()})`
+                    : `🪙 -- tokens`;
                 document.getElementById('sessionId').textContent = `🔗 ${(data.sessionId || '').substring(0, 8)}...`;
 
                 currentSessionId = data.sessionId;

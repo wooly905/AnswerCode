@@ -30,4 +30,8 @@ public class AgentResult
     public List<ToolCallRecord> ToolCalls { get; set; } = new();
     public int TotalToolCalls { get; set; }
     public int IterationCount { get; set; }
+    /// <summary>Total input (prompt) tokens across all LLM calls in the agent run.</summary>
+    public int TotalInputTokens { get; set; }
+    /// <summary>Total output (completion) tokens across all LLM calls in the agent run.</summary>
+    public int TotalOutputTokens { get; set; }
 }

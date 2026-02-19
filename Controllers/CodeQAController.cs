@@ -94,7 +94,9 @@ public class CodeQAController : ControllerBase
                 SessionId = sessionId,
                 ToolCallCount = agentResult.TotalToolCalls,
                 IterationCount = agentResult.IterationCount,
-                ToolCalls = agentResult.ToolCalls
+                ToolCalls = agentResult.ToolCalls,
+                TotalInputTokens = agentResult.TotalInputTokens,
+                TotalOutputTokens = agentResult.TotalOutputTokens
             };
 
             _logger.LogInformation(
@@ -164,7 +166,9 @@ public class CodeQAController : ControllerBase
                 SessionId = sessionId,
                 ToolCallCount = agentResult.TotalToolCalls,
                 IterationCount = agentResult.IterationCount,
-                ToolCalls = agentResult.ToolCalls
+                ToolCalls = agentResult.ToolCalls,
+                TotalInputTokens = agentResult.TotalInputTokens,
+                TotalOutputTokens = agentResult.TotalOutputTokens
             };
 
             await WriteSSE(new AgentEvent

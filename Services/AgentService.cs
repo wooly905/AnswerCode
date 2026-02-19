@@ -156,6 +156,8 @@ If a tool output is truncated (e.g., ""... 50 more matches"") or the Project Ove
                 return result;
             }
 
+            result.TotalInputTokens += response.InputTokens;
+            result.TotalOutputTokens += response.OutputTokens;
             messages.Add(response.AssistantMessage);
 
             if (!response.IsToolCall)
@@ -1140,7 +1142,10 @@ If a tool output is truncated (e.g., ""... 50 more matches"") or the Project Ove
             string llmResponse;
             try
             {
-                llmResponse = await provider.ChatAsync(messages);
+                var chatResponse = await provider.ChatAsync(messages);
+                llmResponse = chatResponse.TextContent ?? "";
+                result.TotalInputTokens += chatResponse.InputTokens;
+                result.TotalOutputTokens += chatResponse.OutputTokens;
             }
             catch (Exception ex)
             {

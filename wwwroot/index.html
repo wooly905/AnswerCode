@@ -35,33 +35,6 @@
             line-height: 1.6;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        /* Header */
-        header {
-            background: linear-gradient(135deg, #1a1f35 0%, #0d1117 100%);
-            border-bottom: 1px solid var(--border-color);
-            padding: 30px 0;
-            margin-bottom: 30px;
-        }
-
-        header h1 {
-            font-size: 2.5rem;
-            background: linear-gradient(90deg, var(--accent-color), #a371f7, #f778ba);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-        }
-
-        header p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-        }
-
         /* Input Section */
         .input-section {
             background: var(--bg-secondary);
@@ -633,14 +606,89 @@
             max-width: 100%;
         }
 
+        /* ===== 2-Column Layout ===== */
+        .page-layout {
+            display: flex;
+            gap: 24px;
+            padding: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .left-panel {
+            width: 40%;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .right-panel {
+            width: 60%;
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+
+        /* Logo / header inside left panel */
+        .app-header {
+            background: linear-gradient(135deg, #1a1f35 0%, #0d1117 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .app-header h1 {
+            font-size: 2rem;
+            background: linear-gradient(90deg, var(--accent-color), #a371f7, #f778ba);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .app-header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Workflow / steps section (left panel) */
+        .workflow-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            overflow-y: auto;
+            max-height: 480px;
+        }
+
+        .workflow-section-header {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
         /* Responsive */
-        @media (max-width: 768px) {
-            header h1 {
-                font-size: 1.8rem;
+        @media (max-width: 900px) {
+            .page-layout {
+                flex-direction: column;
+                padding: 16px;
             }
 
-            .container {
-                padding: 16px;
+            .left-panel,
+            .right-panel {
+                width: 100%;
+                position: static;
+                max-height: none;
+            }
+
+            .app-header h1 {
+                font-size: 1.6rem;
             }
 
             .input-section {
@@ -651,62 +699,74 @@
 </head>
 
 <body>
-    <header>
-        <div class="container">
-            <h1>🔍 AnswerCode</h1>
-            <p>AI-Powered Code Q&A System - Ask questions about your project and get intelligent answers</p>
-        </div>
-    </header>
+    <div class="page-layout">
 
-    <main class="container">
-        <section class="input-section">
-            <div class="input-group">
-                <label for="projectPath">📁 Project Path <small style="color: var(--text-secondary);">(configured in
-                        appsettings.json)</small></label>
-                <input type="text" id="projectPath"
-                    placeholder="Loading default path from settings..."
-                    value="">
+        <!-- ===== LEFT PANEL (40%) ===== -->
+        <div class="left-panel">
+
+            <!-- Logo / Header -->
+            <div class="app-header">
+                <h1>🔍 AnswerCode</h1>
+                <p>AI-Powered Code Q&A System — Ask questions about your project and get intelligent answers</p>
             </div>
 
-            <div class="input-group">
-                <label for="modelProvider">🤖 Model Provider</label>
-                <select id="modelProvider">
-                    <option value="">Loading providers...</option>
-                </select>
-            </div>
-
-            <div class="input-group">
-                <label for="question">💬 Your Question</label>
-                <textarea id="question"
-                    placeholder="Example: How does the authentication logic work in this project? Or: Help me find all classes related to UserService"></textarea>
-            </div>
-
-            <div style="display: flex; gap: 12px;">
-                <button class="btn btn-primary" id="askBtn" onclick="askQuestion()">
-                    <span>🚀</span>
-                    <span>Ask</span>
-                </button>
-                <button class="btn btn-secondary" onclick="clearAll()">
-                    <span>🗑️</span>
-                    <span>Clear</span>
-                </button>
-            </div>
-        </section>
-
-        <section class="answer-section">
-            <div class="answer-header">
-                <h3>📝 AI Answer</h3>
-                <div class="answer-meta" id="answerMeta" style="display: none;">
-                    <span id="processingTime">⏱️ --ms</span>
-                    <span id="tokenCount">🪙 -- tokens</span>
-                    <span id="sessionId">🔗 --</span>
+            <!-- Input Section -->
+            <section class="input-section">
+                <div class="input-group">
+                    <label for="projectPath">📁 Project Path <small style="color: var(--text-secondary);">(configured in appsettings.json)</small></label>
+                    <input type="text" id="projectPath" placeholder="Loading default path from settings..." value="">
                 </div>
-            </div>
-            <div class="answer-content" id="answerContent">
-                <div class="empty">Enter your question and click the "Ask" button to begin...</div>
-            </div>
-        </section>
-    </main>
+
+                <div class="input-group">
+                    <label for="modelProvider">🤖 Model Provider</label>
+                    <select id="modelProvider">
+                        <option value="">Loading providers...</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="question">💬 Your Question</label>
+                    <textarea id="question" placeholder="Example: How does the authentication logic work in this project? Or: Help me find all classes related to UserService"></textarea>
+                </div>
+
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-primary" id="askBtn" onclick="askQuestion()">
+                        <span>🚀</span>
+                        <span>Ask</span>
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearAll()">
+                        <span>🗑️</span>
+                        <span>Clear</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Agent Workflow Progress -->
+            <section class="workflow-section" id="workflowSection" style="display: none;">
+                <div class="workflow-section-header">⚙ Agent Workflow</div>
+                <div id="workflowInner"></div>
+            </section>
+
+        </div><!-- /left-panel -->
+
+        <!-- ===== RIGHT PANEL (60%) ===== -->
+        <div class="right-panel">
+            <section class="answer-section">
+                <div class="answer-header">
+                    <h3>📝 AI Answer</h3>
+                    <div class="answer-meta" id="answerMeta" style="display: none;">
+                        <span id="processingTime">⏱️ --ms</span>
+                        <span id="tokenCount">🪙 -- tokens</span>
+                        <span id="sessionId">🔗 --</span>
+                    </div>
+                </div>
+                <div class="answer-content" id="answerContent">
+                    <div class="empty">Enter your question and click the "Ask" button to begin...</div>
+                </div>
+            </section>
+        </div><!-- /right-panel -->
+
+    </div><!-- /page-layout -->
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -875,8 +935,10 @@
         }
 
         function showStreamingUI() {
-            const content = document.getElementById('answerContent');
-            content.innerHTML = `
+            // Show workflow section in left panel
+            const workflowSection = document.getElementById('workflowSection');
+            workflowSection.style.display = '';
+            document.getElementById('workflowInner').innerHTML = `
                 <div class="steps-section" id="stepsSection">
                     <div class="steps-toggle" onclick="toggleSteps()">
                         <span class="arrow open" id="stepsArrow">▶</span>
@@ -889,6 +951,15 @@
                 <div class="thinking-indicator" id="thinkingIndicator">
                     <div class="thinking-dots"><span></span><span></span><span></span></div>
                     <span>Agent is thinking...</span>
+                </div>
+            `;
+
+            // Show placeholder in right panel
+            const content = document.getElementById('answerContent');
+            content.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Waiting for answer...</span>
                 </div>
             `;
 
@@ -1129,21 +1200,17 @@
                 if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
 
                 // Hide steps toggle text update
-                const toggleEl = document.querySelector('.steps-toggle');
-                if (toggleEl) {
-                    const label = toggleEl.querySelector('span:nth-child(2)');
-                    if (label) label.textContent = `Hide steps`;
-                }
+                // Update steps toggle label in left panel
+                const toggleEl = document.querySelector('#stepsSection .steps-toggle span:nth-child(2)');
+                if (toggleEl) toggleEl.textContent = 'Hide steps';
             } catch (e) {
                 console.warn('Error updating metadata:', e);
             }
 
-            // Add response section after steps
+            // Render answer in right panel (replace the loading placeholder)
             const content = document.getElementById('answerContent');
+            content.innerHTML = '';
             const responseDiv = document.createElement('div');
-            responseDiv.style.marginTop = '16px';
-            responseDiv.style.paddingTop = '16px';
-            responseDiv.style.borderTop = '1px solid var(--border-color)';
 
             const answerText = data.answer || '(No answer returned)';
             let parsedHtml = '';
@@ -1269,6 +1336,10 @@
             document.getElementById('question').value = '';
             document.getElementById('answerContent').innerHTML = '<div class="empty">Enter your question and click the "Ask" button to begin...</div>';
             document.getElementById('answerMeta').style.display = 'none';
+            // Hide and reset the workflow section
+            const workflowSection = document.getElementById('workflowSection');
+            workflowSection.style.display = 'none';
+            document.getElementById('workflowInner').innerHTML = '';
             currentSessionId = null;
             stepCounter = 0;
         }

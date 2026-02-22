@@ -149,6 +149,7 @@ When analyzing code:
         {
             "openai" or "open-ai" => "OpenAI",
             "azure" or "azureopenai" or "azure-openai" => "AzureOpenAI",
+            "ollama" => "Ollama",
             _ => providerName.Trim()
         };
 

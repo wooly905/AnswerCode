@@ -127,6 +127,22 @@
             background: var(--border-color);
         }
 
+        .btn-pm {
+            background: linear-gradient(135deg, #2ea043, #1a7f37);
+            color: white;
+        }
+
+        .btn-pm:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(46, 160, 67, 0.35);
+        }
+
+        .btn-pm:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         /* Answer Section */
         .answer-section {
             background: var(--bg-secondary);
@@ -729,10 +745,14 @@
                     <textarea id="question" placeholder="Example: How does the authentication logic work in this project? Or: Help me find all classes related to UserService"></textarea>
                 </div>
 
-                <div style="display: flex; gap: 12px;">
-                    <button class="btn btn-primary" id="askBtn" onclick="askQuestion()">
-                        <span>🚀</span>
-                        <span>Ask</span>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn btn-primary" id="askDevBtn" onclick="askQuestion('Developer')">
+                        <span>🧑‍💻</span>
+                        <span>Answer as Developer</span>
+                    </button>
+                    <button class="btn btn-pm" id="askPmBtn" onclick="askQuestion('PM')">
+                        <span>📊</span>
+                        <span>Answer as PM</span>
                     </button>
                     <button class="btn btn-secondary" onclick="clearAll()">
                         <span>🗑️</span>
@@ -761,7 +781,7 @@
                     </div>
                 </div>
                 <div class="answer-content" id="answerContent">
-                    <div class="empty">Enter your question and click the "Ask" button to begin...</div>
+                    <div class="empty">Enter your question and click "Answer as Developer" or "Answer as PM" to begin...</div>
                 </div>
             </section>
         </div><!-- /right-panel -->
@@ -871,7 +891,7 @@
         loadProviders();
         loadDefaultPath();
 
-        async function askQuestion() {
+        async function askQuestion(role) {
             const projectPath = document.getElementById('projectPath').value.trim();
             const question = document.getElementById('question').value.trim();
             const modelProvider = document.getElementById('modelProvider').value;
@@ -879,9 +899,11 @@
             if (!projectPath) { showError('Please enter a project path'); return; }
             if (!question) { showError('Please enter your question'); return; }
 
-            // Disable button
-            const askBtn = document.getElementById('askBtn');
-            askBtn.disabled = true;
+            // Disable both answer buttons
+            const askDevBtn = document.getElementById('askDevBtn');
+            const askPmBtn = document.getElementById('askPmBtn');
+            askDevBtn.disabled = true;
+            askPmBtn.disabled = true;
 
             stepCounter = 0;
             startTime = Date.now();
@@ -894,7 +916,8 @@
                     body: JSON.stringify({
                         projectPath, question,
                         sessionId: currentSessionId,
-                        modelProvider
+                        modelProvider,
+                        userRole: role
                     })
                 });
 
@@ -930,7 +953,8 @@
             } catch (error) {
                 showError(error.message);
             } finally {
-                askBtn.disabled = false;
+                askDevBtn.disabled = false;
+                askPmBtn.disabled = false;
             }
         }
 

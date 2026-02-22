@@ -39,7 +39,7 @@ public class OpenAIProvider : ILLMProvider
     public async Task<string> AskAsync(string systemPrompt, string userQuestion, string codeContext)
     {
         var messages = BuildMessages(systemPrompt, userQuestion, codeContext);
-        var completion = await _chatClient.CompleteChatAsync(messages, new ChatCompletionOptions { MaxOutputTokenCount = 8000, Temperature = 0.5f });
+        var completion = await _chatClient.CompleteChatAsync(messages, new ChatCompletionOptions { MaxOutputTokenCount = 8000, Temperature = 0.3f });
         return completion.Value.Content[0].Text;
     }
 
@@ -51,7 +51,7 @@ public class OpenAIProvider : ILLMProvider
             new UserChatMessage(question)
         };
 
-        var completion = await _chatClient.CompleteChatAsync(messages, new ChatCompletionOptions { MaxOutputTokenCount = 300, Temperature = 0.5f });
+        var completion = await _chatClient.CompleteChatAsync(messages, new ChatCompletionOptions { MaxOutputTokenCount = 300, Temperature = 0.3f });
         return ParseKeywords(completion.Value.Content[0].Text.Trim());
     }
 

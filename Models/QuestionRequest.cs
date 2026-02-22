@@ -27,4 +27,9 @@ public class QuestionRequest
     /// Model provider selection (OpenAI, AzureOpenAI)
     /// </summary>
     public string? ModelProvider { get; set; }
+
+    /// <summary>
+    /// User role for tailoring the answer style (Developer, PM)
+    /// </summary>
+    public string? UserRole { get; set; }
 }

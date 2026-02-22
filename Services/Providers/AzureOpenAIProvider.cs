@@ -47,7 +47,7 @@ public class AzureOpenAIProvider : ILLMProvider
         userContent.AppendLine("<question>\n" + userQuestion + "\n</question>");
         messages.Add(new UserChatMessage(userContent.ToString()));
 
-        var completion = await _chatClient.CompleteChatAsync(messages, new ChatCompletionOptions { MaxOutputTokenCount = 8000, Temperature = 0.5f });
+        var completion = await _chatClient.CompleteChatAsync(messages, new ChatCompletionOptions { MaxOutputTokenCount = 8000, Temperature = 0.3f });
         return completion.Value.Content[0].Text;
     }
 
@@ -96,7 +96,7 @@ public class AzureOpenAIProvider : ILLMProvider
         var options = new ChatCompletionOptions
         {
             MaxOutputTokenCount = 8000,
-            Temperature = 0.5f
+            Temperature = 0.3f
         };
 
         foreach (var tool in tools)

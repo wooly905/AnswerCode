@@ -82,7 +82,8 @@ public class CodeQAController : ControllerBase
                 request.Question,
                 projectPath,
                 sessionId,
-                request.ModelProvider);
+                request.ModelProvider,
+                request.UserRole);
 
             stopwatch.Stop();
 
@@ -155,7 +156,8 @@ public class CodeQAController : ControllerBase
                 projectPath,
                 WriteSSE,
                 sessionId,
-                request.ModelProvider);
+                request.ModelProvider,
+                request.UserRole);
 
             // Send final answer event
             var answerResponse = new AnswerResponse

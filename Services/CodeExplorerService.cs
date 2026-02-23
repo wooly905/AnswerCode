@@ -20,11 +20,42 @@ public class CodeExplorerService : ICodeExplorerService
     // Common binary file extensions
     private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".dll", ".pdb", ".obj", ".bin", ".zip", ".rar", ".7z", ".tar", ".gz",
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp",
-        ".mp3", ".mp4", ".avi", ".mov", ".wav", ".flac",
-        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-        ".woff", ".woff2", ".ttf", ".eot", ".otf"
+        ".exe",
+        ".dll",
+        ".pdb",
+        ".obj",
+        ".bin",
+        ".zip",
+        ".rar",
+        ".7z",
+        ".tar",
+        ".gz",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".svg",
+        ".webp",
+        ".mp3",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".wav",
+        ".flac",
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".otf"
     };
 
     // Common code file extensions
@@ -47,16 +78,39 @@ public class CodeExplorerService : ICodeExplorerService
     // Documentation file extensions to exclude from search
     private static readonly HashSet<string> DocumentationExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".md", ".rst", ".doc", ".docx", ".pdf", ".rtf"
+        ".md",
+        ".rst",
+        ".doc",
+        ".docx",
+        ".pdf",
+        ".rtf"
     };
 
     // Directories to exclude
     private static readonly HashSet<string> ExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
     {
-        "node_modules", "bin", "obj", "packages", ".git", ".svn", ".hg",
-        ".vs", ".vscode", ".idea", "dist", "build", "out", "target",
-        "__pycache__", ".pytest_cache", ".mypy_cache", "venv", "env",
-        "vendor", "bower_components", ".nuget"
+        "node_modules",
+        "bin",
+        "obj",
+        "packages",
+        ".git",
+        ".svn",
+        ".hg",
+        ".vs",
+        ".vscode",
+        ".idea",
+        "dist",
+        "build",
+        "out",
+        "target",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        "venv",
+        "env",
+        "vendor",
+        "bower_components",
+        ".nuget"
     };
 
     public CodeExplorerService(ILogger<CodeExplorerService> logger, ILLMService llmService)
@@ -148,7 +202,10 @@ public class CodeExplorerService : ICodeExplorerService
                     _logger.LogWarning("Failed to read file {File}: {Error}", file, ex.Message);
                 }
                 
-                if (results.Count >= GrepResultLimit) break;
+                if (results.Count >= GrepResultLimit)
+                {
+                    break;
+                }
             }
         });
 
@@ -184,8 +241,15 @@ public class CodeExplorerService : ICodeExplorerService
             var lineIndex = 0;
             foreach (var line in File.ReadLines(filePath))
             {
-                if (lineIndex++ < start) continue;
-                if (raw.Count >= limit) break;
+                if (lineIndex++ < start)
+                {
+                    continue;
+                }
+
+                if (raw.Count >= limit)
+                {
+                    break;
+                }
 
                 var trimmedLine = line.Length > MaxLineLength ? line.Substring(0, MaxLineLength) + "..." : line;
                 var size = Encoding.UTF8.GetByteCount(trimmedLine) + (raw.Count > 0 ? 1 : 0);
@@ -301,29 +365,34 @@ public class CodeExplorerService : ICodeExplorerService
         return BinaryExtensions.Contains(extension);
     }
 
-    private static bool IsDocumentationFile(string filePath)
-    {
-        var extension = Path.GetExtension(filePath);
-        return DocumentationExtensions.Contains(extension);
-    }
-
     private static async Task<bool> IsBinaryContentAsync(string filePath)
     {
         try
         {
             var fileInfo = new FileInfo(filePath);
-            if (fileInfo.Length == 0) return false;
+
+            if (fileInfo.Length == 0)
+            {
+                return false;
+            }
 
             var bufferSize = (int)Math.Min(4096, fileInfo.Length);
             var buffer = new byte[bufferSize];
             using var stream = File.OpenRead(filePath);
             var read = await stream.ReadAsync(buffer, 0, bufferSize);
-            if (read == 0) return false;
+            if (read == 0)
+            {
+                return false;
+            }
 
             var nonPrintableCount = 0;
             for (var i = 0; i < read; i++)
             {
-                if (buffer[i] == 0) return true;
+                if (buffer[i] == 0)
+                {
+                    return true;
+                }
+
                 if (buffer[i] < 9 || (buffer[i] > 13 && buffer[i] < 32))
                 {
                     nonPrintableCount++;
@@ -350,199 +419,6 @@ public class CodeExplorerService : ICodeExplorerService
         }
     }
 
-    private static string? FindRipgrep()
-    {
-        string rgName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "rg.exe" : "rg";
-        string pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-
-        foreach (string dir in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-        {
-            string candidate = Path.Combine(dir, rgName);
-
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
-    private async Task<List<SearchResult>> RunRipgrepSearchAsync(string rgPath,
-                                                                 string pattern,
-                                                                 string rootPath,
-                                                                 bool caseInsensitive,
-                                                                 string? include)
-    {
-        var args = new List<string>
-        {
-            "-nH",
-            "--hidden",
-            "--follow",
-            "--no-messages",
-            "--field-match-separator=|",
-            "--regexp",
-            pattern
-        };
-
-        if (caseInsensitive)
-        {
-            args.Add("-i");
-        }
-
-        if (!string.IsNullOrWhiteSpace(include))
-        {
-            args.Add("--glob");
-            args.Add(include);
-        }
-
-        foreach (var ext in DocumentationExtensions)
-        {
-            args.Add("--glob");
-            args.Add($"!*{ext}");
-        }
-
-        args.Add(rootPath);
-
-        (int ExitCode, string StandardOutput, string StandardError) output = await RunProcessAsync(rgPath, args);
-
-        if (output.ExitCode == 1 || (output.ExitCode == 2 && string.IsNullOrWhiteSpace(output.StandardOutput)))
-        {
-            return [];
-        }
-
-        if (output.ExitCode != 0 && output.ExitCode != 2)
-        {
-            throw new InvalidOperationException($"ripgrep failed: {output.StandardError}");
-        }
-
-        List<(SearchResult Result, DateTime Mtime)> matches = new List<(SearchResult Result, DateTime Mtime)>();
-        string[] lines = output.StandardOutput.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (string line in lines)
-        {
-            var firstSep = line.IndexOf('|');
-            if (firstSep <= 0)
-            {
-                continue;
-            }
-
-            var secondSep = line.IndexOf('|', firstSep + 1);
-            if (secondSep <= firstSep)
-            {
-                continue;
-            }
-
-            var filePath = line.Substring(0, firstSep);
-            var lineNumStr = line.Substring(firstSep + 1, secondSep - firstSep - 1);
-            var lineText = line.Substring(secondSep + 1);
-            if (!int.TryParse(lineNumStr, out var lineNum))
-            {
-                continue;
-            }
-
-            if (lineText.Length > MaxLineLength)
-            {
-                lineText = lineText.Substring(0, MaxLineLength) + "...";
-            }
-
-            matches.Add((
-                new SearchResult
-                {
-                    FilePath = filePath,
-                    RelativePath = Path.GetRelativePath(rootPath, filePath),
-                    LineNumber = lineNum,
-                    LineContent = lineText
-                },
-                GetFileMtimeUtc(filePath)
-            ));
-        }
-
-        return matches
-            .OrderByDescending(m => m.Mtime)
-            .Take(GrepResultLimit)
-            .Select(m => m.Result)
-            .ToList();
-    }
-
-    private async Task<List<string>> RunRipgrepGlobAsync(string rgPath, string pattern, string rootPath)
-    {
-        var args = new List<string>
-        {
-            "--files",
-            "--hidden",
-            "--follow",
-            "--glob",
-            "!.git/*",
-        };
-
-        foreach (var ext in DocumentationExtensions)
-        {
-            args.Add("--glob");
-            args.Add($"!*{ext}");
-        }
-
-        args.Add("--glob");
-        args.Add(pattern);
-
-        var output = await RunProcessAsync(rgPath, args, rootPath);
-        if (output.ExitCode != 0)
-        {
-            return new List<string>();
-        }
-
-        var files = new List<(string Path, DateTime Mtime)>();
-        var lines = output.StandardOutput.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-        foreach (var line in lines)
-        {
-            var fullPath = Path.GetFullPath(Path.Combine(rootPath, line));
-            files.Add((fullPath, GetFileMtimeUtc(fullPath)));
-        }
-
-        return files
-            .OrderByDescending(f => f.Mtime)
-            .Take(GlobResultLimit)
-            .Select(f => f.Path)
-            .ToList();
-    }
-
-    private static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunProcessAsync(
-        string fileName,
-        List<string> args,
-        string? workingDirectory = null)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        if (!string.IsNullOrWhiteSpace(workingDirectory))
-        {
-            startInfo.WorkingDirectory = workingDirectory;
-        }
-
-        foreach (var arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
-        }
-
-        using var process = Process.Start(startInfo);
-        if (process == null)
-        {
-            return (-1, "", "Failed to start process");
-        }
-
-        var stdOutTask = process.StandardOutput.ReadToEndAsync();
-        var stdErrTask = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-
-        return (process.ExitCode, await stdOutTask, await stdErrTask);
-    }
-
     private IEnumerable<string> GetCodeFiles(string rootPath)
     {
         var stack = new Stack<DirectoryInfo>();
@@ -554,7 +430,9 @@ public class CodeExplorerService : ICodeExplorerService
 
             // Skip excluded directories
             if (ExcludedDirectories.Contains(dir.Name))
+            {
                 continue;
+            }
 
             FileInfo[] files;
             try

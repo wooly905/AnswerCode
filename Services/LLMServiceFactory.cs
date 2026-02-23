@@ -5,13 +5,14 @@ using Microsoft.Extensions.Options;
 namespace AnswerCode.Services;
 
 /// <summary>
-/// Factory implementation for creating LLM service providers
+/// Factory implementation for creating LLM service providers.
+/// Uses <see cref="ILLMProviderCreator"/> instances from DI to create providers,
+/// so adding a new provider type requires no changes here (OCP-compliant).
 /// </summary>
 public class LLMServiceFactory : ILLMServiceFactory
 {
     private readonly LLMSettings _settings;
     private readonly ILogger<LLMServiceFactory> _logger;
-    private readonly ILoggerFactory _loggerFactory;
     private readonly Dictionary<string, ILLMProvider> _providers = new(StringComparer.OrdinalIgnoreCase);
 
     private const string CodeAnalysisSystemPrompt = @"
@@ -32,11 +33,13 @@ When analyzing code:
 - Explain the code flow when relevant
 ";
 
-    public LLMServiceFactory(IOptions<LLMSettings> options, ILogger<LLMServiceFactory> logger, ILoggerFactory loggerFactory)
+    public LLMServiceFactory(
+        IOptions<LLMSettings> options,
+        ILogger<LLMServiceFactory> logger,
+        IEnumerable<ILLMProviderCreator> providerCreators)
     {
         _settings = options.Value;
         _logger = logger;
-        _loggerFactory = loggerFactory;
 
         if (_settings.Providers == null || _settings.Providers.Count == 0)
         {
@@ -57,14 +60,14 @@ When analyzing code:
 
             try
             {
-                if (providerKey.Equals("AzureOpenAI", StringComparison.OrdinalIgnoreCase))
+                var creator = providerCreators.FirstOrDefault(c => c.CanCreate(providerKey));
+                if (creator == null)
                 {
-                    _providers[providerKey] = new AzureOpenAIProvider(providerSettings, CodeAnalysisSystemPrompt, _loggerFactory.CreateLogger<AzureOpenAIProvider>());
+                    _logger.LogWarning("No provider creator registered for '{Key}', skipping", providerKey);
+                    continue;
                 }
-                else
-                {
-                    _providers[providerKey] = new OpenAIProvider(providerSettings, CodeAnalysisSystemPrompt, _loggerFactory.CreateLogger<OpenAIProvider>(), providerKey);
-                }
+
+                _providers[providerKey] = creator.Create(providerKey, providerSettings, CodeAnalysisSystemPrompt);
                 _logger.LogInformation("✓ Initialized {Provider} provider", providerKey);
             }
             catch (Exception ex)
@@ -142,17 +145,10 @@ When analyzing code:
         {
             return _providers.ContainsKey(_settings.DefaultProvider)
                 ? _settings.DefaultProvider
-                : _providers.Keys.FirstOrDefault() ?? "OpenAI";
+                : _providers.Keys.FirstOrDefault() ?? ProviderKeys.OpenAI;
         }
 
-        var normalized = providerName.Trim().ToLowerInvariant() switch
-        {
-            "openai" or "open-ai" => "OpenAI",
-            "azure" or "azureopenai" or "azure-openai" => "AzureOpenAI",
-            "ollama" => "Ollama",
-            _ => providerName.Trim()
-        };
-
+        var normalized = ProviderKeys.Normalize(providerName);
         return _providers.ContainsKey(normalized) ? normalized : providerName.Trim();
     }
 }

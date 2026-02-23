@@ -1,6 +1,3 @@
-using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using AnswerCode.Models;
 using AnswerCode.Services.Providers;
 using AnswerCode.Services.Tools;
@@ -105,19 +102,11 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
 - Respond in the same language as the user's question.
 ";
 
-    public AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory)
+    public AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry)
     {
         _logger = logger;
         _llmFactory = llmFactory;
-
-        _toolRegistry = new ToolRegistry();
-        _toolRegistry.Register(new GrepTool());
-        _toolRegistry.Register(new ReadFileTool());
-        _toolRegistry.Register(new ListDirectoryTool());
-        _toolRegistry.Register(new GlobTool());
-        _toolRegistry.Register(new FileOutlineTool());
-        _toolRegistry.Register(new FindDefinitionTool());
-        _toolRegistry.Register(new RelatedFilesTool());
+        _toolRegistry = toolRegistry;
     }
 
     /// <summary>
@@ -164,8 +153,9 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
         var result = new AgentResult();
         var chatTools = _toolRegistry.GetChatToolDefinitions();
         var filesAccessed = new HashSet<string>();
+        int emptyAssistantResponses = 0;
 
-        var projectOverview = BuildProjectOverview(rootPath);
+        var projectOverview = ProjectOverviewBuilder.Build(rootPath);
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(string.Equals(userRole, "PM", StringComparison.OrdinalIgnoreCase)
@@ -198,15 +188,34 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
 
             if (!response.IsToolCall)
             {
-                result.Answer = response.TextContent ?? "";
+                var textContent = response.TextContent ?? "";
+                if (string.IsNullOrWhiteSpace(textContent))
+                {
+                    emptyAssistantResponses++;
+                    _logger.LogWarning("Assistant returned empty content with no tool call at iteration {Iteration}; retrying with enforced tool-use reminder", iteration + 1);
+
+                    if (emptyAssistantResponses >= 3)
+                    {
+                        result.Answer = "The model repeatedly returned empty responses without any tool calls, so the analysis could not be completed. Please try again later or use a different model.";
+                        await onProgress(new AgentEvent { Type = AgentEventType.Error, Summary = result.Answer });
+                        break;
+                    }
+
+                    messages.Add(new UserChatMessage("You returned no content and did not call any tool. You MUST call at least one tool now and continue the analysis."));
+                    continue;
+                }
+
+                result.Answer = textContent;
                 _logger.LogInformation("Agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
                 break;
             }
 
+            emptyAssistantResponses = 0;
+
             foreach (var toolCall in response.ToolCalls)
             {
                 // Parse arguments for a clean display summary
-                var argsSummary = FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
+                var argsSummary = ToolResultFormatter.FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
 
                 // Emit tool start event
                 await onProgress(new AgentEvent
@@ -252,16 +261,16 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 result.ToolCalls.Add(record);
 
                 // Track files accessed
-                ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
+                ToolResultFormatter.ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
 
                 messages.Add(new ToolChatMessage(toolCall.CallId, toolResult));
 
                 // Emit tool end event
-                var resultSummary = FormatToolResultSummary(toolCall.FunctionName, toolResult);
+                var resultSummary = ToolResultFormatter.FormatToolResultSummary(toolCall.FunctionName, toolResult);
                 var resultDetails = toolResult.Length > 5000
                     ? toolResult[..5000] + "\n... (truncated)"
                     : toolResult;
-                var (detailLabel, detailItems) = ExtractToolDetailItems(toolCall.FunctionName, toolResult, rootPath);
+                var (detailLabel, detailItems) = ToolResultFormatter.ExtractToolDetailItems(toolCall.FunctionName, toolResult);
 
                 await onProgress(new AgentEvent
                 {
@@ -293,855 +302,6 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
         return result;
     }
 
-    private void ExtractRelevantFiles(string toolName, string toolArgs, string toolResult, string rootPath, HashSet<string> filesAccessed)
-    {
-        if (toolName == ReadFileTool.ToolName)
-        {
-            try
-            {
-                var args = JsonSerializer.Deserialize<JsonElement>(toolArgs);
-                if (args.TryGetProperty("file_path", out var fp))
-                {
-                    var filePath = fp.GetString();
-                    if (!string.IsNullOrWhiteSpace(filePath))
-                    {
-                        var fullPath = Path.IsPathRooted(filePath)
-                            ? filePath
-                            : Path.GetFullPath(Path.Combine(rootPath, filePath));
-                        filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
-                    }
-                }
-            }
-            catch { /* ignore */ }
-        }
-        else if (toolName == GrepTool.ToolName)
-        {
-            var lines = toolResult.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var line in lines)
-            {
-                var trimmed = line.TrimEnd();
-                // GrepTool outputs "RelativePath:"
-                if (trimmed.EndsWith(":") && !line.StartsWith(" ") && !line.StartsWith("\t"))
-                {
-                    if (trimmed.StartsWith("Found ") && trimmed.Contains(" matches:"))
-                    {
-                        continue;
-                    }
-
-                    var relPath = trimmed[..^1];
-                    try
-                    {
-                        var fullPath = Path.GetFullPath(Path.Combine(rootPath, relPath));
-                        filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
-                    }
-                    catch { /* ignore */ }
-                }
-            }
-        }
-        else if (toolName == GlobTool.ToolName)
-        {
-            var lines = toolResult.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var line in lines)
-            {
-                var trimmed = line.Trim();
-                if (string.IsNullOrWhiteSpace(trimmed))
-                {
-                    continue;
-                }
-                if (trimmed.StartsWith("Found ") && trimmed.Contains(" files:"))
-                {
-                    continue;
-                }
-                if (trimmed == "No files found.")
-                {
-                    continue;
-                }
-                if (trimmed.StartsWith("Error"))
-                {
-                    continue;
-                }
-                if (trimmed.StartsWith("(Results truncated"))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var fullPath = Path.GetFullPath(Path.Combine(rootPath, trimmed));
-                    filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
-                }
-                catch { /* ignore */ }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Format a human-readable one-line summary for a tool call
-    /// </summary>
-    private static string FormatToolCallSummary(string toolName, string argsJson, string rootPath)
-    {
-        try
-        {
-            var args = JsonSerializer.Deserialize<JsonElement>(argsJson);
-            return toolName switch
-            {
-                GrepTool.ToolName => $"pattern={args.GetProperty("pattern").GetString()}" + (args.TryGetProperty("include", out var gi) ? $"  include={gi.GetString()}" : ""),
-
-                GlobTool.ToolName => $"pattern={args.GetProperty("pattern").GetString()}",
-
-                ReadFileTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
-
-                ListDirectoryTool.ToolName => args.TryGetProperty("path", out var lp) && lp.GetString() is string p && p.Length > 0
-                        ? ExtractFileName(p, rootPath)
-                        : "(project root)",
-
-                FindDefinitionTool.ToolName => $"symbol={args.GetProperty("symbol").GetString()}" + (args.TryGetProperty("include", out var fi) ? $"  include={fi.GetString()}" : ""),
-
-                FileOutlineTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
-
-                RelatedFilesTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
-
-                _ => argsJson.Length > 100 ? argsJson[..100] + "..." : argsJson
-            };
-        }
-        catch
-        {
-            return argsJson.Length > 100 ? argsJson[..100] + "..." : argsJson;
-        }
-    }
-
-    /// <summary>
-    /// Format a brief result summary for a completed tool call, based on the tool output.
-    /// These summaries appear in the UI next to the tool step (e.g. "5 matches in 3 files").
-    /// </summary>
-    private static string FormatToolResultSummary(string toolName, string toolResult)
-    {
-        if (string.IsNullOrWhiteSpace(toolResult))
-        {
-            return "";
-        }
-
-        try
-        {
-            return toolName switch
-            {
-                GrepTool.ToolName => ParseGrepResultSummary(toolResult),
-                GlobTool.ToolName => ParseGlobResultSummary(toolResult),
-                FindDefinitionTool.ToolName => ParseFindDefResultSummary(toolResult),
-                ReadFileTool.ToolName => ParseReadFileResultSummary(toolResult),
-                ListDirectoryTool.ToolName => ParseListDirResultSummary(toolResult),
-                FileOutlineTool.ToolName => ParseOutlineResultSummary(toolResult),
-                RelatedFilesTool.ToolName => ParseRelatedResultSummary(toolResult),
-                _ => ""
-            };
-        }
-        catch
-        {
-            return "";
-        }
-    }
-
-    private static string ParseGrepResultSummary(string result)
-    {
-        if (result.StartsWith("No matches"))
-        {
-            return "no matches";
-        }
-
-        if (result.StartsWith("Error"))
-        {
-            return "";
-        }
-
-        var matchCount = Regex.Match(result, @"Found (\d+) matches:");
-        if (!matchCount.Success)
-        {
-            return "";
-        }
-
-        var lines = result.Split('\n');
-        var fileCount = lines.Count(l =>
-        {
-            var t = l.TrimEnd();
-            return t.EndsWith(":") && !t.StartsWith("Found ") && !t.StartsWith(" ") && !t.StartsWith("\t");
-        });
-
-        return $"{matchCount.Groups[1].Value} matches in {fileCount} files";
-    }
-
-    private static string ParseGlobResultSummary(string result)
-    {
-        if (result.StartsWith("No files"))
-        {
-            return "no files found";
-        }
-
-        var m = Regex.Match(result, @"Found (\d+) files:");
-        return m.Success ? $"{m.Groups[1].Value} files found" : "";
-    }
-
-    private static string ParseFindDefResultSummary(string result)
-    {
-        if (result.StartsWith("No definitions"))
-        {
-            return result.TrimEnd();
-        }
-
-        var m = Regex.Match(result, @"Found (\d+) definition\(s\) for '([^']+)'");
-        if (!m.Success)
-        {
-            return "";
-        }
-
-        // Extract first definition signature for extra context
-        var lines = result.Split('\n');
-        var firstSig = lines
-            .Where(l => l.StartsWith("  ") && !string.IsNullOrWhiteSpace(l.Trim()))
-            .Select(l => l.Trim())
-            .FirstOrDefault();
-
-        var summary = $"{m.Groups[1].Value} definition(s) for '{m.Groups[2].Value}'";
-        if (!string.IsNullOrEmpty(firstSig) && firstSig.Length <= 80)
-        {
-            summary += $": {firstSig}";
-        }
-
-        return summary;
-    }
-
-    private static string ParseReadFileResultSummary(string result)
-    {
-        var m = Regex.Match(result, @"File: (.+?) \((\d+) total lines\)");
-        return m.Success ? $"{m.Groups[1].Value} ({m.Groups[2].Value} lines)" : "";
-    }
-
-    private static string ParseListDirResultSummary(string result)
-    {
-        var lines = result.Split('\n')
-            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Directory:"))
-            .ToList();
-
-        return lines.Count > 0 ? $"{lines.Count} items" : "";
-    }
-
-    private static string ParseOutlineResultSummary(string result)
-    {
-        var fileMatch = Regex.Match(result, @"File: (.+?) \((\d+) lines\)");
-        var symbolCount = result.Split('\n')
-            .Count(l => l.TrimStart().Length > 0
-                && Regex.IsMatch(l, @"^\s*\d+:"));
-
-        if (fileMatch.Success)
-        {
-            return $"{symbolCount} symbols in {fileMatch.Groups[1].Value}";
-        }
-
-        return symbolCount > 0 ? $"{symbolCount} symbols" : "";
-    }
-
-    private static string ParseRelatedResultSummary(string result)
-    {
-        var lines = result.Split('\n');
-        int depCount = 0, depntCount = 0;
-        bool inDeps = false, inDependents = false;
-
-        foreach (var line in lines)
-        {
-            if (line.Contains("Dependencies"))
-            {
-                inDeps = true;
-                inDependents = false;
-                continue;
-            }
-
-            if (line.Contains("Dependents"))
-            {
-                inDeps = false;
-                inDependents = true;
-                continue;
-            }
-
-            var t = line.Trim();
-            if (string.IsNullOrWhiteSpace(t) || t.StartsWith("("))
-            {
-                continue;
-            }
-
-            if (inDeps)
-            {
-                depCount++;
-            }
-
-            if (inDependents)
-            {
-                depntCount++;
-            }
-        }
-
-        return $"{depCount} dependencies, {depntCount} dependents";
-    }
-
-    // ── Detail Items Extraction (for expandable bullet lists in the UI) ────
-
-    /// <summary>
-    /// Extract structured detail items from a tool result for display as a bullet list.
-    /// Returns a label for the section and a list of items.
-    /// </summary>
-    private static (string? Label, List<string>? Items) ExtractToolDetailItems(
-        string toolName, string toolResult, string rootPath)
-    {
-        if (string.IsNullOrWhiteSpace(toolResult))
-        {
-            return (null, null);
-        }
-
-        try
-        {
-            return toolName switch
-            {
-                GrepTool.ToolName => ExtractGrepDetailItems(toolResult),
-                GlobTool.ToolName => ExtractGlobDetailItems(toolResult),
-                FindDefinitionTool.ToolName => ExtractFindDefDetailItems(toolResult),
-                ReadFileTool.ToolName => ExtractReadFileDetailItems(toolResult),
-                ListDirectoryTool.ToolName => ExtractListDirDetailItems(toolResult),
-                FileOutlineTool.ToolName => ExtractOutlineDetailItems(toolResult),
-                RelatedFilesTool.ToolName => ExtractRelatedDetailItems(toolResult),
-                _ => (null, null)
-            };
-        }
-        catch
-        {
-            return (null, null);
-        }
-    }
-
-    /// <summary>
-    /// Grep: list each matched file with its match count.
-    /// e.g. "Services/AgentService.cs (5 matches)"
-    /// </summary>
-    private static (string?, List<string>?) ExtractGrepDetailItems(string result)
-    {
-        if (result.StartsWith("No matches") || result.StartsWith("Error"))
-        {
-            return ("Result", new List<string> { result.Split('\n')[0] });
-        }
-
-        var lines = result.Split('\n');
-        var fileMatchCounts = new List<(string File, int Count)>();
-        string? currentFile = null;
-        int currentCount = 0;
-
-        foreach (var line in lines)
-        {
-            var t = line.TrimEnd();
-
-            // File header line: "relative/path.cs:"
-            if (t.EndsWith(":") && !t.StartsWith("Found ") && !t.StartsWith(" ") && !t.StartsWith("\t"))
-            {
-                // Save previous file
-                if (currentFile != null)
-                {
-                    fileMatchCounts.Add((currentFile, currentCount));
-                }
-
-                currentFile = t[..^1]; // remove trailing ":"
-                currentCount = 0;
-            }
-            else if (currentFile != null && t.TrimStart().StartsWith("Line "))
-            {
-                currentCount++;
-            }
-        }
-
-        // Save last file
-        if (currentFile != null)
-        {
-            fileMatchCounts.Add((currentFile, currentCount));
-        }
-
-        if (fileMatchCounts.Count == 0)
-        {
-            return (null, null);
-        }
-
-        var items = fileMatchCounts
-            .Select(f => f.Count > 0 ? $"{f.File} ({f.Count} matches)" : f.File)
-            .ToList();
-
-        return ("Matched Files", items);
-    }
-
-    /// <summary>
-    /// Glob: list each found file path.
-    /// </summary>
-    private static (string?, List<string>?) ExtractGlobDetailItems(string result)
-    {
-        if (result.StartsWith("No files"))
-        {
-            return ("Result", new List<string> { "No files found." });
-        }
-
-        var lines = result.Split('\n');
-        var items = lines
-            .Where(l =>
-            {
-                var t = l.Trim();
-                return !string.IsNullOrWhiteSpace(t)
-                    && !t.StartsWith("Found ")
-                    && !t.StartsWith("(Results truncated")
-                    && !t.StartsWith("Error");
-            })
-            .Select(l => l.Trim())
-            .ToList();
-
-        return items.Count > 0 ? ("Found Files", items) : (null, null);
-    }
-
-    /// <summary>
-    /// FindDefinition: list each definition with file:line and signature.
-    /// e.g. "Services/AgentService.cs:76 — public class AgentService"
-    /// </summary>
-    private static (string?, List<string>?) ExtractFindDefDetailItems(string result)
-    {
-        if (result.StartsWith("No definitions"))
-        {
-            return ("Result", new List<string> { result.Split('\n')[0] });
-        }
-
-        var lines = result.Split('\n');
-        var items = new List<string>();
-        string? pendingLocation = null;
-
-        foreach (var line in lines)
-        {
-            var t = line.Trim();
-            if (string.IsNullOrWhiteSpace(t) || t.StartsWith("Found "))
-            {
-                continue;
-            }
-
-            // Location line: "relpath.cs:123"
-            if (!t.StartsWith(" ") && t.Contains(':') && !line.StartsWith("  "))
-            {
-                pendingLocation = t;
-            }
-            // Signature line (indented): "  public class AgentService"
-            else if (pendingLocation != null && line.StartsWith("  "))
-            {
-                items.Add($"{pendingLocation} — {t}");
-                pendingLocation = null;
-            }
-        }
-
-        // Add any leftover location without signature
-        if (pendingLocation != null)
-        {
-            items.Add(pendingLocation);
-        }
-
-        return items.Count > 0 ? ("Definitions", items) : (null, null);
-    }
-
-    /// <summary>
-    /// ReadFile: show file path and line range info.
-    /// </summary>
-    private static (string?, List<string>?) ExtractReadFileDetailItems(string result)
-    {
-        var items = new List<string>();
-
-        var fileMatch = Regex.Match(result, @"File: (.+?) \((\d+) total lines\)");
-        if (fileMatch.Success)
-        {
-            items.Add($"{fileMatch.Groups[1].Value} — {fileMatch.Groups[2].Value} total lines");
-        }
-
-        var truncMatch = Regex.Match(result, @"File has (\d+) more lines\. Use offset=(\d+)");
-        if (truncMatch.Success)
-        {
-            items.Add($"Showing up to line {truncMatch.Groups[2].Value}, {truncMatch.Groups[1].Value} more lines remaining");
-        }
-
-        var endMatch = Regex.Match(result, @"End of file — (\d+) total lines");
-        if (endMatch.Success)
-        {
-            items.Add("Read complete (end of file)");
-        }
-
-        return items.Count > 0 ? ("File Info", items) : (null, null);
-    }
-
-    /// <summary>
-    /// ListDirectory: list each directory entry.
-    /// </summary>
-    private static (string?, List<string>?) ExtractListDirDetailItems(string result)
-    {
-        var lines = result.Split('\n');
-        var items = lines
-            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Directory:"))
-            .Select(l => l.Trim())
-            .Where(l => l.Length > 0)
-            .ToList();
-
-        return items.Count > 0 ? ("Contents", items) : (null, null);
-    }
-
-    /// <summary>
-    /// FileOutline: list each symbol with its line number.
-    /// </summary>
-    private static (string?, List<string>?) ExtractOutlineDetailItems(string result)
-    {
-        var lines = result.Split('\n');
-        var items = lines
-            .Where(l => Regex.IsMatch(l, @"^\s*\d+:"))
-            .Select(l => l.Trim())
-            .ToList();
-
-        return items.Count > 0 ? ("Symbols", items) : (null, null);
-    }
-
-    /// <summary>
-    /// RelatedFiles: list dependencies and dependents with sub-labels.
-    /// </summary>
-    private static (string?, List<string>?) ExtractRelatedDetailItems(string result)
-    {
-        var lines = result.Split('\n');
-        var items = new List<string>();
-        bool inDeps = false, inDependents = false;
-
-        foreach (var line in lines)
-        {
-            if (line.Contains("Dependencies"))
-            {
-                items.Add("── Dependencies ──");
-                inDeps = true;
-                inDependents = false;
-                continue;
-            }
-
-            if (line.Contains("Dependents"))
-            {
-                items.Add("── Dependents ──");
-                inDeps = false;
-                inDependents = true;
-                continue;
-            }
-
-            var t = line.Trim();
-            if (string.IsNullOrWhiteSpace(t) || t.StartsWith("File:"))
-            {
-                continue;
-            }
-
-            if ((inDeps || inDependents) && !t.StartsWith("("))
-            {
-                items.Add(t);
-            }
-        }
-
-        return items.Count > 0 ? ("Related Files", items) : (null, null);
-    }
-
-    private static string ExtractFileName(string filePath, string rootPath)
-    {
-        if (string.IsNullOrEmpty(filePath))
-        {
-            return "(unknown)";
-        }
-
-        try
-        {
-            var full = Path.IsPathRooted(filePath) ? filePath : Path.GetFullPath(Path.Combine(rootPath, filePath));
-            return Path.GetFileName(full);
-        }
-        catch
-        {
-            return Path.GetFileName(filePath);
-        }
-    }
-
-    // ── Project Overview Builder ───────────────────────────────────────
-
-    /// <summary>
-    /// Build a compact project overview containing metadata and directory structure.
-    /// This is auto-injected into the initial user message so the agent can start
-    /// exploring immediately without wasting an iteration on list_directory.
-    /// </summary>
-    private string BuildProjectOverview(string rootPath)
-    {
-        var sb = new StringBuilder();
-
-        // Project name
-        sb.AppendLine($"Project root: {rootPath}");
-        sb.AppendLine($"Project name: {Path.GetFileName(rootPath)}");
-
-        // Detect project type and parse metadata
-        BuildProjectMetadata(rootPath, sb);
-
-        // Compact directory tree
-        sb.AppendLine();
-        sb.AppendLine("Directory structure:");
-        BuildCompactTree(new DirectoryInfo(rootPath), sb, "  ", maxDepth: 3, currentDepth: 0);
-
-        return sb.ToString();
-    }
-
-    private static void BuildProjectMetadata(string rootPath, StringBuilder sb)
-    {
-        // .NET projects (.csproj)
-        try
-        {
-            var csprojFiles = Directory.GetFiles(rootPath, "*.csproj", SearchOption.TopDirectoryOnly);
-            if (csprojFiles.Length > 0)
-            {
-                var content = File.ReadAllText(csprojFiles[0]);
-                var tfm = Regex.Match(content, @"<TargetFramework>(.*?)</TargetFramework>");
-                var sdk = Regex.Match(content, @"<Project\s+Sdk=""(.*?)""");
-                sb.AppendLine($"Type: .NET ({(tfm.Success ? tfm.Groups[1].Value : "unknown")})");
-
-                if (sdk.Success)
-                {
-                    sb.AppendLine($"SDK: {sdk.Groups[1].Value}");
-                }
-
-                var packages = Regex.Matches(content, @"<PackageReference\s+Include=""([^""]+)""\s+Version=""([^""]+)""");
-
-                if (packages.Count > 0)
-                {
-                    sb.AppendLine("Dependencies:");
-                    foreach (Match m in packages.Cast<Match>().Take(15))
-                    {
-                        sb.AppendLine($"  - {m.Groups[1].Value} ({m.Groups[2].Value})");
-                    }
-                }
-                return;
-            }
-        }
-        catch { /* continue */ }
-
-        // Node.js (package.json)
-        try
-        {
-            var packageJsonPath = Path.Combine(rootPath, "package.json");
-            if (File.Exists(packageJsonPath))
-            {
-                var content = File.ReadAllText(packageJsonPath);
-                using var doc = JsonDocument.Parse(content);
-                var root = doc.RootElement;
-
-                if (root.TryGetProperty("name", out var name))
-                {
-                    sb.AppendLine($"Package: {name.GetString()}");
-                }
-
-                sb.AppendLine("Type: Node.js");
-
-                if (root.TryGetProperty("dependencies", out var deps))
-                {
-                    sb.AppendLine("Dependencies:");
-                    int count = 0;
-                    foreach (var prop in deps.EnumerateObject().Take(15))
-                    {
-                        sb.AppendLine($"  - {prop.Name} ({prop.Value.GetString()})");
-                        count++;
-                    }
-                }
-                return;
-            }
-        }
-        catch { /* continue */ }
-
-        // Python (pyproject.toml, requirements.txt, setup.py)
-        try
-        {
-            if (File.Exists(Path.Combine(rootPath, "pyproject.toml")))
-            {
-                sb.AppendLine("Type: Python (pyproject.toml)");
-                return;
-            }
-
-            if (File.Exists(Path.Combine(rootPath, "requirements.txt")))
-            {
-                sb.AppendLine("Type: Python");
-                var reqs = File.ReadAllLines(Path.Combine(rootPath, "requirements.txt"))
-                    .Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith('#'))
-                    .Take(15);
-                if (reqs.Any())
-                {
-                    sb.AppendLine("Dependencies:");
-                    foreach (var r in reqs)
-                    {
-                        sb.AppendLine($"  - {r.Trim()}");
-                    }
-                }
-                return;
-            }
-        }
-        catch
-        {
-            /* continue */
-        }
-
-        // Go (go.mod)
-        try
-        {
-            var goModPath = Path.Combine(rootPath, "go.mod");
-            if (File.Exists(goModPath))
-            {
-                var content = File.ReadAllText(goModPath);
-                var module = Regex.Match(content, @"^module\s+(.+)$", RegexOptions.Multiline);
-                if (module.Success)
-                {
-                    sb.AppendLine($"Module: {module.Groups[1].Value.Trim()}");
-                }
-
-                sb.AppendLine("Type: Go");
-                return;
-            }
-        }
-        catch
-        {
-            /* continue */
-        }
-
-        // Rust (Cargo.toml)
-        try
-        {
-            if (File.Exists(Path.Combine(rootPath, "Cargo.toml")))
-            {
-                sb.AppendLine("Type: Rust (Cargo)");
-                return;
-            }
-        }
-        catch { /* continue */ }
-
-        // Java (pom.xml, build.gradle)
-        try
-        {
-            if (File.Exists(Path.Combine(rootPath, "pom.xml")))
-            {
-                sb.AppendLine("Type: Java (Maven)");
-                return;
-            }
-            if (File.Exists(Path.Combine(rootPath, "build.gradle"))
-                || File.Exists(Path.Combine(rootPath, "build.gradle.kts")))
-            {
-                sb.AppendLine("Type: Java (Gradle)");
-                return;
-            }
-        }
-        catch { /* continue */ }
-    }
-
-    private static readonly HashSet<string> _overviewExcludedDirs = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "node_modules",
-        "bin",
-        "obj",
-        "packages",
-        ".git",
-        ".svn",
-        ".hg",
-        ".vs",
-        ".vscode",
-        ".idea",
-        "dist",
-        "build",
-        "out",
-        "target",
-        "__pycache__",
-        ".pytest_cache",
-        ".mypy_cache",
-        "venv",
-        "env",
-        "vendor",
-        "bower_components",
-        ".nuget"
-    };
-
-    private static readonly HashSet<string> _overviewCodeExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".cs",
-        ".csx",
-        ".vb",
-        ".fs",
-        ".js",
-        ".jsx",
-        ".ts",
-        ".tsx",
-        ".mjs",
-        ".py",
-        ".java",
-        ".kt",
-        ".go",
-        ".rs",
-        ".c",
-        ".cpp",
-        ".h",
-        ".hpp",
-        ".rb",
-        ".php",
-        ".swift",
-        ".sql",
-        ".graphql",
-        ".json",
-        ".xml",
-        ".yaml",
-        ".yml",
-        ".toml",
-        ".css",
-        ".scss",
-        ".html",
-        ".cshtml",
-        ".razor",
-        ".sh",
-        ".ps1",
-        ".csproj",
-        ".sln",
-        ".props"
-    };
-
-    private static void BuildCompactTree(DirectoryInfo dir,
-                                         StringBuilder sb,
-                                         string indent,
-                                         int maxDepth,
-                                         int currentDepth)
-    {
-        if (currentDepth >= maxDepth || _overviewExcludedDirs.Contains(dir.Name))
-        {
-            return;
-        }
-
-        try
-        {
-            var subDirs = dir.GetDirectories()
-                             .Where(d => !_overviewExcludedDirs.Contains(d.Name))
-                             .OrderBy(d => d.Name)
-                             .ToList();
-
-            var files = dir.GetFiles()
-                           .Where(f => _overviewCodeExtensions.Contains(f.Extension))
-                           .OrderBy(f => f.Name)
-                           .ToList();
-
-            foreach (var subDir in subDirs)
-            {
-                sb.AppendLine($"{indent}{subDir.Name}/");
-                BuildCompactTree(subDir, sb, indent + "  ", maxDepth, currentDepth + 1);
-            }
-
-            foreach (var file in files.Take(30))
-            {
-                sb.AppendLine($"{indent}  {file.Name}");
-            }
-
-            if (files.Count > 30)
-            {
-                sb.AppendLine($"{indent}  ... and {files.Count - 30} more files");
-            }
-        }
-        catch (UnauthorizedAccessException) { }
-    }
-
     /// <summary>
     /// ReAct agent loop — uses text-based tool calling so any LLM can be an agent,
     /// without requiring native tool calling (function calling) support.
@@ -1157,12 +317,13 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
         var toolContext = new ToolContext { RootPath = rootPath, Logger = _logger };
         var result = new AgentResult();
         var filesAccessed = new HashSet<string>();
+        int emptyAssistantResponses = 0;
 
         // Build system prompt with tool descriptions embedded in text
         var toolDescriptions = _toolRegistry.GetReActToolDescriptions();
         var systemPrompt = ReActParser.BuildReActSystemPrompt(toolDescriptions);
 
-        var projectOverview = BuildProjectOverview(rootPath);
+        var projectOverview = ProjectOverviewBuilder.Build(rootPath);
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(systemPrompt),
@@ -1199,6 +360,23 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
 
             if (toolCalls.Count == 0)
             {
+                if (string.IsNullOrWhiteSpace(llmResponse))
+                {
+                    emptyAssistantResponses++;
+                    _logger.LogWarning("ReAct assistant returned empty content with no tool calls at iteration {Iteration}; retrying", iteration + 1);
+
+                    if (emptyAssistantResponses >= 3)
+                    {
+                        result.Answer = "The model repeatedly returned empty responses without any tool calls, so the analysis could not be completed. Please try again later or use a different model.";
+                        await onProgress(new AgentEvent { Type = AgentEventType.Error, Summary = result.Answer });
+                        break;
+                    }
+
+                    messages.Add(new UserChatMessage("You returned no content and did not call any tool. You MUST output at least one <tool_call> and continue the analysis."));
+                    continue;
+                }
+
+                emptyAssistantResponses = 0;
                 // No tool calls — LLM is giving the final answer
                 // Strip any residual tool_call tags just in case
                 result.Answer = llmResponse;
@@ -1206,12 +384,14 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 break;
             }
 
+            emptyAssistantResponses = 0;
+
             // Execute each parsed tool call
             var toolResults = new List<(string ToolName, string Result)>();
 
             foreach (var toolCall in toolCalls)
             {
-                var argsSummary = FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
+                var argsSummary = ToolResultFormatter.FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
 
                 // Emit tool start event
                 await onProgress(new AgentEvent
@@ -1257,17 +437,16 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 result.ToolCalls.Add(record);
 
                 // Track files accessed
-
-                ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
+                ToolResultFormatter.ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
 
                 toolResults.Add((toolCall.FunctionName, toolResult));
 
                 // Emit tool end event
-                var resultSummary = FormatToolResultSummary(toolCall.FunctionName, toolResult);
+                var resultSummary = ToolResultFormatter.FormatToolResultSummary(toolCall.FunctionName, toolResult);
                 var resultDetails = toolResult.Length > 5000
                     ? toolResult[..5000] + "\n... (truncated)"
                     : toolResult;
-                var (detailLabel, detailItems) = ExtractToolDetailItems(toolCall.FunctionName, toolResult, rootPath);
+                var (detailLabel, detailItems) = ToolResultFormatter.ExtractToolDetailItems(toolCall.FunctionName, toolResult);
 
                 await onProgress(new AgentEvent
                 {

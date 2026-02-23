@@ -4,16 +4,23 @@ using OpenAI.Chat;
 namespace AnswerCode.Services.Tools;
 
 /// <summary>
-/// Registry that holds all available tools and provides them as ChatTool definitions
+/// Registry that holds all available tools and provides them as ChatTool definitions.
+/// Tools are injected via DI as <see cref="IEnumerable{ITool}"/>.
 /// </summary>
 public class ToolRegistry
 {
     private readonly Dictionary<string, ITool> _tools = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Register a tool
+    /// Create a ToolRegistry with tools injected from DI.
     /// </summary>
-    public void Register(ITool tool) => _tools[tool.Name] = tool;
+    public ToolRegistry(IEnumerable<ITool> tools)
+    {
+        foreach (var tool in tools)
+        {
+            _tools[tool.Name] = tool;
+        }
+    }
 
     /// <summary>
     /// Get a tool by name

@@ -32,9 +32,7 @@ public interface ILLMProvider
     /// Send messages with tool definitions and get back either tool calls or a text response.
     /// Only available when SupportsToolCalling is true.
     /// </summary>
-    Task<LLMChatResponse> ChatWithToolsAsync(
-        IList<ChatMessage> messages,
-        IReadOnlyList<ChatTool> tools);
+    Task<LLMChatResponse> ChatWithToolsAsync(IList<ChatMessage> messages, IReadOnlyList<ChatTool> tools);
 
     /// <summary>
     /// Multi-turn chat without tool definitions. Used by ReAct agent loop.

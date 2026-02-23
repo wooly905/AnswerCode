@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace AnswerCode.Services;
 
 public class LLMRequestLoggingHandler : DelegatingHandler

@@ -10,14 +10,21 @@ public interface IAgentService
     /// <summary>
     /// Run the agent to answer a question about a codebase
     /// </summary>
-    Task<AgentResult> RunAsync(string question, string rootPath, string? sessionId = null, string? modelProvider = null, string? userRole = null);
+    Task<AgentResult> RunAsync(string question,
+                               string rootPath,
+                               string? sessionId = null,
+                               string? modelProvider = null,
+                               string? userRole = null);
 
     /// <summary>
     /// Run the agent with a progress callback for SSE streaming
     /// </summary>
-    Task<AgentResult> RunAsync(string question, string rootPath,
-        Func<AgentEvent, Task> onProgress,
-        string? sessionId = null, string? modelProvider = null, string? userRole = null);
+    Task<AgentResult> RunAsync(string question,
+                               string rootPath,
+                               Func<AgentEvent, Task> onProgress,
+                               string? sessionId = null,
+                               string? modelProvider = null,
+                               string? userRole = null);
 }
 
 /// <summary>
@@ -26,8 +33,8 @@ public interface IAgentService
 public class AgentResult
 {
     public string Answer { get; set; } = string.Empty;
-    public List<string> RelevantFiles { get; set; } = new();
-    public List<ToolCallRecord> ToolCalls { get; set; } = new();
+    public List<string> RelevantFiles { get; set; } = [];
+    public List<ToolCallRecord> ToolCalls { get; set; } = [];
     public int TotalToolCalls { get; set; }
     public int IterationCount { get; set; }
     /// <summary>Total input (prompt) tokens across all LLM calls in the agent run.</summary>

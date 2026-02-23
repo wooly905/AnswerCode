@@ -14,7 +14,7 @@ public interface ILLMService
     /// <param name="sessionId">Session ID (for maintaining conversation history)</param>
     /// <param name="modelProvider">Model provider name (OpenAI, AzureOpenAI)</param>
     /// <returns>LLM response</returns>
-    public Task<string> AskAsync(string systemPrompt, string userQuestion, string codeContext, string? sessionId = null, string? modelProvider = null);
+    Task<string> AskAsync(string systemPrompt, string userQuestion, string codeContext, string? sessionId = null, string? modelProvider = null);
 
     /// <summary>
     /// Extract keywords from a question for searching
@@ -22,5 +22,5 @@ public interface ILLMService
     /// <param name="question">User question</param>
     /// <param name="modelProvider">Model provider name (OpenAI, AzureOpenAI)</param>
     /// <returns>List of keywords</returns>
-    public Task<List<string>> ExtractKeywordsAsync(string question, string? modelProvider = null);
+    Task<List<string>> ExtractKeywordsAsync(string question, string? modelProvider = null);
 }

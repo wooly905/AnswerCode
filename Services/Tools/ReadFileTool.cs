@@ -20,9 +20,9 @@ public class ReadFileTool : ITool
         "Use this tool after grep_search to read the full context of matching files. " +
         "File path can be absolute or relative to the project root.";
 
-    private const int DefaultMaxLines = 500;
-    private const int MaxLineLength = 2000;
-    private const int MaxBytes = 50 * 1024; // 50 KB
+    private const int _defaultMaxLines = 500;
+    private const int _maxLineLength = 2000;
+    private const int _maxBytes = 50 * 1024; // 50 KB
 
     private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -99,7 +99,7 @@ public class ReadFileTool : ITool
         var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
         var filePath = args.GetProperty("file_path").GetString() ?? "";
         int offset = args.TryGetProperty("offset", out var off) ? off.GetInt32() : 0;
-        int maxLines = args.TryGetProperty("max_lines", out var ml) ? ml.GetInt32() : DefaultMaxLines;
+        int maxLines = args.TryGetProperty("max_lines", out var ml) ? ml.GetInt32() : _defaultMaxLines;
 
         if (string.IsNullOrWhiteSpace(filePath))
         {
@@ -137,14 +137,14 @@ public class ReadFileTool : ITool
 
             for (int i = offset; i < end; i++)
             {
-                var line = lines[i].Length > MaxLineLength
-                    ? lines[i][..MaxLineLength] + "..."
+                var line = lines[i].Length > _maxLineLength
+                    ? lines[i][.._maxLineLength] + "..."
                     : lines[i];
 
                 var lineStr = $"{(i + 1).ToString().PadLeft(5)}| {line}";
                 var size = Encoding.UTF8.GetByteCount(lineStr) + 1;
 
-                if (bytes + size > MaxBytes)
+                if (bytes + size > _maxBytes)
                 {
                     truncatedByBytes = true;
                     break;
@@ -156,7 +156,7 @@ public class ReadFileTool : ITool
 
             if (truncatedByBytes)
             {
-                sb.AppendLine($"\n(Output truncated at {MaxBytes / 1024}KB. Use 'offset' to read beyond this point.)");
+                sb.AppendLine($"\n(Output truncated at {_maxBytes / 1024}KB. Use 'offset' to read beyond this point.)");
             }
             else if (end < lines.Length)
             {

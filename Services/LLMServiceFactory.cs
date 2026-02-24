@@ -124,8 +124,25 @@ When analyzing code:
     public Dictionary<string, string> GetProviderDisplayNames()
     {
         var result = new Dictionary<string, string>();
+
+        // Insert default provider first so UI selects it via selectedIndex = 0
+        if (!string.IsNullOrEmpty(_settings.DefaultProvider) &&
+            _providers.ContainsKey(_settings.DefaultProvider))
+        {
+            var defaultKey = _settings.DefaultProvider;
+            result[defaultKey] = _settings.Providers?.TryGetValue(defaultKey, out var defaultSettings) == true &&
+                                  !string.IsNullOrEmpty(defaultSettings!.DisplayName)
+                                  ? defaultSettings.DisplayName
+                                  : defaultKey;
+        }
+
         foreach (var kvp in _providers)
         {
+            if (result.ContainsKey(kvp.Key))
+            {
+                continue;
+            }
+
             var key = kvp.Key;
             if (_settings.Providers?.TryGetValue(key, out var settings) == true && !string.IsNullOrEmpty(settings!.DisplayName))
             {
@@ -136,6 +153,7 @@ When analyzing code:
                 result[key] = key;
             }
         }
+
         return result;
     }
 

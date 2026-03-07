@@ -54,8 +54,11 @@ public static class ProjectOverviewBuilder
         ".rs",
         ".c",
         ".cpp",
+        ".cc",
+        ".cxx",
         ".h",
         ".hpp",
+        ".hxx",
         ".rb",
         ".php",
         ".swift",
@@ -235,6 +238,22 @@ public static class ProjectOverviewBuilder
                 || File.Exists(Path.Combine(rootPath, "build.gradle.kts")))
             {
                 sb.AppendLine("Type: Java (Gradle)");
+                return;
+            }
+        }
+        catch { /* continue */ }
+
+        // C/C++ (CMakeLists.txt, Makefile)
+        try
+        {
+            if (File.Exists(Path.Combine(rootPath, "CMakeLists.txt")))
+            {
+                sb.AppendLine("Type: C/C++ (CMake)");
+                return;
+            }
+            if (File.Exists(Path.Combine(rootPath, "Makefile")))
+            {
+                sb.AppendLine("Type: C/C++ (Makefile)");
                 return;
             }
         }

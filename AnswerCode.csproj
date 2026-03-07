@@ -17,12 +17,16 @@
     <Content Include="appsettings.Local.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('appsettings.Local.json')" />
   </ItemGroup>
 
-  <!-- exclude project-code folder -->
+  <!-- exclude project-code and source-code folders -->
   <ItemGroup>
     <Compile Remove="project-code\**\*" />
     <Content Remove="project-code\**\*" />
     <None Remove="project-code\**\*" />
     <EmbeddedResource Remove="project-code\**\*" />
+    <Compile Remove="wwwroot\source-code\**\*" />
+    <Content Remove="wwwroot\source-code\**\*" />
+    <None Remove="wwwroot\source-code\**\*" />
+    <EmbeddedResource Remove="wwwroot\source-code\**\*" />
   </ItemGroup>
 
 </Project>

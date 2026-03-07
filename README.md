@@ -1,23 +1,26 @@
 # AnswerCode
 
+> 🌐 **English** | [繁體中文](README.zh-TW.md)
+
 AI-powered code Q&A system. Ask questions about your codebase and get intelligent answers using large language models (LLMs) with an agentic tool-calling loop.
 
 ## Features
 
+- **Source Code Upload**: Upload your project files directly in the browser (drag & drop files or folders, up to 20 MB) — no server-side path configuration required
 - **Agentic Q&A**: An AI agent uses tools (grep, read file, list directory, glob search, file outline, find definition, related files) to explore your codebase and answer questions autonomously
 - **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
-- **Multiple LLM Providers**: Dynamically configurable—add any number of OpenAI-compatible or Azure OpenAI providers via `appsettings.json`
+- **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
 - **Streaming Progress**: Real-time SSE streaming shows each tool call as it happens, including a result summary, expandable detail items, and duration
 - **Token Usage Tracking**: Input and output token counts are tracked across all LLM calls in an agent run and surfaced in the API response and UI
-- **Multi-Language Project Support**: Auto-detects and summarizes project metadata for .NET, Node.js, Python, Go, Rust, and Java projects
-- **Dark Theme UI**: Web interface with syntax highlighting, Markdown rendering, and Mermaid diagram support
+- **Multi-Language Project Support**: Auto-detects and summarizes project metadata for .NET, Node.js, Python, Go, Rust, Java, and C/C++ projects
+- **Dark Theme UI**: Web interface with syntax highlighting, Markdown rendering, Mermaid diagram support with interactive zoom/pan and fullscreen view
 - **Structured Logging**: Request/response logging via Serilog with console and rolling file sinks
 
 ## Prerequisites
 
 - [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- LLM API access (OpenAI or Azure OpenAI)
+- LLM API access (OpenAI, Azure OpenAI, or Ollama)
 
 ## Quick Start
 
@@ -35,7 +38,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 
 4. Open a browser to **http://localhost:5000** (or https://localhost:5001).
 
-5. The default project path is loaded from configuration (see [Configuration](#configuration)). You can override it in the UI if needed. Select a model provider, enter your question, and click **Answer as Developer** or **Answer as PM**.
+5. **Upload your source code** using the drag-and-drop area or the Browse Files / Browse Folder buttons. Select a model provider, enter your question, and click **Answer as Developer** or **Answer as PM**.
 
 ## Answer Modes
 
@@ -48,24 +51,21 @@ Two distinct modes tailor the agent's behavior and response style:
 
 The `UserRole` field in the API request (`"Developer"` or `"PM"`) selects the mode. The default (omitted) is Developer.
 
+## Source Code Upload
+
+Source code is uploaded directly from the browser:
+
+- Click **Browse Files** to select individual files, or **Browse Folder** to select an entire folder (preserving relative paths).
+- Drag and drop files or folders onto the upload area.
+- The total upload size limit is **20 MB**.
+- Once uploaded, a green status badge shows the folder ID and file count. Click **Remove** to delete the uploaded code from the server.
+- Multiple uploads are supported — each upload gets a unique folder ID on the server under `wwwroot/source-code/{folderId}/`.
+
+The uploaded folder ID is automatically used as the `projectPath` for all Q&A requests.
+
 ## Configuration
 
 All settings are configured in `appsettings.json` (or `appsettings.Local.json` for local overrides).
-
-### Project Settings
-
-The default project path for code exploration is configured under the `QASourceCodePath` section:
-
-```json
-{
-  "QASourceCodePath": {
-    "DefaultPath": "project-code"
-  }
-}
-```
-
-- **`DefaultPath`**: The default directory to explore. Can be a relative path (resolved from the application base directory) or an absolute path (e.g. `C:\\repos\\my-project`).
-- The web UI automatically loads this value on startup. Users can still override it in the input field if needed.
 
 ### LLM Providers
 
@@ -85,8 +85,14 @@ LLM providers are configured under the `LLM` section. You can add as many provid
       "AzureOpenAI": {
         "Endpoint": "https://your-resource.cognitiveservices.azure.com/",
         "ApiKey": "your-api-key",
-        "DeploymentName": "gpt-4o",
+        "Model": "gpt-4o",
         "DisplayName": "Azure GPT-4o"
+      },
+      "Ollama": {
+        "Endpoint": "http://localhost:11434/v1/",
+        "ApiKey": "ollama",
+        "Model": "llama3",
+        "DisplayName": "Ollama Llama3"
       }
     }
   }
@@ -95,12 +101,12 @@ LLM providers are configured under the `LLM` section. You can add as many provid
 
 ### Provider Types
 
-- **AzureOpenAI**: Use `Endpoint`, `ApiKey`, `DeploymentName`, and optionally `DisplayName`.
-- **OpenAI / OpenAI-compatible** (any other key): Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The factory treats every non-`AzureOpenAI` key as an OpenAI-compatible provider.
+- **AzureOpenAI**: Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The key must contain `azure` (case-insensitive).
+- **OpenAI / OpenAI-compatible** (any other key, including Ollama): Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The factory treats every non-AzureOpenAI key as an OpenAI-compatible provider — Ollama works out of the box via its `/v1/` endpoint.
 
 ### Local Overrides
 
-Use `appsettings.Local.json` for local secrets and overrides. This file is gitignored and will override values from `appsettings.json` when present. Copy the structure from `appsettings.json` and fill in your API keys and project path.
+Use `appsettings.Local.json` for local secrets and overrides. This file is gitignored and will override values from `appsettings.json` when present. Copy the structure from `appsettings.json` and fill in your API keys.
 
 ## Agent Tools
 
@@ -118,7 +124,7 @@ The agent uses these tools to explore your codebase:
 
 **Auto-injected context:** The agent automatically receives a project overview (directory structure, language, framework, dependencies) at the start of each conversation, eliminating the need for an initial `list_directory` call and saving one full LLM round-trip.
 
-**Multi-language project detection:** The overview builder auto-detects project metadata from `.csproj` (.NET), `package.json` (Node.js), `requirements.txt` / `pyproject.toml` (Python), `go.mod` (Go), `Cargo.toml` (Rust), and `pom.xml` / `build.gradle` (Java).
+**Multi-language project detection:** The overview builder auto-detects project metadata from `.csproj` (.NET), `package.json` (Node.js), `requirements.txt` / `pyproject.toml` (Python), `go.mod` (Go), `Cargo.toml` (Rust), `pom.xml` / `build.gradle` (Java), and `CMakeLists.txt` / `Makefile` (C/C++).
 
 ## ReAct Fallback Loop
 
@@ -140,12 +146,14 @@ Synchronous Q&A — runs the agent and returns the full answer in one response.
 ```json
 {
   "question": "How does authentication work?",
-  "projectPath": "C:\\repos\\my-project",
+  "projectPath": "abd2b91fdb12",
   "modelProvider": "OpenAI",
   "userRole": "Developer",
   "sessionId": "optional-uuid"
 }
 ```
+
+> **`projectPath`** can be a `folderId` returned by the upload endpoint (e.g. `"abd2b91fdb12"`) or an absolute path on the server.
 
 **Response** (`AnswerResponse`):
 ```json
@@ -175,11 +183,27 @@ Streaming Q&A — returns Server-Sent Events (SSE). Each event is a JSON-encoded
 | `Answer` | Final answer is ready (`result` contains the full `AnswerResponse`) |
 | `Error` | An error occurred |
 
+### POST `/api/codeqa/upload`
+Upload source code files. Accepts multipart/form-data with `files[]` and optional `relativePaths[]` fields.
+
+**Response:**
+```json
+{
+  "folderId": "abd2b91fdb12",
+  "fileCount": 42,
+  "totalSizeBytes": 186366,
+  "totalSizeMB": 0.18
+}
+```
+
+### DELETE `/api/codeqa/upload/{folderId}`
+Delete a previously uploaded source-code folder.
+
+### GET `/api/codeqa/uploads`
+List all existing uploaded source-code folders (folderId, createdUtc, fileCount).
+
 ### GET `/api/codeqa/providers`
 Returns the display names of all configured and successfully initialized LLM providers.
-
-### GET `/api/codeqa/settings/defaultPath`
-Returns the default project path from configuration.
 
 ### GET `/api/codeqa/structure?projectPath=...`
 Returns the directory tree of the specified project path (up to 4 levels deep).
@@ -191,14 +215,15 @@ Returns the contents of a specific file with optional pagination.
 
 ```
 AnswerCode/
-├── Controllers/       # API controllers (CodeQAController)
-├── Models/            # DTOs and configuration models
+├── Controllers/           # API controller (CodeQAController)
+├── Models/                # DTOs and configuration models
 ├── Services/
-│   ├── Providers/     # LLM providers (OpenAIProvider, AzureOpenAIProvider)
-│   └── Tools/         # Agent tools + ReActParser
-├── wwwroot/           # Static frontend (index.html)
-├── appsettings.json   # Main configuration
-└── appsettings.Local.json  # Local overrides (gitignored)
+│   ├── Providers/         # LLM provider implementations (OpenAI, AzureOpenAI)
+│   └── Tools/             # Agent tools + ReActParser
+├── wwwroot/               # Static frontend (index.html)
+│   └── source-code/       # Uploaded source code folders (runtime, gitignored)
+├── appsettings.json       # Main configuration
+└── appsettings.Local.json # Local overrides (gitignored)
 ```
 
 ## License

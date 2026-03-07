@@ -622,6 +622,133 @@
             max-width: 100%;
         }
 
+        /* ===== Mermaid Zoom Container ===== */
+        .mermaid-zoom-wrapper {
+            position: relative;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            margin: 16px 0;
+            overflow: hidden;
+        }
+
+        .mermaid-zoom-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
+            background: rgba(13, 17, 23, 0.7);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            user-select: none;
+        }
+
+        .mermaid-zoom-toolbar .mz-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+
+        .mermaid-zoom-toolbar .mz-btn:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+            border-color: var(--accent-color);
+        }
+
+        .mermaid-zoom-toolbar .mz-label {
+            min-width: 42px;
+            text-align: center;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.78rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mermaid-zoom-toolbar .mz-sep {
+            width: 1px;
+            height: 18px;
+            background: var(--border-color);
+            margin: 0 4px;
+        }
+
+        .mermaid-zoom-toolbar .mz-hint {
+            margin-left: auto;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .mermaid-zoom-viewport {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        .mermaid-zoom-viewport:active {
+            cursor: grabbing;
+        }
+
+        .mermaid-zoom-viewport .mermaid-zoom-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+            will-change: transform;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 100%;
+            min-height: 100%;
+        }
+
+        .mermaid-zoom-viewport .mermaid-zoom-content svg {
+            display: block;
+        }
+
+        /* Fullscreen overlay */
+        .mermaid-fullscreen-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.92);
+            display: flex;
+            flex-direction: column;
+            animation: mzFadeIn 0.2s ease-out;
+        }
+
+        @keyframes mzFadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .mermaid-fullscreen-overlay .mermaid-zoom-toolbar {
+            background: rgba(22, 27, 34, 0.95);
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 16px;
+        }
+
+        .mermaid-fullscreen-overlay .mermaid-zoom-viewport {
+            flex: 1;
+            height: auto;
+        }
+
         /* ===== 2-Column Layout ===== */
         .page-layout {
             display: flex;
@@ -661,6 +788,7 @@
             font-size: 2rem;
             background: linear-gradient(90deg, var(--accent-color), #a371f7, #f778ba);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 8px;
         }
@@ -726,13 +854,86 @@
                 <p>AI-Powered Code Q&A System — Ask questions about your project and get intelligent answers</p>
             </div>
 
-            <!-- Input Section -->
-            <section class="input-section">
-                <div class="input-group">
-                    <label for="projectPath">📁 Project Path <small style="color: var(--text-secondary);">(configured in appsettings.json)</small></label>
-                    <input type="text" id="projectPath" placeholder="Loading default path from settings..." value="">
+            <!-- Upload Section -->
+            <section class="input-section" id="uploadSection">
+                <label style="display:block;margin-bottom:6px;font-weight:600;font-size:1.05rem;">📁 Upload Source Code
+                    <small style="color:var(--text-secondary);font-weight:400;">(max 20 MB)</small></label>
+                <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">
+                    Supports 8 languages: C#, Node.js, Python, Go, Rust, Java, C, C++
                 </div>
 
+                <!-- Drop zone -->
+                <div id="dropZone"
+                    style="border:2px dashed var(--border-color);border-radius:10px;padding:32px 16px;text-align:center;color:var(--text-secondary);cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:14px;"
+                    onclick="document.getElementById('fileInput').click()">
+                    <div style="font-size:2.4rem;margin-bottom:8px;">📂</div>
+                    <div>Drag &amp; drop files / folders here, or <span
+                            style="color:var(--accent-color);text-decoration:underline;">browse</span></div>
+                    <div style="font-size:.8rem;margin-top:6px;">You can select multiple files and folders</div>
+                    <input type="file" id="fileInput"
+                        accept=".cs,.js,.ts,.jsx,.tsx,.py,.go,.rs,.java,.c,.cpp,.cc,.cxx,.h,.hpp,.hxx,.html,.css,.json,.md,.xml,.toml,.yml,.yaml,.csproj,.sln"
+                        multiple webkitdirectory style="display:none;" onchange="handleFileSelect(this.files)">
+                    <!-- extra plain-file picker so users can also pick individual files -->
+                    <input type="file" id="fileInputPlain"
+                        accept=".cs,.js,.ts,.jsx,.tsx,.py,.go,.rs,.java,.c,.cpp,.cc,.cxx,.h,.hpp,.hxx,.html,.css,.json,.md,.xml,.toml,.yml,.yaml,.csproj,.sln"
+                        multiple style="display:none;" onchange="handleFileSelect(this.files)">
+                </div>
+
+                <!-- action row: two browse buttons -->
+                <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+                    <button class="btn btn-secondary" style="font-size:.85rem;padding:8px 14px;"
+                        onclick="document.getElementById('fileInputPlain').click()">📄 Browse Files</button>
+                    <button class="btn btn-secondary" style="font-size:.85rem;padding:8px 14px;"
+                        onclick="document.getElementById('fileInput').click()">📁 Browse Folder</button>
+                </div>
+
+                <!-- File list preview -->
+                <div id="fileListPreview"
+                    style="display:none;max-height:160px;overflow-y:auto;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:var(--text-secondary);">
+                </div>
+
+                <!-- Size warning -->
+                <div id="sizeWarning"
+                    style="display:none;background:rgba(248,81,73,.12);border:1px solid var(--danger-color);border-radius:8px;padding:10px 14px;color:var(--danger-color);font-size:.88rem;margin-bottom:14px;">
+                    ⚠️ Total size exceeds 20 MB limit.</div>
+
+                <!-- Progress bar -->
+                <div id="uploadProgressWrap" style="display:none;margin-bottom:14px;">
+                    <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px;">
+                        <span id="uploadProgressLabel">Uploading…</span>
+                        <span id="uploadProgressPct">0%</span>
+                    </div>
+                    <div style="height:8px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;">
+                        <div id="uploadProgressBar"
+                            style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent-color),#a371f7);border-radius:4px;transition:width .15s;">
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="uploadBtn" style="width:100%;justify-content:center;"
+                    onclick="uploadFiles()" disabled>
+                    <span>⬆️</span><span>Upload Source Code</span>
+                </button>
+
+                <!-- Current upload info -->
+                <div id="currentUploadInfo"
+                    style="display:none;margin-top:14px;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:8px;padding:14px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <div style="font-weight:600;font-size:.92rem;color:var(--success-color);">✅ Source code
+                                uploaded</div>
+                            <div style="font-size:.8rem;color:var(--text-secondary);margin-top:4px;"
+                                id="uploadInfoDetail"></div>
+                        </div>
+                        <button class="btn btn-secondary"
+                            style="font-size:.82rem;padding:6px 14px;background:rgba(248,81,73,.15);border-color:var(--danger-color);color:var(--danger-color);"
+                            onclick="removeSourceCode()">🗑️ Remove</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Input Section -->
+            <section class="input-section">
                 <div class="input-group">
                     <label for="modelProvider">🤖 Model Provider</label>
                     <select id="modelProvider">
@@ -742,15 +943,16 @@
 
                 <div class="input-group">
                     <label for="question">💬 Your Question</label>
-                    <textarea id="question" placeholder="Example: How does the authentication logic work in this project? Or: Help me find all classes related to UserService"></textarea>
+                    <textarea id="question"
+                        placeholder="Example: How does the authentication logic work in this project? Or: Help me find all classes related to UserService"></textarea>
                 </div>
 
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <button class="btn btn-primary" id="askDevBtn" onclick="askQuestion('Developer')">
+                    <button class="btn btn-primary" id="askDevBtn" onclick="askQuestion('Developer')" disabled>
                         <span>🧑‍💻</span>
                         <span>Answer as Developer</span>
                     </button>
-                    <button class="btn btn-pm" id="askPmBtn" onclick="askQuestion('PM')">
+                    <button class="btn btn-pm" id="askPmBtn" onclick="askQuestion('PM')" disabled>
                         <span>📊</span>
                         <span>Answer as PM</span>
                     </button>
@@ -781,7 +983,7 @@
                     </div>
                 </div>
                 <div class="answer-content" id="answerContent">
-                    <div class="empty">Enter your question and click "Answer as Developer" or "Answer as PM" to begin...</div>
+                    <div class="empty">Upload source code and enter your question to begin...</div>
                 </div>
             </section>
         </div><!-- /right-panel -->
@@ -807,18 +1009,22 @@
             }
         });
 
-        // Custom renderer: convert ```mermaid blocks into <pre class="mermaid"> 
+        // Custom renderer: convert ```mermaid blocks into <pre class="mermaid">
         const renderer = new marked.Renderer();
+        const mermaidKeywordsRe = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|mindmap|timeline|journey|block-beta|sankey-beta|sankey|xychart-beta|xychart|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|C4Deployment|C4Dynamic|zenuml|packet-beta|architecture-beta|kanban|actor)\b/i;
+        function looksLikeMermaid(src) {
+            const stripped = src.replace(/^(%%[^\n]*\n\s*)+/, '').trim();
+            return mermaidKeywordsRe.test(src) || mermaidKeywordsRe.test(stripped);
+        }
         renderer.code = function (token) {
-            // marked v12 passes a token object; safely extract text and lang
             const text = (typeof token === 'string' ? token : (token.text || token.code || '')) || '';
             const lang = (typeof token === 'string' ? '' : (token.lang || '')) || '';
-
-            if (lang === 'mermaid') {
-                return `<pre class="mermaid">${text}</pre>`;
+            if (lang === 'mermaid' || (lang === '' && looksLikeMermaid(text.trim()))) {
+                // HTML-escape the mermaid source so innerHTML doesn't corrupt it;
+                // mermaid.render() reads textContent which auto-decodes entities.
+                const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                return `<pre class="mermaid">${safeText}</pre>`;
             }
-
-            // Syntax highlight with highlight.js
             try {
                 if (lang && hljs.getLanguage(lang)) {
                     const highlighted = hljs.highlight(text, { language: lang }).value;
@@ -828,42 +1034,207 @@
                     const auto = hljs.highlightAuto(text).value;
                     return `<pre><code class="hljs">${auto}</code></pre>`;
                 }
-            } catch (e) {
-                console.warn('Highlight.js error in renderer:', e);
-            }
-
-            // Fallback: plain escaped text
+            } catch (e) { console.warn('Highlight.js error in renderer:', e); }
             const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             return `<pre><code>${escaped}</code></pre>`;
         };
 
-        marked.setOptions({
-            renderer: renderer,
-            breaks: true,
-            gfm: true
-        });
+        marked.setOptions({ renderer, breaks: true, gfm: true });
 
         let currentSessionId = null;
         let stepsVisible = true;
         let stepCounter = 0;
         let startTime = 0;
 
+        // ── Upload state ──
+        const MAX_BYTES = 20 * 1024 * 1024;
+        let pendingFiles = [];   // { file, relativePath }
+        let currentFolderId = null;
+
+        // ── Drag & drop ──
+        const dropZone = document.getElementById('dropZone');
+        ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.style.borderColor = 'var(--accent-color)'; dropZone.style.background = 'rgba(88,166,255,.06)'; }));
+        ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.style.borderColor = ''; dropZone.style.background = ''; }));
+        dropZone.addEventListener('drop', async (ev) => {
+            const items = ev.dataTransfer.items;
+            if (!items) return;
+            const collected = [];
+            const entries = [];
+            for (const item of items) {
+                const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                if (entry) entries.push(entry);
+            }
+            await Promise.all(entries.map(e => traverseEntry(e, '', collected)));
+            setPendingFiles(collected);
+        });
+
+        const ALLOWED_EXTS = ['.cs', '.js', '.ts', '.jsx', '.tsx', '.py', '.go', '.rs', '.java', '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hxx', '.html', '.css', '.json', '.md', '.xml', '.toml', '.yml', '.yaml', '.csproj', '.fsproj', '.vbproj', '.sln', '.sql'];
+        const ALLOWED_FILES = ['package.json', 'package-lock.json', 'requirements.txt', 'pyproject.toml', 'go.mod', 'go.sum', 'Cargo.toml', 'Cargo.lock', 'pom.xml', 'build.gradle', 'CMakeLists.txt', '.gitignore', '.editorconfig', 'Dockerfile', 'Makefile'];
+        const IGNORED_DIRS = ['.git', 'node_modules', 'bin', 'obj', '.vs', '.vscode', '.idea', 'dist', 'build', 'out', 'target', '__pycache__', 'venv', '.venv'];
+
+        function isValidFile(file) {
+            const name = file.name.toLowerCase();
+            if (ALLOWED_FILES.includes(name)) return true;
+            if (ALLOWED_EXTS.some(ext => name.endsWith(ext))) return true;
+            return false;
+        }
+
+        async function traverseEntry(entry, pathPrefix, out) {
+            if (entry.isDirectory) {
+                if (IGNORED_DIRS.includes(entry.name)) return;
+                const reader = entry.createReader();
+                const children = await new Promise(r => reader.readEntries(r));
+                await Promise.all(children.map(c => traverseEntry(c, pathPrefix + entry.name + '/', out)));
+            } else if (entry.isFile) {
+                const file = await new Promise(r => entry.file(r));
+                if (isValidFile(file)) {
+                    out.push({ file, relativePath: pathPrefix + entry.name });
+                }
+            }
+        }
+
+        function handleFileSelect(fileList) {
+            const collected = [];
+            for (const f of fileList) {
+                const rel = f.webkitRelativePath || f.name;
+                const parts = rel.split('/');
+                if (parts.some(p => IGNORED_DIRS.includes(p))) continue;
+                if (isValidFile(f)) {
+                    collected.push({ file: f, relativePath: rel });
+                }
+            }
+            setPendingFiles(collected);
+        }
+
+        function setPendingFiles(items) {
+            pendingFiles = items;
+            const totalSize = items.reduce((s, i) => s + i.file.size, 0);
+            const overLimit = totalSize > MAX_BYTES;
+
+            // file list preview
+            const preview = document.getElementById('fileListPreview');
+            if (items.length > 0) {
+                const sizeMB = (totalSize / 1024 / 1024).toFixed(2);
+                let html = `<div style="margin-bottom:6px;color:var(--text-primary);font-weight:600;">${items.length} file(s) — ${sizeMB} MB</div>`;
+                const show = items.slice(0, 60);
+                html += show.map(i => `<div style="padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📄 ${escapeHtml(i.relativePath)} <span style="color:var(--text-secondary);font-size:.75rem;">(${(i.file.size / 1024).toFixed(1)} KB)</span></div>`).join('');
+                if (items.length > 60) html += `<div style="color:var(--accent-color);margin-top:4px;">… and ${items.length - 60} more</div>`;
+                preview.innerHTML = html;
+                preview.style.display = '';
+            } else {
+                preview.style.display = 'none';
+            }
+
+            // size warning
+            document.getElementById('sizeWarning').style.display = overLimit ? '' : 'none';
+            // upload button
+            document.getElementById('uploadBtn').disabled = items.length === 0 || overLimit;
+        }
+
+        async function uploadFiles() {
+            if (pendingFiles.length === 0) return;
+
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+
+            const progressWrap = document.getElementById('uploadProgressWrap');
+            const progressBar = document.getElementById('uploadProgressBar');
+            const progressPct = document.getElementById('uploadProgressPct');
+            const progressLabel = document.getElementById('uploadProgressLabel');
+            progressWrap.style.display = '';
+            progressBar.style.width = '0%';
+            progressPct.textContent = '0%';
+            progressLabel.textContent = 'Uploading…';
+
+            const formData = new FormData();
+            for (const item of pendingFiles) {
+                formData.append('files', item.file, item.relativePath);
+                formData.append('relativePaths', item.relativePath);
+            }
+            if (currentFolderId) {
+                formData.append('folderId', currentFolderId);
+            }
+
+            try {
+                const result = await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/api/CodeQA/upload');
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            const pct = Math.round((e.loaded / e.total) * 100);
+                            progressBar.style.width = pct + '%';
+                            progressPct.textContent = pct + '%';
+                            progressLabel.textContent = pct < 100 ? 'Uploading…' : 'Processing…';
+                        }
+                    });
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve(JSON.parse(xhr.responseText));
+                        } else {
+                            try { reject(JSON.parse(xhr.responseText).error); } catch { reject('Upload failed'); }
+                        }
+                    };
+                    xhr.onerror = () => reject('Network error');
+                    xhr.send(formData);
+                });
+
+                currentFolderId = result.folderId;
+                progressLabel.textContent = '✅ Upload complete';
+                progressBar.style.width = '100%';
+                progressPct.textContent = '100%';
+
+                // Show upload info
+                document.getElementById('uploadInfoDetail').textContent = `Folder: ${result.folderId} · ${result.fileCount} files · ${result.totalSizeMB} MB`;
+                document.getElementById('currentUploadInfo').style.display = '';
+
+                // Enable ask buttons
+                document.getElementById('askDevBtn').disabled = false;
+                document.getElementById('askPmBtn').disabled = false;
+
+                // Reset file list
+                pendingFiles = [];
+                document.getElementById('fileListPreview').style.display = 'none';
+                btn.disabled = true;
+
+                setTimeout(() => { progressWrap.style.display = 'none'; }, 2000);
+            } catch (err) {
+                progressLabel.textContent = '❌ ' + err;
+                progressBar.style.background = 'var(--danger-color)';
+                btn.disabled = false;
+            }
+        }
+
+        async function removeSourceCode() {
+            if (!currentFolderId) return;
+            if (!confirm('Remove the uploaded source code?')) return;
+            try {
+                const res = await fetch(`/api/CodeQA/upload/${currentFolderId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Delete failed');
+                currentFolderId = null;
+                document.getElementById('currentUploadInfo').style.display = 'none';
+                document.getElementById('askDevBtn').disabled = true;
+                document.getElementById('askPmBtn').disabled = true;
+                document.getElementById('uploadBtn').disabled = true;
+                document.getElementById('uploadProgressWrap').style.display = 'none';
+            } catch (e) {
+                alert('Failed to remove source code: ' + e.message);
+            }
+        }
+
+        // ── Providers ──
         async function loadProviders() {
             try {
                 const response = await fetch('/api/CodeQA/providers');
                 if (!response.ok) throw new Error('Failed to load providers');
                 const providers = await response.json();
-
                 const select = document.getElementById('modelProvider');
                 select.innerHTML = '';
-
                 for (const [key, displayName] of Object.entries(providers)) {
                     const option = document.createElement('option');
                     option.value = key;
                     option.textContent = displayName;
                     select.appendChild(option);
                 }
-
                 if (select.options.length > 0) select.selectedIndex = 0;
             } catch (error) {
                 console.error('Error loading providers:', error);
@@ -871,35 +1242,16 @@
             }
         }
 
-        async function loadDefaultPath() {
-            try {
-                const response = await fetch('/api/CodeQA/settings/defaultPath');
-                if (!response.ok) throw new Error('Failed to load default path');
-                const data = await response.json();
-
-                const input = document.getElementById('projectPath');
-                if (data.defaultPath) {
-                    input.value = data.defaultPath;
-                    input.placeholder = 'Enter project path or use the configured default';
-                }
-            } catch (error) {
-                console.error('Error loading default path:', error);
-                document.getElementById('projectPath').placeholder = 'Enter the project path';
-            }
-        }
-
         loadProviders();
-        loadDefaultPath();
 
+        // ── Ask ──
         async function askQuestion(role) {
-            const projectPath = document.getElementById('projectPath').value.trim();
+            if (!currentFolderId) { showError('Please upload source code first'); return; }
             const question = document.getElementById('question').value.trim();
             const modelProvider = document.getElementById('modelProvider').value;
 
-            if (!projectPath) { showError('Please enter a project path'); return; }
             if (!question) { showError('Please enter your question'); return; }
 
-            // Disable both answer buttons
             const askDevBtn = document.getElementById('askDevBtn');
             const askPmBtn = document.getElementById('askPmBtn');
             askDevBtn.disabled = true;
@@ -914,16 +1266,15 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        projectPath, question,
+                        projectPath: currentFolderId,
+                        question,
                         sessionId: currentSessionId,
                         modelProvider,
                         userRole: role
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -932,21 +1283,12 @@
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-
                     buffer += decoder.decode(value, { stream: true });
-
-                    // Parse SSE events from buffer
                     const lines = buffer.split('\n');
-                    buffer = lines.pop() || ''; // keep incomplete line
-
+                    buffer = lines.pop() || '';
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
-                            try {
-                                const event = JSON.parse(line.slice(6));
-                                handleEvent(event);
-                            } catch (e) {
-                                console.warn('Failed to parse SSE event:', line, e);
-                            }
+                            try { handleEvent(JSON.parse(line.slice(6))); } catch (e) { console.warn('SSE parse error:', e); }
                         }
                     }
                 }
@@ -959,7 +1301,6 @@
         }
 
         function showStreamingUI() {
-            // Show workflow section in left panel
             const workflowSection = document.getElementById('workflowSection');
             workflowSection.style.display = '';
             document.getElementById('workflowInner').innerHTML = `
@@ -977,55 +1318,30 @@
                     <span>Agent is thinking...</span>
                 </div>
             `;
-
-            // Show placeholder in right panel
-            const content = document.getElementById('answerContent');
-            content.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <span>Waiting for answer...</span>
-                </div>
-            `;
-
-            // Update elapsed time
+            document.getElementById('answerContent').innerHTML = `<div class="loading"><div class="spinner"></div><span>Waiting for answer...</span></div>`;
             if (window._elapsedTimer) clearInterval(window._elapsedTimer);
             window._elapsedTimer = setInterval(() => {
                 const el = document.getElementById('elapsedTime');
-                if (el) {
-                    const elapsed = Math.round((Date.now() - startTime) / 1000);
-                    el.textContent = `${elapsed}s`;
-                }
+                if (el) el.textContent = `${Math.round((Date.now() - startTime) / 1000)}s`;
             }, 1000);
-
             document.getElementById('answerMeta').style.display = 'none';
         }
 
         function handleEvent(event) {
             switch (event.type) {
-                case 'Started':
-                    break;
-
+                case 'Started': break;
                 case 'ToolCallStart':
                     addStepItem(event, true);
                     updateThinkingText(`Running ${formatToolName(event.toolName)}...`);
                     break;
-
                 case 'ToolCallEnd':
                     markStepDone(event);
                     updateThinkingText('Agent is thinking...');
                     break;
-
                 case 'Answer':
                     if (window._elapsedTimer) clearInterval(window._elapsedTimer);
-                    try {
-                        showFinalAnswer(event.result);
-                    } catch (e) {
-                        console.error('showFinalAnswer error:', e, 'event:', event);
-                        removeThinking();
-                        showError('Failed to render answer: ' + e.message);
-                    }
+                    try { showFinalAnswer(event.result); } catch (e) { console.error('showFinalAnswer error:', e); removeThinking(); showError('Failed to render answer: ' + e.message); }
                     break;
-
                 case 'Error':
                     if (window._elapsedTimer) clearInterval(window._elapsedTimer);
                     removeThinking();
@@ -1037,13 +1353,10 @@
         function addStepItem(event, running) {
             const list = document.getElementById('stepsList');
             if (!list) return;
-
             stepCounter++;
             const id = `step-${stepCounter}`;
-
             const icon = getToolIcon(event.toolName);
             const toolLabel = formatToolName(event.toolName);
-
             const item = document.createElement('div');
             item.className = `step-item ${running ? 'running' : 'done'}`;
             item.id = id;
@@ -1060,152 +1373,59 @@
                 </div>
                 <div class="step-details" id="${id}-details"></div>
             `;
-
             list.appendChild(item);
             item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-            // Update toggle label
             updateStepsLabel();
         }
 
         function markStepDone(event) {
-            // Find the last running step with matching tool name
             const list = document.getElementById('stepsList');
             if (!list) return;
-
             const items = list.querySelectorAll('.step-item.running');
             for (let i = items.length - 1; i >= 0; i--) {
                 if (items[i].dataset.toolName === event.toolName) {
                     items[i].className = 'step-item done';
                     const icon = items[i].querySelector('.step-icon');
-                    if (icon) {
-                        icon.className = 'step-icon';
-                        icon.textContent = '∞';
-                    }
+                    if (icon) { icon.className = 'step-icon'; icon.textContent = '∞'; }
                     const dur = items[i].querySelector('.step-duration');
                     if (dur && event.durationMs != null) {
-                        dur.textContent = event.durationMs < 1000
-                            ? `${event.durationMs}ms`
-                            : `${(event.durationMs / 1000).toFixed(1)}s`;
+                        dur.textContent = event.durationMs < 1000 ? `${event.durationMs}ms` : `${(event.durationMs / 1000).toFixed(1)}s`;
                     }
-
-                    // Show result summary
                     const resultEl = items[i].querySelector('.step-result');
-                    if (resultEl && event.resultSummary) {
-                        resultEl.textContent = `→ ${event.resultSummary}`;
-                    }
+                    if (resultEl && event.resultSummary) resultEl.textContent = `→ ${event.resultSummary}`;
 
-                    // Populate expandable details
                     const detailsEl = items[i].querySelector('.step-details');
                     if (detailsEl) {
                         const stepId = items[i].id;
-                        let detailsHtml = '';
-
-                        // Structured bullet list (primary detail view)
+                        let dh = '';
                         if (event.detailItems && event.detailItems.length > 0) {
                             const label = event.detailLabel || 'Details';
-                            detailsHtml += `
-                                <div class="step-details-section">
-                                    <div class="step-details-label">${escapeHtml(label)}</div>
-                                    <ul class="step-detail-list">
-                                        ${event.detailItems.map(item => {
-                                            if (item.startsWith('──')) {
-                                                return `<li class="section-header">${escapeHtml(item)}</li>`;
-                                            }
-                                            return `<li>${escapeHtml(item)}</li>`;
-                                        }).join('')}
-                                    </ul>
-                                </div>`;
+                            dh += `<div class="step-details-section"><div class="step-details-label">${escapeHtml(label)}</div><ul class="step-detail-list">${event.detailItems.map(it => it.startsWith('──') ? `<li class="section-header">${escapeHtml(it)}</li>` : `<li>${escapeHtml(it)}</li>`).join('')}</ul></div>`;
                         }
-
-                        // Arguments
                         if (event.toolArgs) {
-                            let argsDisplay = event.toolArgs;
-                            try {
-                                argsDisplay = JSON.stringify(JSON.parse(event.toolArgs), null, 2);
-                            } catch (e) { /* keep raw */ }
-                            detailsHtml += `
-                                <div class="step-details-section">
-                                    <div class="step-details-label">Arguments</div>
-                                    <pre class="step-details-content">${escapeHtml(argsDisplay)}</pre>
-                                </div>`;
+                            let ad = event.toolArgs; try { ad = JSON.stringify(JSON.parse(event.toolArgs), null, 2); } catch { }
+                            dh += `<div class="step-details-section"><div class="step-details-label">Arguments</div><pre class="step-details-content">${escapeHtml(ad)}</pre></div>`;
                         }
-
-                        // Raw output (collapsible)
                         if (event.resultDetails) {
                             const rawId = `${stepId}-raw`;
-                            detailsHtml += `
-                                <button class="step-raw-toggle" onclick="toggleRawOutput('${rawId}', event)">
-                                    <span class="raw-arrow" id="${rawId}-arrow">▶</span>
-                                    <span>Raw Output</span>
-                                </button>
-                                <div id="${rawId}" style="display: none;">
-                                    <pre class="step-details-content">${escapeHtml(event.resultDetails)}</pre>
-                                </div>`;
+                            dh += `<button class="step-raw-toggle" onclick="toggleRawOutput('${rawId}', event)"><span class="raw-arrow" id="${rawId}-arrow">▶</span><span>Raw Output</span></button><div id="${rawId}" style="display:none;"><pre class="step-details-content">${escapeHtml(event.resultDetails)}</pre></div>`;
                         }
-
-                        detailsEl.innerHTML = detailsHtml;
+                        detailsEl.innerHTML = dh;
                     }
-
                     break;
                 }
             }
         }
 
-        function getToolIcon(toolName) {
-            switch (toolName) {
-                case 'grep_search': return '🔍';
-                case 'glob_search': return '🔍';
-                case 'read_file': return '📄';
-                case 'list_directory': return '📁';
-                case 'find_definition': return '🎯';
-                case 'get_file_outline': return '🏗️';
-                case 'get_related_files': return '🔗';
-                default: return '⚙';
-            }
-        }
+        function getToolIcon(n) { return { grep_search: '🔍', glob_search: '🔍', read_file: '📄', list_directory: '📁', find_definition: '🎯', get_file_outline: '🏗️', get_related_files: '🔗' }[n] || '⚙'; }
+        function formatToolName(n) { return { grep_search: 'Grep', glob_search: 'Glob', read_file: 'Read', list_directory: 'ListDir', find_definition: 'FindDef', get_file_outline: 'Outline', get_related_files: 'Related' }[n] || n; }
+        function updateStepsLabel() { const el = document.getElementById('elapsedTime'); if (el) el.textContent = `${Math.round((Date.now() - startTime) / 1000)}s`; }
+        function updateThinkingText(text) { const el = document.getElementById('thinkingIndicator'); if (el) { const s = el.querySelector('span:last-child'); if (s) s.textContent = text; } }
+        function removeThinking() { const el = document.getElementById('thinkingIndicator'); if (el) el.remove(); }
 
-        function formatToolName(toolName) {
-            switch (toolName) {
-                case 'grep_search': return 'Grep';
-                case 'glob_search': return 'Glob';
-                case 'read_file': return 'Read';
-                case 'list_directory': return 'ListDir';
-                case 'find_definition': return 'FindDef';
-                case 'get_file_outline': return 'Outline';
-                case 'get_related_files': return 'Related';
-                default: return toolName;
-            }
-        }
-
-        function updateStepsLabel() {
-            const elapsed = Math.round((Date.now() - startTime) / 1000);
-            const el = document.getElementById('elapsedTime');
-            if (el) el.textContent = `${elapsed}s`;
-        }
-
-        function updateThinkingText(text) {
-            const el = document.getElementById('thinkingIndicator');
-            if (el) {
-                const span = el.querySelector('span:last-child');
-                if (span) span.textContent = text;
-            }
-        }
-
-        function removeThinking() {
-            const el = document.getElementById('thinkingIndicator');
-            if (el) el.remove();
-        }
-
-        function showFinalAnswer(data) {
-            if (!data) {
-                console.warn('showFinalAnswer: no data received');
-                return;
-            }
-
-            console.log('showFinalAnswer received:', data);
+        async function showFinalAnswer(data) {
+            if (!data) return;
             removeThinking();
-
             try {
                 const meta = document.getElementById('answerMeta');
                 meta.style.display = 'flex';
@@ -1215,140 +1435,402 @@
                     ? `🪙 ${totalTokens.toLocaleString()} tokens (↑${(data.totalInputTokens || 0).toLocaleString()} ↓${(data.totalOutputTokens || 0).toLocaleString()})`
                     : `🪙 -- tokens`;
                 document.getElementById('sessionId').textContent = `🔗 ${(data.sessionId || '').substring(0, 8)}...`;
-
                 currentSessionId = data.sessionId;
-
-                // Update steps elapsed time
                 const elapsed = Math.round((data.processingTimeMs || 0) / 1000);
                 const elapsedEl = document.getElementById('elapsedTime');
                 if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
-
-                // Hide steps toggle text update
-                // Update steps toggle label in left panel
                 const toggleEl = document.querySelector('#stepsSection .steps-toggle span:nth-child(2)');
                 if (toggleEl) toggleEl.textContent = 'Hide steps';
-            } catch (e) {
-                console.warn('Error updating metadata:', e);
-            }
+            } catch (e) { console.warn('Error updating metadata:', e); }
 
-            // Render answer in right panel (replace the loading placeholder)
             const content = document.getElementById('answerContent');
             content.innerHTML = '';
             const responseDiv = document.createElement('div');
-
             const answerText = data.answer || '(No answer returned)';
             let parsedHtml = '';
+            try { parsedHtml = marked.parse(answerText); } catch (e) { parsedHtml = `<pre style="white-space:pre-wrap;">${escapeHtml(answerText)}</pre>`; }
 
-            try {
-                parsedHtml = marked.parse(answerText);
-            } catch (e) {
-                console.warn('marked.parse failed, using raw text:', e);
-                parsedHtml = `<pre style="white-space: pre-wrap;">${escapeHtml(answerText)}</pre>`;
-            }
-
-            let html = `<div style="color: var(--accent-color); font-size: 0.85rem; font-weight: 600; margin-bottom: 12px;">Response</div>`;
+            let html = `<div style="color:var(--accent-color);font-size:.85rem;font-weight:600;margin-bottom:12px;">Response</div>`;
             html += `<div class="markdown-body">${parsedHtml}</div>`;
 
             if (data.relevantFiles && data.relevantFiles.length > 0) {
-                html += `
-                    <div class="relevant-files">
-                        <h4>📂 Analyzed Files</h4>
-                        <div class="file-list">
-                            ${data.relevantFiles.map(f => `<span class="file-tag">📄 ${f}</span>`).join('')}
-                        </div>
-                    </div>
-                `;
+                html += `<div class="relevant-files"><h4>📂 Analyzed Files</h4><div class="file-list">${data.relevantFiles.map(f => `<span class="file-tag">📄 ${f}</span>`).join('')}</div></div>`;
             }
-
             responseDiv.innerHTML = html;
             content.appendChild(responseDiv);
 
-            // Post-process: convert mermaid code blocks to <pre class="mermaid">
-            // This catches blocks that the renderer didn't intercept
+            // Detect mermaid inside <pre><code> blocks that the renderer didn't tag
             responseDiv.querySelectorAll('pre code').forEach(codeEl => {
                 const classList = Array.from(codeEl.classList);
                 const isMermaidClass = classList.some(c => c.includes('mermaid'));
                 const text = codeEl.textContent.trim();
-                const isMermaidContent = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|mindmap|timeline|journey)\b/i.test(text);
-
-                if (isMermaidClass || isMermaidContent) {
+                // Strip leading %% comment lines to find the real first directive
+                const stripped = text.replace(/^(%%[^\n]*\n\s*)+/, '').trim();
+                const mermaidKeywords = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|mindmap|timeline|journey|block-beta|sankey-beta|sankey|xychart-beta|xychart|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|C4Deployment|C4Dynamic|zenuml|packet-beta|architecture-beta|kanban|actor)\b/i;
+                const isMermaidContent = mermaidKeywords.test(text) || mermaidKeywords.test(stripped);
+                // Also detect if it starts with %% comments and looks like a mermaid diagram
+                const startsWithMermaidComment = /^%%/.test(text) && mermaidKeywords.test(stripped);
+                if (isMermaidClass || isMermaidContent || startsWithMermaidComment) {
                     const pre = codeEl.parentElement;
                     pre.className = 'mermaid';
-                    pre.textContent = text;  // Replace <code> with raw text for mermaid
+                    pre.textContent = text;   // textContent auto-escapes, safe for mermaid.render
                 }
             });
 
-            // Scroll to the response
+            // Syntax-highlight only non-mermaid code blocks
+            try { responseDiv.querySelectorAll('pre:not(.mermaid) code').forEach(b => hljs.highlightElement(b)); } catch (e) { }
+
+            // Render mermaid diagrams
+            await renderMermaid(responseDiv);
+
             responseDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
 
-            // Re-highlight code blocks
-            try {
-                responseDiv.querySelectorAll('pre code').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
-            } catch (e) {
-                console.warn('Highlight.js error:', e);
-            }
+        let mermaidIdCounter = 0;
 
-            // Render Mermaid diagrams
-            renderMermaid(responseDiv);
+        /**
+         * Sanitize mermaid source to fix common LLM-generated issues that break the parser.
+         */
+        function sanitizeMermaidSource(src) {
+            let s = src;
+            // 1. Replace unicode dashes (non-breaking hyphen U+2011, hyphen U+2010, en-dash, em-dash) with ASCII hyphen
+            s = s.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, '-');
+            // 2. Replace smart quotes with ASCII quotes
+            s = s.replace(/[\u201C\u201D\u201E\u201F]/g, '"');
+            s = s.replace(/[\u2018\u2019\u201A\u201B]/g, "'");
+            // 3. Replace ellipsis character with three dots
+            s = s.replace(/\u2026/g, '...');
+            // 4. Fix participant aliases with parentheses: `participant X as Label (extra)` → `participant X as Label - extra`
+            //    Mermaid interprets () as activation so these break sequence diagrams.
+            s = s.replace(/^(\s*participant\s+\S+\s+as\s+.*?)\(([^)]*)\)\s*$/gm, '$1- $2');
+            // 5. Fix note lines with parentheses after participant
+            // 6. Strip common emoji that can break the Mermaid parser (keep only basic text)
+            //    But leave %% comments as-is
+            return s;
         }
 
         async function renderMermaid(container) {
-            const mermaidBlocks = container.querySelectorAll('pre.mermaid');
-            if (mermaidBlocks.length > 0) {
+            const blocks = container.querySelectorAll('pre.mermaid');
+            if (blocks.length === 0) return;
+            for (const block of blocks) {
+                const rawDef = block.textContent.trim();
+                if (!rawDef) continue;
+
+                // Try rendering the raw source first
+                let svg = null;
+                let lastError = null;
+                const id = 'mermaid-svg-' + (++mermaidIdCounter);
+
                 try {
-                    await mermaid.run({ nodes: mermaidBlocks });
-                } catch (e) {
-                    console.warn('Mermaid rendering error:', e);
+                    const result = await mermaid.render(id, rawDef);
+                    svg = result.svg;
+                } catch (e1) {
+                    lastError = e1;
+                    // Mermaid v11 leaves stale error containers in the DOM; clean them up
+                    const stale = document.getElementById(id);
+                    if (stale) stale.remove();
+                    document.querySelectorAll(`[id^="${id}"]`).forEach(el => el.remove());
+                    console.warn('Mermaid render failed with raw source, trying sanitized...', e1);
+                    // Retry with sanitized source
+                    const sanitized = sanitizeMermaidSource(rawDef);
+                    if (sanitized !== rawDef) {
+                        try {
+                            const retryId = 'mermaid-svg-' + (++mermaidIdCounter);
+                            const result2 = await mermaid.render(retryId, sanitized);
+                            svg = result2.svg;
+                            lastError = null;
+                        } catch (e2) {
+                            lastError = e2;
+                            console.warn('Mermaid render also failed with sanitized source:', e2);
+                        }
+                    }
+                }
+
+                if (svg) {
+                    const wrapper = createMermaidZoomWrapper(svg, id);
+                    block.replaceWith(wrapper);
+                } else {
+                    block.classList.add('mermaid-error');
+                    const errMsg = (lastError && lastError.message) ? lastError.message : 'Failed to parse diagram';
+                    block.innerHTML = `<div style="color:var(--warning-color);font-size:.85rem;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><span>\u26a0\ufe0f</span><span>Mermaid diagram could not be rendered</span></div><details style="margin-top:4px;"><summary style="cursor:pointer;color:var(--text-secondary);font-size:.8rem;">Show error details</summary><div style="color:var(--danger-color);font-size:.78rem;margin-top:4px;">${escapeHtml(errMsg)}</div></details><pre style="background:rgba(13,17,23,0.6);border:1px solid var(--border-color);border-radius:6px;padding:12px;color:var(--text-secondary);font-size:.82rem;white-space:pre-wrap;margin:8px 0 0 0;max-height:400px;overflow-y:auto;">${escapeHtml(rawDef)}</pre>`;
                 }
             }
         }
 
-        function toggleSteps() {
-            const list = document.getElementById('stepsList');
-            const arrow = document.getElementById('stepsArrow');
-            if (!list) return;
+        // ── Mermaid Zoom/Pan ──
+        function createMermaidZoomWrapper(svgHtml, diagramId) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mermaid-zoom-wrapper';
+            wrapper.dataset.diagramId = diagramId;
 
-            stepsVisible = !stepsVisible;
-            list.style.display = stepsVisible ? 'flex' : 'none';
-            arrow.className = `arrow ${stepsVisible ? 'open' : ''}`;
-        }
+            // Toolbar
+            const toolbar = document.createElement('div');
+            toolbar.className = 'mermaid-zoom-toolbar';
+            toolbar.innerHTML = `
+                <button class="mz-btn" data-action="zoom-out" title="Zoom out (−)">−</button>
+                <span class="mz-label" data-role="zoom-label">100%</span>
+                <button class="mz-btn" data-action="zoom-in" title="Zoom in (+)">+</button>
+                <div class="mz-sep"></div>
+                <button class="mz-btn" data-action="reset" title="Reset (double-click)">↺</button>
+                <button class="mz-btn" data-action="fit" title="Fit to view">⊞</button>
+                <div class="mz-sep"></div>
+                <button class="mz-btn" data-action="fullscreen" title="Fullscreen (F)">⛶</button>
+                <span class="mz-hint">Scroll to zoom · Drag to pan</span>
+            `;
+            wrapper.appendChild(toolbar);
 
-        function toggleStepDetails(stepId) {
-            const details = document.getElementById(`${stepId}-details`);
-            const expander = document.getElementById(`${stepId}-exp`);
-            if (!details) return;
+            // Viewport
+            const viewport = document.createElement('div');
+            viewport.className = 'mermaid-zoom-viewport';
+            const content = document.createElement('div');
+            content.className = 'mermaid-zoom-content';
+            content.innerHTML = svgHtml;
+            viewport.appendChild(content);
+            wrapper.appendChild(viewport);
 
-            // Only allow expanding if the step has details content
-            if (!details.innerHTML.trim()) return;
+            // State
+            const state = { scale: 1, panX: 0, panY: 0, dragging: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 };
+            const MIN_SCALE = 0.1;
+            const MAX_SCALE = 8;
+            const ZOOM_STEP = 0.15;
 
-            const isOpen = details.classList.contains('open');
-            details.classList.toggle('open');
-            if (expander) {
-                expander.classList.toggle('open', !isOpen);
+            function applyTransform() {
+                content.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+                const label = wrapper.querySelector('[data-role="zoom-label"]');
+                if (label) label.textContent = Math.round(state.scale * 100) + '%';
+                // Also update fullscreen label if open
+                const fsOverlay = document.getElementById('mz-fullscreen-' + diagramId);
+                if (fsOverlay) {
+                    const fsLabel = fsOverlay.querySelector('[data-role="zoom-label"]');
+                    if (fsLabel) fsLabel.textContent = Math.round(state.scale * 100) + '%';
+                }
             }
-        }
 
-        function toggleRawOutput(rawId, evt) {
-            evt.stopPropagation();
-            const rawEl = document.getElementById(rawId);
-            const arrowEl = document.getElementById(`${rawId}-arrow`);
-            if (!rawEl) return;
-
-            const isVisible = rawEl.style.display !== 'none';
-            rawEl.style.display = isVisible ? 'none' : 'block';
-            if (arrowEl) {
-                arrowEl.classList.toggle('open', !isVisible);
+            function zoomAt(delta, cx, cy) {
+                const oldScale = state.scale;
+                const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, oldScale * (1 + delta)));
+                const ratio = newScale / oldScale;
+                // Zoom towards cursor position
+                state.panX = cx - ratio * (cx - state.panX);
+                state.panY = cy - ratio * (cy - state.panY);
+                state.scale = newScale;
+                applyTransform();
             }
+
+            function resetView() {
+                state.scale = 1; state.panX = 0; state.panY = 0;
+                applyTransform();
+            }
+
+            function fitToView() {
+                const svgEl = content.querySelector('svg');
+                if (!svgEl) return;
+                const vw = viewport.clientWidth;
+                const vh = viewport.clientHeight;
+                const sw = svgEl.getBoundingClientRect().width / state.scale || svgEl.scrollWidth;
+                const sh = svgEl.getBoundingClientRect().height / state.scale || svgEl.scrollHeight;
+                if (sw === 0 || sh === 0) return;
+                const fitScale = Math.min(vw / sw, vh / sh, 2) * 0.92; // 92% to add padding
+                state.scale = fitScale;
+                state.panX = (vw - sw * fitScale) / 2;
+                state.panY = (vh - sh * fitScale) / 2;
+                applyTransform();
+            }
+
+            // Mouse wheel zoom
+            viewport.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const rect = viewport.getBoundingClientRect();
+                const cx = e.clientX - rect.left;
+                const cy = e.clientY - rect.top;
+                const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+                zoomAt(delta, cx, cy);
+            }, { passive: false });
+
+            // Drag to pan
+            viewport.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                state.dragging = true;
+                state.startX = e.clientX;
+                state.startY = e.clientY;
+                state.startPanX = state.panX;
+                state.startPanY = state.panY;
+                e.preventDefault();
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!state.dragging) return;
+                state.panX = state.startPanX + (e.clientX - state.startX);
+                state.panY = state.startPanY + (e.clientY - state.startY);
+                applyTransform();
+            });
+            window.addEventListener('mouseup', () => { state.dragging = false; });
+
+            // Double-click to reset
+            viewport.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                resetView();
+            });
+
+            // Toolbar buttons
+            toolbar.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                const action = btn.dataset.action;
+                const rect = viewport.getBoundingClientRect();
+                const cx = rect.width / 2;
+                const cy = rect.height / 2;
+                switch (action) {
+                    case 'zoom-in': zoomAt(ZOOM_STEP, cx, cy); break;
+                    case 'zoom-out': zoomAt(-ZOOM_STEP, cx, cy); break;
+                    case 'reset': resetView(); break;
+                    case 'fit': fitToView(); break;
+                    case 'fullscreen': openMermaidFullscreen(wrapper, svgHtml, diagramId, state); break;
+                }
+            });
+
+            // Auto-fit after a brief delay so SVG dimensions are available
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => fitToView());
+            });
+
+            return wrapper;
         }
+
+        // ── Fullscreen overlay ──
+        function openMermaidFullscreen(sourceWrapper, svgHtml, diagramId, sourceState) {
+            // Prevent duplicates
+            const existing = document.getElementById('mz-fullscreen-' + diagramId);
+            if (existing) { existing.remove(); return; }
+
+            const overlay = document.createElement('div');
+            overlay.className = 'mermaid-fullscreen-overlay';
+            overlay.id = 'mz-fullscreen-' + diagramId;
+
+            // Toolbar
+            const toolbar = document.createElement('div');
+            toolbar.className = 'mermaid-zoom-toolbar';
+            toolbar.innerHTML = `
+                <button class="mz-btn" data-action="zoom-out" title="Zoom out">−</button>
+                <span class="mz-label" data-role="zoom-label">100%</span>
+                <button class="mz-btn" data-action="zoom-in" title="Zoom in">+</button>
+                <div class="mz-sep"></div>
+                <button class="mz-btn" data-action="reset" title="Reset">↺</button>
+                <button class="mz-btn" data-action="fit" title="Fit">⊞</button>
+                <div class="mz-sep"></div>
+                <button class="mz-btn" data-action="close" title="Close (Esc)" style="background:rgba(248,81,73,.15);border-color:var(--danger-color);color:var(--danger-color);">✕</button>
+                <span class="mz-hint">Press Esc to close · Scroll to zoom · Drag to pan</span>
+            `;
+            overlay.appendChild(toolbar);
+
+            // Viewport
+            const viewport = document.createElement('div');
+            viewport.className = 'mermaid-zoom-viewport';
+            const content = document.createElement('div');
+            content.className = 'mermaid-zoom-content';
+            content.innerHTML = svgHtml;
+            viewport.appendChild(content);
+            overlay.appendChild(viewport);
+
+            document.body.appendChild(overlay);
+
+            // State (separate from inline)
+            const state = { scale: 1, panX: 0, panY: 0, dragging: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 };
+            const MIN_SCALE = 0.05;
+            const MAX_SCALE = 12;
+            const ZOOM_STEP = 0.15;
+
+            function applyTransform() {
+                content.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+                const label = overlay.querySelector('[data-role="zoom-label"]');
+                if (label) label.textContent = Math.round(state.scale * 100) + '%';
+            }
+
+            function zoomAt(delta, cx, cy) {
+                const oldScale = state.scale;
+                const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, oldScale * (1 + delta)));
+                const ratio = newScale / oldScale;
+                state.panX = cx - ratio * (cx - state.panX);
+                state.panY = cy - ratio * (cy - state.panY);
+                state.scale = newScale;
+                applyTransform();
+            }
+
+            function resetView() { state.scale = 1; state.panX = 0; state.panY = 0; applyTransform(); }
+
+            function fitToView() {
+                const svgEl = content.querySelector('svg');
+                if (!svgEl) return;
+                const vw = viewport.clientWidth;
+                const vh = viewport.clientHeight;
+                const sw = svgEl.getBoundingClientRect().width / state.scale || svgEl.scrollWidth;
+                const sh = svgEl.getBoundingClientRect().height / state.scale || svgEl.scrollHeight;
+                if (sw === 0 || sh === 0) return;
+                const fitScale = Math.min(vw / sw, vh / sh, 4) * 0.92;
+                state.scale = fitScale;
+                state.panX = (vw - sw * fitScale) / 2;
+                state.panY = (vh - sh * fitScale) / 2;
+                applyTransform();
+            }
+
+            function closeFullscreen() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+
+            // Wheel zoom
+            viewport.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const rect = viewport.getBoundingClientRect();
+                zoomAt(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP, e.clientX - rect.left, e.clientY - rect.top);
+            }, { passive: false });
+
+            // Drag pan
+            viewport.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                state.dragging = true;
+                state.startX = e.clientX; state.startY = e.clientY;
+                state.startPanX = state.panX; state.startPanY = state.panY;
+                e.preventDefault();
+            });
+            const onMove = (e) => { if (!state.dragging) return; state.panX = state.startPanX + (e.clientX - state.startX); state.panY = state.startPanY + (e.clientY - state.startY); applyTransform(); };
+            const onUp = () => { state.dragging = false; };
+            overlay.addEventListener('mousemove', onMove);
+            overlay.addEventListener('mouseup', onUp);
+
+            // Double-click to reset
+            viewport.addEventListener('dblclick', (e) => { e.preventDefault(); resetView(); });
+
+            // Toolbar
+            toolbar.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                const rect = viewport.getBoundingClientRect();
+                const cx = rect.width / 2, cy = rect.height / 2;
+                switch (btn.dataset.action) {
+                    case 'zoom-in': zoomAt(ZOOM_STEP, cx, cy); break;
+                    case 'zoom-out': zoomAt(-ZOOM_STEP, cx, cy); break;
+                    case 'reset': resetView(); break;
+                    case 'fit': fitToView(); break;
+                    case 'close': closeFullscreen(); break;
+                }
+            });
+
+            // Esc to close
+            function onKey(e) { if (e.key === 'Escape') closeFullscreen(); }
+            document.addEventListener('keydown', onKey);
+
+            // Click backdrop to close (only if clicking the overlay itself, not viewport)
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeFullscreen(); });
+
+            // Fit on open
+            requestAnimationFrame(() => { requestAnimationFrame(() => fitToView()); });
+        }
+
+        function toggleSteps() { const list = document.getElementById('stepsList'); const arrow = document.getElementById('stepsArrow'); if (!list) return; stepsVisible = !stepsVisible; list.style.display = stepsVisible ? 'flex' : 'none'; arrow.className = `arrow ${stepsVisible ? 'open' : ''}`; }
+        function toggleStepDetails(stepId) { const d = document.getElementById(`${stepId}-details`); const e = document.getElementById(`${stepId}-exp`); if (!d || !d.innerHTML.trim()) return; const o = d.classList.contains('open'); d.classList.toggle('open'); if (e) e.classList.toggle('open', !o); }
+        function toggleRawOutput(rawId, evt) { evt.stopPropagation(); const r = document.getElementById(rawId); const a = document.getElementById(`${rawId}-arrow`); if (!r) return; const v = r.style.display !== 'none'; r.style.display = v ? 'none' : 'block'; if (a) a.classList.toggle('open', !v); }
 
         function showError(message) {
             const content = document.getElementById('answerContent');
-            // Keep existing steps if any
             const existing = content.querySelector('.error');
             if (existing) existing.remove();
-
             const errorDiv = document.createElement('div');
             errorDiv.className = 'error';
             errorDiv.innerHTML = `❌ ${escapeHtml(message)}`;
@@ -1358,27 +1840,19 @@
         function clearAll() {
             if (window._elapsedTimer) clearInterval(window._elapsedTimer);
             document.getElementById('question').value = '';
-            document.getElementById('answerContent').innerHTML = '<div class="empty">Enter your question and click the "Ask" button to begin...</div>';
+            document.getElementById('answerContent').innerHTML = '<div class="empty">Upload source code and enter your question to begin...</div>';
             document.getElementById('answerMeta').style.display = 'none';
-            // Hide and reset the workflow section
-            const workflowSection = document.getElementById('workflowSection');
-            workflowSection.style.display = 'none';
+            const ws = document.getElementById('workflowSection');
+            ws.style.display = 'none';
             document.getElementById('workflowInner').innerHTML = '';
             currentSessionId = null;
             stepCounter = 0;
         }
 
-        function escapeHtml(text) {
-            const d = document.createElement('div');
-            d.textContent = text;
-            return d.innerHTML;
-        }
+        function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
 
-        // Support Ctrl+Enter / Cmd+Enter
         document.getElementById('question').addEventListener('keydown', function (e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                askQuestion();
-            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') askQuestion('Developer');
         });
     </script>
 </body>

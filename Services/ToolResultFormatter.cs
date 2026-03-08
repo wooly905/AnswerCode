@@ -34,7 +34,17 @@ public static class ToolResultFormatter
 
                 FindDefinitionTool.ToolName => $"symbol={args.GetProperty("symbol").GetString()}" + (args.TryGetProperty("include", out var fi) ? $"  include={fi.GetString()}" : ""),
 
+                ReadSymbolTool.ToolName => $"symbol={args.GetProperty("symbol").GetString()}" + (args.TryGetProperty("file_path", out var rsp) ? $"  file={ExtractFileName(rsp.GetString() ?? "", rootPath)}" : ""),
+
                 FileOutlineTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
+
+                FindReferencesTool.ToolName => $"symbol={args.GetProperty("symbol").GetString()}" + (args.TryGetProperty("scope", out var frs) ? $"  scope={frs.GetString()}" : ""),
+
+                FindTestsTool.ToolName => args.TryGetProperty("symbol", out var fts) && !string.IsNullOrWhiteSpace(fts.GetString())
+                    ? $"symbol={fts.GetString()}"
+                    : args.TryGetProperty("file_path", out var ftp)
+                        ? ExtractFileName(ftp.GetString() ?? "", rootPath)
+                        : "(unknown)",
 
                 RelatedFilesTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
 
@@ -68,8 +78,11 @@ public static class ToolResultFormatter
                 GlobTool.ToolName => ParseGlobResultSummary(toolResult),
                 FindDefinitionTool.ToolName => ParseFindDefResultSummary(toolResult),
                 ReadFileTool.ToolName => ParseReadFileResultSummary(toolResult),
+                ReadSymbolTool.ToolName => ParseReadSymbolResultSummary(toolResult),
                 ListDirectoryTool.ToolName => ParseListDirResultSummary(toolResult),
                 FileOutlineTool.ToolName => ParseOutlineResultSummary(toolResult),
+                FindReferencesTool.ToolName => ParseFindReferencesResultSummary(toolResult),
+                FindTestsTool.ToolName => ParseFindTestsResultSummary(toolResult),
                 RelatedFilesTool.ToolName => ParseRelatedResultSummary(toolResult),
                 _ => ""
             };
@@ -101,8 +114,11 @@ public static class ToolResultFormatter
                 GlobTool.ToolName => ExtractGlobDetailItems(toolResult),
                 FindDefinitionTool.ToolName => ExtractFindDefDetailItems(toolResult),
                 ReadFileTool.ToolName => ExtractReadFileDetailItems(toolResult),
+                ReadSymbolTool.ToolName => ExtractReadSymbolDetailItems(toolResult),
                 ListDirectoryTool.ToolName => ExtractListDirDetailItems(toolResult),
                 FileOutlineTool.ToolName => ExtractOutlineDetailItems(toolResult),
+                FindReferencesTool.ToolName => ExtractFindReferencesDetailItems(toolResult),
+                FindTestsTool.ToolName => ExtractFindTestsDetailItems(toolResult),
                 RelatedFilesTool.ToolName => ExtractRelatedDetailItems(toolResult),
                 _ => (null, null)
             };
@@ -185,6 +201,28 @@ public static class ToolResultFormatter
                 try
                 {
                     var fullPath = Path.GetFullPath(Path.Combine(rootPath, trimmed));
+                    filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
+                }
+                catch { /* ignore */ }
+            }
+        }
+        else if (toolName == ReadSymbolTool.ToolName
+                 || toolName == FindReferencesTool.ToolName
+                 || toolName == FindTestsTool.ToolName)
+        {
+            var lines = toolResult.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var match = Regex.Match(line, @"^(?<path>[^:()\[\r\n]+\.(?:cs|csproj))(?::(?<line>\d+))?");
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                var relPath = match.Groups["path"].Value.Trim();
+                try
+                {
+                    var fullPath = Path.GetFullPath(Path.Combine(rootPath, relPath));
                     filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
                 }
                 catch { /* ignore */ }
@@ -287,6 +325,20 @@ public static class ToolResultFormatter
         return m.Success ? $"{m.Groups[1].Value} ({m.Groups[2].Value} lines)" : "";
     }
 
+    private static string ParseReadSymbolResultSummary(string result)
+    {
+        if (result.StartsWith("Multiple symbol matches") || result.StartsWith("No symbols found") || result.StartsWith("Unable to read symbol"))
+        {
+            return result.Split('\n')[0].TrimEnd();
+        }
+
+        var symbolMatch = Regex.Match(result, @"Symbol: (.+)");
+        var fileMatch = Regex.Match(result, @"File: (.+)");
+        return symbolMatch.Success && fileMatch.Success
+            ? $"{symbolMatch.Groups[1].Value} in {fileMatch.Groups[1].Value}"
+            : "";
+    }
+
     private static string ParseListDirResultSummary(string result)
     {
         var lines = result.Split('\n')
@@ -309,6 +361,28 @@ public static class ToolResultFormatter
         }
 
         return symbolCount > 0 ? $"{symbolCount} symbols" : "";
+    }
+
+    private static string ParseFindReferencesResultSummary(string result)
+    {
+        if (result.StartsWith("No references") || result.StartsWith("Multiple symbol matches") || result.StartsWith("No symbols found"))
+        {
+            return result.Split('\n')[0].TrimEnd();
+        }
+
+        var match = Regex.Match(result, @"Found (\d+) reference\(s\) for '([^']+)'");
+        return match.Success ? $"{match.Groups[1].Value} references for '{match.Groups[2].Value}'" : "";
+    }
+
+    private static string ParseFindTestsResultSummary(string result)
+    {
+        if (result.StartsWith("No tests found") || result.StartsWith("No source symbols found") || result.StartsWith("Multiple symbol matches"))
+        {
+            return result.Split('\n')[0].TrimEnd();
+        }
+
+        var match = Regex.Match(result, @"Found (\d+) test match\(es\) for '([^']+)'");
+        return match.Success ? $"{match.Groups[1].Value} test matches for '{match.Groups[2].Value}'" : "";
     }
 
     private static string ParseRelatedResultSummary(string result)
@@ -490,6 +564,30 @@ public static class ToolResultFormatter
         return items.Count > 0 ? ("File Info", items) : (null, null);
     }
 
+    private static (string?, List<string>?) ExtractReadSymbolDetailItems(string result)
+    {
+        if (result.StartsWith("Multiple symbol matches") || result.StartsWith("No symbols found") || result.StartsWith("Unable to read symbol"))
+        {
+            return ("Result", result.Split('\n', StringSplitOptions.RemoveEmptyEntries).Take(6).ToList());
+        }
+
+        var items = new List<string>();
+        foreach (var line in result.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("Symbol:")
+                || trimmed.StartsWith("Kind:")
+                || trimmed.StartsWith("File:")
+                || trimmed.StartsWith("Declaration lines:")
+                || trimmed.StartsWith("Returned lines:"))
+            {
+                items.Add(trimmed);
+            }
+        }
+
+        return items.Count > 0 ? ("Symbol Info", items) : (null, null);
+    }
+
     private static (string?, List<string>?) ExtractListDirDetailItems(string result)
     {
         var lines = result.Split('\n');
@@ -511,6 +609,41 @@ public static class ToolResultFormatter
             .ToList();
 
         return items.Count > 0 ? ("Symbols", items) : (null, null);
+    }
+
+    private static (string?, List<string>?) ExtractFindReferencesDetailItems(string result)
+    {
+        if (result.StartsWith("No references") || result.StartsWith("Multiple symbol matches") || result.StartsWith("No symbols found"))
+        {
+            return ("Result", result.Split('\n', StringSplitOptions.RemoveEmptyEntries).Take(8).ToList());
+        }
+
+        var items = result.Split('\n')
+            .Select(line => line.TrimEnd())
+            .Where(line => !string.IsNullOrWhiteSpace(line)
+                && !line.StartsWith("Found ")
+                && !line.StartsWith("Target:")
+                && !line.StartsWith("Declared at:"))
+            .ToList();
+
+        return items.Count > 0 ? ("References", items) : (null, null);
+    }
+
+    private static (string?, List<string>?) ExtractFindTestsDetailItems(string result)
+    {
+        if (result.StartsWith("No tests found") || result.StartsWith("No source symbols found") || result.StartsWith("Multiple symbol matches"))
+        {
+            return ("Result", result.Split('\n', StringSplitOptions.RemoveEmptyEntries).Take(8).ToList());
+        }
+
+        var items = result.Split('\n')
+            .Select(line => line.TrimEnd())
+            .Where(line => !string.IsNullOrWhiteSpace(line)
+                && !line.StartsWith("Found ")
+                && !line.StartsWith("Targets:"))
+            .ToList();
+
+        return items.Count > 0 ? ("Tests", items) : (null, null);
     }
 
     private static (string?, List<string>?) ExtractRelatedDetailItems(string result)

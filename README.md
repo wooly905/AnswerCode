@@ -7,13 +7,14 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 ## Features
 
 - **Source Code Upload**: Upload your project files directly in the browser (drag & drop files or folders, up to 20 MB) — no server-side path configuration required
-- **Agentic Q&A**: An AI agent uses tools (grep, read file, list directory, glob search, file outline, find definition, related files) to explore your codebase and answer questions autonomously
+- **Agentic Q&A**: An AI agent uses tools (grep, read file, read symbol, list directory, glob search, file outline, find definition, find references, find tests, related files) to explore your codebase and answer questions autonomously
 - **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
 - **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
 - **Streaming Progress**: Real-time SSE streaming shows each tool call as it happens, including a result summary, expandable detail items, and duration
-- **Token Usage Tracking**: Input and output token counts are tracked across all LLM calls in an agent run and surfaced in the API response and UI
+- **Token Usage Tracking**: Input and output token counts are tracked across all LLM calls in an agent run and surfaced in the app experience
 - **Multi-Language Project Support**: Auto-detects and summarizes project metadata for .NET, Node.js, Python, Go, Rust, Java, and C/C++ projects
+- **Hybrid Multi-Language Code Analysis**: `C#` uses Roslyn for precise symbol reads and reference lookup, while JavaScript, TypeScript, Python, Java, Go, Rust, and C/C++ use heuristic symbol, reference, and test discovery
 - **Dark Theme UI**: Web interface with syntax highlighting, Markdown rendering, Mermaid diagram support with interactive zoom/pan and fullscreen view
 - **Structured Logging**: Request/response logging via Serilog with console and rolling file sinks
 
@@ -49,7 +50,7 @@ Two distinct modes tailor the agent's behavior and response style:
 | **Developer** | Answer as Developer | Engineers | Technical; cites file paths, line numbers, class/method names, and code snippets |
 | **PM** | Answer as PM | Program/Project Managers | Plain language; describes business workflows and module interactions without raw code |
 
-The `UserRole` field in the API request (`"Developer"` or `"PM"`) selects the mode. The default (omitted) is Developer.
+The mode is selected directly from the UI using **Answer as Developer** or **Answer as PM**.
 
 ## Source Code Upload
 
@@ -116,15 +117,23 @@ The agent uses these tools to explore your codebase:
 |------|-------------|
 | `get_file_outline` | Get structural outline of a file (classes, methods, properties) with line numbers — much more token-efficient than reading the whole file |
 | `find_definition` | Find where a symbol (class, interface, method, etc.) is defined — more precise than grep |
+| `find_references` | Find where a symbol is used, called, inherited, implemented, or imported across the repository |
+| `find_tests` | Find likely tests related to a source symbol or file |
 | `get_related_files` | Find a file's dependencies (imports) and dependents (files that reference it) |
 | `grep_search` | Search file contents by pattern (regex) |
 | `glob_search` | Find files by name pattern (e.g. `*.cs`) |
 | `read_file` | Read file contents (with optional line range) |
+| `read_symbol` | Read one exact symbol definition with optional body/comments instead of reading a whole file |
 | `list_directory` | List files in a subdirectory (project root structure is auto-injected) |
 
 **Auto-injected context:** The agent automatically receives a project overview (directory structure, language, framework, dependencies) at the start of each conversation, eliminating the need for an initial `list_directory` call and saving one full LLM round-trip.
 
 **Multi-language project detection:** The overview builder auto-detects project metadata from `.csproj` (.NET), `package.json` (Node.js), `requirements.txt` / `pyproject.toml` (Python), `go.mod` (Go), `Cargo.toml` (Rust), `pom.xml` / `build.gradle` (Java), and `CMakeLists.txt` / `Makefile` (C/C++).
+
+**Symbol-aware analysis:**
+
+- `C#` paths use Roslyn-backed analysis for `read_symbol`, `find_references`, and `find_tests`.
+- JavaScript, TypeScript, Python, Java, Go, Rust, and C/C++ use heuristic parsing and matching for those same tools.
 
 ## ReAct Fallback Loop
 
@@ -137,87 +146,21 @@ When a configured provider reports `SupportsToolCalling = false`, the agent auto
 
 This allows any text-generating LLM to act as an agent without requiring OpenAI-style function calling support.
 
-## API Reference
+## User Experience Notes
 
-### POST `/api/codeqa/ask`
-Synchronous Q&A — runs the agent and returns the full answer in one response.
-
-**Request body:**
-```json
-{
-  "question": "How does authentication work?",
-  "projectPath": "abd2b91fdb12",
-  "modelProvider": "OpenAI",
-  "userRole": "Developer",
-  "sessionId": "optional-uuid"
-}
-```
-
-> **`projectPath`** can be a `folderId` returned by the upload endpoint (e.g. `"abd2b91fdb12"`) or an absolute path on the server.
-
-**Response** (`AnswerResponse`):
-```json
-{
-  "answer": "...",
-  "relevantFiles": ["Services/AuthService.cs"],
-  "processingTimeMs": 4200,
-  "sessionId": "...",
-  "toolCallCount": 5,
-  "iterationCount": 3,
-  "toolCalls": [...],
-  "totalInputTokens": 12000,
-  "totalOutputTokens": 800
-}
-```
-
-### POST `/api/codeqa/ask/stream`
-Streaming Q&A — returns Server-Sent Events (SSE). Each event is a JSON-encoded `AgentEvent`.
-
-**Event types:**
-
-| Type | When emitted |
-|------|--------------|
-| `Started` | Agent begins processing |
-| `ToolCallStart` | A tool call is about to execute (includes `toolName`, `toolArgs`, `summary`) |
-| `ToolCallEnd` | A tool call completed (adds `resultSummary`, `resultDetails`, `detailItems`, `durationMs`) |
-| `Answer` | Final answer is ready (`result` contains the full `AnswerResponse`) |
-| `Error` | An error occurred |
-
-### POST `/api/codeqa/upload`
-Upload source code files. Accepts multipart/form-data with `files[]` and optional `relativePaths[]` fields.
-
-**Response:**
-```json
-{
-  "folderId": "abd2b91fdb12",
-  "fileCount": 42,
-  "totalSizeBytes": 186366,
-  "totalSizeMB": 0.18
-}
-```
-
-### DELETE `/api/codeqa/upload/{folderId}`
-Delete a previously uploaded source-code folder.
-
-### GET `/api/codeqa/uploads`
-List all existing uploaded source-code folders (folderId, createdUtc, fileCount).
-
-### GET `/api/codeqa/providers`
-Returns the display names of all configured and successfully initialized LLM providers.
-
-### GET `/api/codeqa/structure?projectPath=...`
-Returns the directory tree of the specified project path (up to 4 levels deep).
-
-### GET `/api/codeqa/file?filePath=...&maxLines=...&offset=...`
-Returns the contents of a specific file with optional pagination.
+- Uploading code creates an isolated workspace under `wwwroot/source-code/{folderId}/`.
+- The selected upload is automatically reused for follow-up questions in the UI.
+- Long-running answers stream progress live, including tool activity, summaries, and timing.
+- The final answer highlights relevant files and overall tool usage so users can inspect how the agent reached its conclusion.
 
 ## Project Structure
 
 ```
 AnswerCode/
-├── Controllers/           # API controller (CodeQAController)
+├── Controllers/           # Request handling and app orchestration
 ├── Models/                # DTOs and configuration models
 ├── Services/
+│   ├── Analysis/          # Roslyn + heuristic multi-language analysis services
 │   ├── Providers/         # LLM provider implementations (OpenAI, AzureOpenAI)
 │   └── Tools/             # Agent tools + ReActParser
 ├── wwwroot/               # Static frontend (index.html)

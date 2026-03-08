@@ -1417,8 +1417,35 @@
             }
         }
 
-        function getToolIcon(n) { return { grep_search: '🔍', glob_search: '🔍', read_file: '📄', list_directory: '📁', find_definition: '🎯', get_file_outline: '🏗️', get_related_files: '🔗' }[n] || '⚙'; }
-        function formatToolName(n) { return { grep_search: 'Grep', glob_search: 'Glob', read_file: 'Read', list_directory: 'ListDir', find_definition: 'FindDef', get_file_outline: 'Outline', get_related_files: 'Related' }[n] || n; }
+        function getToolIcon(n) {
+            return {
+                grep_search: '🔍',
+                glob_search: '🔎',
+                read_file: '📄',
+                list_directory: '📁',
+                find_definition: '🎯',
+                get_file_outline: '🏗️',
+                get_related_files: '🔗',
+                read_symbol: '🧩',
+                find_references: '📚',
+                find_tests: '🧪'
+            }[n] || '⚙';
+        }
+
+        function formatToolName(n) {
+            return {
+                grep_search: 'Grep',
+                glob_search: 'Glob',
+                read_file: 'Read',
+                list_directory: 'ListDir',
+                find_definition: 'FindDef',
+                get_file_outline: 'Outline',
+                get_related_files: 'Related',
+                read_symbol: 'ReadSym',
+                find_references: 'FindRefs',
+                find_tests: 'FindTests'
+            }[n] || n;
+        }
         function updateStepsLabel() { const el = document.getElementById('elapsedTime'); if (el) el.textContent = `${Math.round((Date.now() - startTime) / 1000)}s`; }
         function updateThinkingText(text) { const el = document.getElementById('thinkingIndicator'); if (el) { const s = el.querySelector('span:last-child'); if (s) s.textContent = text; } }
         function removeThinking() { const el = document.getElementById('thinkingIndicator'); if (el) el.remove(); }

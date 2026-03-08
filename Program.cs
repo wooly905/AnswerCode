@@ -1,4 +1,5 @@
 using AnswerCode.Models;
+using AnswerCode.Services.Analysis;
 using AnswerCode.Services;
 using AnswerCode.Services.Providers;
 using AnswerCode.Services.Tools;
@@ -22,10 +23,10 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true);
 
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 
 // Configure LLM options from appsettings
-builder.Services.Configure<LLMSettings>(
-    builder.Configuration.GetSection(LLMSettings.SectionName));
+builder.Services.Configure<LLMSettings>(builder.Configuration.GetSection(LLMSettings.SectionName));
 
 // Register LLM provider creators (OCP-compliant: add new creators to support new providers)
 builder.Services.AddSingleton<ILLMProviderCreator, AzureOpenAIProviderCreator>();
@@ -40,13 +41,24 @@ builder.Services.AddSingleton<ILLMService, LLMService>();
 // Register Code Explorer Service
 builder.Services.AddScoped<ICodeExplorerService, CodeExplorerService>();
 
+// Register analysis services for symbol-aware tools
+builder.Services.AddSingleton<IWorkspaceFileService, WorkspaceFileService>();
+builder.Services.AddSingleton<ICSharpCompilationService, CSharpCompilationService>();
+builder.Services.AddSingleton<ILanguageHeuristicService, LanguageHeuristicService>();
+builder.Services.AddSingleton<ISymbolAnalysisService, SymbolAnalysisService>();
+builder.Services.AddSingleton<IReferenceAnalysisService, ReferenceAnalysisService>();
+builder.Services.AddSingleton<ITestDiscoveryService, TestDiscoveryService>();
+
 // Register tools via DI (add new tools here)
 builder.Services.AddSingleton<ITool, GrepTool>();
 builder.Services.AddSingleton<ITool, ReadFileTool>();
+builder.Services.AddSingleton<ITool, ReadSymbolTool>();
 builder.Services.AddSingleton<ITool, ListDirectoryTool>();
 builder.Services.AddSingleton<ITool, GlobTool>();
 builder.Services.AddSingleton<ITool, FileOutlineTool>();
 builder.Services.AddSingleton<ITool, FindDefinitionTool>();
+builder.Services.AddSingleton<ITool, FindReferencesTool>();
+builder.Services.AddSingleton<ITool, FindTestsTool>();
 builder.Services.AddSingleton<ITool, RelatedFilesTool>();
 builder.Services.AddSingleton<ToolRegistry>();
 

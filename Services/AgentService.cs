@@ -9,12 +9,8 @@ namespace AnswerCode.Services;
 /// Agent Service — runs an agentic tool-calling loop (like OpenCode) instead of a fixed pipeline.
 /// The LLM autonomously decides which tools to use, when to search, and when to stop.
 /// </summary>
-public class AgentService : IAgentService
+public class AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry) : IAgentService
 {
-    private readonly ILogger<AgentService> _logger;
-    private readonly ILLMServiceFactory _llmFactory;
-    private readonly ToolRegistry _toolRegistry;
-
     private const int _maxIterations = 50;
 
     private const string _agentSystemPrompt = @"
@@ -41,10 +37,13 @@ You are an expert code analyst and software engineer. Your task is to answer use
 - **Reading Code**:
   - Use `get_file_outline` first to get a high-level view of large files (classe names, methods).
   - Use `read_file` to examine specific logic. Use `start_line` and `end_line` for large files to save tokens.
+  - Use `read_symbol` when you need one exact class, method, constructor, property, or field instead of reading a whole file.
 
 - **Understanding Structure**:
   - Use `get_related_files` to understand dependencies (imports/exports) before refactoring or deep analysis.
   - Use `find_definition` to jump to where a symbol is defined.
+  - Use `find_references` to see where a symbol is called or used.
+  - Use `find_tests` to locate tests that exercise a symbol or file.
 
 ## Exploration Strategy (When you don't know where to start)
 1. **Check the Overview**: Look for high-level folders (Controllers, Services, Src) that match the domain of the question.
@@ -84,15 +83,32 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
 5. **Thoroughness**: Use the available tools to fully explore the codebase before answering. Don't guess.
 
 ## Tool Usage Guidelines
-- Use `grep_search` and `glob_search` to locate relevant files.
-- Use `read_file` and `get_file_outline` to understand what logic exists — but translate findings into business language before presenting them.
-- Use `get_related_files` and `find_definition` to trace dependencies between modules.
-- Use `list_directory` when a directory in the project overview is truncated (shows ""... and X more files""), to ensure no relevant area is missed.
+- **Finding Files**:
+    - Use `glob_search` when you have a rough idea of the filename or area name.
+    - Use `grep_search` when you need to find business concepts, keywords, or behavior described in code or comments.
+    - Use `list_directory` ONLY when a directory in the overview is truncated or when you need to inspect one specific area more closely.
+
+- **Reading Logic**:
+    - Use `get_file_outline` first for large files to understand the major sections before reading details.
+    - Use `read_file` to inspect the surrounding workflow when you need business context from multiple statements.
+    - Use `read_symbol` when you need one exact class, method, constructor, property, or field without reading the entire file.
+
+- **Tracing Behavior**:
+    - Use `find_definition` to locate where an important concept starts.
+    - Use `find_references` to understand where a capability is used across the product flow.
+    - Use `get_related_files` to understand nearby modules, imports, and dependencies.
+    - Use `find_tests` to discover expected behavior, business rules, and covered scenarios.
 
 ## Exploration Strategy
 1. Identify the high-level feature areas related to the question (e.g., user login, order processing).
 2. Search for files and code related to those areas.
 3. Read and understand the logic, then describe it in business terms.
+
+## Handling Truncated Results
+If a tool result is truncated (for example, shows ""... more matches"" or the overview shows ""... and X more files""):
+- Treat that as a signal that more relevant information exists.
+- Narrow the search or inspect the specific directory.
+- Do NOT assume the hidden results are unimportant.
 
 ## Final Answer Format
 - Use plain language a non-developer can understand.
@@ -101,13 +117,6 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
 - If no relevant logic was found after a thorough search, say so clearly.
 - Respond in the same language as the user's question.
 ";
-
-    public AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry)
-    {
-        _logger = logger;
-        _llmFactory = llmFactory;
-        _toolRegistry = toolRegistry;
-    }
 
     /// <summary>
     /// Run without progress callback (original API)
@@ -131,27 +140,27 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                                             string? modelProvider = null,
                                             string? userRole = null)
     {
-        _logger.LogInformation("Agent starting for question: {Question}, project: {RootPath}", question, rootPath);
+        logger.LogInformation("Agent starting for question: {Question}, project: {RootPath}", question, rootPath);
 
-        var provider = _llmFactory.GetProvider(modelProvider);
+        var provider = llmFactory.GetProvider(modelProvider);
 
         // Emit start event
         await onProgress(new AgentEvent { Type = AgentEventType.Started });
 
         if (!provider.SupportsToolCalling)
         {
-            _logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
+            logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
             return await RunReActLoopAsync(question, rootPath, provider, onProgress);
         }
 
         var toolContext = new ToolContext
         {
             RootPath = rootPath,
-            Logger = _logger
+            Logger = logger
         };
 
         var result = new AgentResult();
-        var chatTools = _toolRegistry.GetChatToolDefinitions();
+        var chatTools = toolRegistry.GetChatToolDefinitions();
         var filesAccessed = new HashSet<string>();
         int emptyAssistantResponses = 0;
 
@@ -167,7 +176,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
         for (int iteration = 0; iteration < _maxIterations; iteration++)
         {
             result.IterationCount = iteration + 1;
-            _logger.LogInformation("Agent iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
+            logger.LogInformation("Agent iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
 
             LLMChatResponse response;
             try
@@ -176,7 +185,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "LLM call failed at iteration {Iteration}", iteration + 1);
+                logger.LogError(ex, "LLM call failed at iteration {Iteration}", iteration + 1);
                 result.Answer = $"Error communicating with LLM: {ex.Message}";
                 await onProgress(new AgentEvent { Type = AgentEventType.Error, Summary = result.Answer });
                 return result;
@@ -192,7 +201,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 if (string.IsNullOrWhiteSpace(textContent))
                 {
                     emptyAssistantResponses++;
-                    _logger.LogWarning("Assistant returned empty content with no tool call at iteration {Iteration}; retrying with enforced tool-use reminder", iteration + 1);
+                    logger.LogWarning("Assistant returned empty content with no tool call at iteration {Iteration}; retrying with enforced tool-use reminder", iteration + 1);
 
                     if (emptyAssistantResponses >= 3)
                     {
@@ -206,7 +215,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 }
 
                 result.Answer = textContent;
-                _logger.LogInformation("Agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
+                logger.LogInformation("Agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
                 break;
             }
 
@@ -230,7 +239,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 DateTime startTime = DateTime.Now;
                 string toolResult;
 
-                var tool = _toolRegistry.GetTool(toolCall.FunctionName);
+                var tool = toolRegistry.GetTool(toolCall.FunctionName);
                 if (tool == null)
                 {
                     toolResult = $"Error: Unknown tool '{toolCall.FunctionName}'.";
@@ -243,7 +252,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Tool {Tool} execution failed", toolCall.FunctionName);
+                        logger.LogError(ex, "Tool {Tool} execution failed", toolCall.FunctionName);
                         toolResult = $"Error executing {toolCall.FunctionName}: {ex.Message}";
                     }
                 }
@@ -286,7 +295,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                     DetailItems = detailItems
                 });
 
-                _logger.LogInformation("Tool {Tool} completed in {Ms}ms, result: {Length} chars",
+                logger.LogInformation("Tool {Tool} completed in {Ms}ms, result: {Length} chars",
                                        toolCall.FunctionName,
                                        (DateTime.Now - startTime).Milliseconds,
                                        toolResult.Length);
@@ -312,15 +321,15 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                                                       ILLMProvider provider,
                                                       Func<AgentEvent, Task> onProgress)
     {
-        _logger.LogInformation("Starting ReAct agent loop for provider {Provider}", provider.Name);
+        logger.LogInformation("Starting ReAct agent loop for provider {Provider}", provider.Name);
 
-        var toolContext = new ToolContext { RootPath = rootPath, Logger = _logger };
+        var toolContext = new ToolContext { RootPath = rootPath, Logger = logger };
         var result = new AgentResult();
         var filesAccessed = new HashSet<string>();
         int emptyAssistantResponses = 0;
 
         // Build system prompt with tool descriptions embedded in text
-        var toolDescriptions = _toolRegistry.GetReActToolDescriptions();
+        var toolDescriptions = toolRegistry.GetReActToolDescriptions();
         var systemPrompt = ReActParser.BuildReActSystemPrompt(toolDescriptions);
 
         var projectOverview = ProjectOverviewBuilder.Build(rootPath);
@@ -333,7 +342,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
         for (int iteration = 0; iteration < _maxIterations; iteration++)
         {
             result.IterationCount = iteration + 1;
-            _logger.LogInformation("ReAct iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
+            logger.LogInformation("ReAct iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
 
             // Call LLM (plain text chat, no tool definitions)
             string llmResponse;
@@ -346,7 +355,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "LLM call failed at ReAct iteration {Iteration}", iteration + 1);
+                logger.LogError(ex, "LLM call failed at ReAct iteration {Iteration}", iteration + 1);
                 result.Answer = $"Error communicating with LLM: {ex.Message}";
                 await onProgress(new AgentEvent { Type = AgentEventType.Error, Summary = result.Answer });
                 return result;
@@ -363,7 +372,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 if (string.IsNullOrWhiteSpace(llmResponse))
                 {
                     emptyAssistantResponses++;
-                    _logger.LogWarning("ReAct assistant returned empty content with no tool calls at iteration {Iteration}; retrying", iteration + 1);
+                    logger.LogWarning("ReAct assistant returned empty content with no tool calls at iteration {Iteration}; retrying", iteration + 1);
 
                     if (emptyAssistantResponses >= 3)
                     {
@@ -380,7 +389,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 // No tool calls — LLM is giving the final answer
                 // Strip any residual tool_call tags just in case
                 result.Answer = llmResponse;
-                _logger.LogInformation("ReAct agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
+                logger.LogInformation("ReAct agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
                 break;
             }
 
@@ -406,10 +415,10 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                 DateTime startTime = DateTime.Now;
                 string toolResult;
 
-                var tool = _toolRegistry.GetTool(toolCall.FunctionName);
+                var tool = toolRegistry.GetTool(toolCall.FunctionName);
                 if (tool == null)
                 {
-                    toolResult = $"Error: Unknown tool '{toolCall.FunctionName}'. Available tools: {string.Join(", ", _toolRegistry.GetAllTools().Select(t => t.Name))}";
+                    toolResult = $"Error: Unknown tool '{toolCall.FunctionName}'. Available tools: {string.Join(", ", toolRegistry.GetAllTools().Select(t => t.Name))}";
                 }
                 else
                 {
@@ -419,7 +428,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Tool {Tool} execution failed in ReAct loop", toolCall.FunctionName);
+                        logger.LogError(ex, "Tool {Tool} execution failed in ReAct loop", toolCall.FunctionName);
                         toolResult = $"Error executing {toolCall.FunctionName}: {ex.Message}";
                     }
                 }
@@ -462,10 +471,10 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                     DetailItems = detailItems
                 });
 
-                _logger.LogInformation("ReAct tool {Tool} completed in {Ms}ms, result: {Length} chars",
-                                       toolCall.FunctionName,
-                                       (DateTime.Now - startTime).Milliseconds,
-                                       toolResult.Length);
+                logger.LogInformation("ReAct tool {Tool} completed in {Ms}ms, result: {Length} chars",
+                                      toolCall.FunctionName,
+                                      (DateTime.Now - startTime).Milliseconds,
+                                      toolResult.Length);
             }
 
             // Feed tool results back to the LLM as a user message
@@ -479,7 +488,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
                             "Please try asking a more specific question.";
         }
 
-        result.RelevantFiles = filesAccessed.ToList();
+        result.RelevantFiles = [.. filesAccessed];
         return result;
     }
 }

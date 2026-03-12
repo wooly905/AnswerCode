@@ -52,6 +52,9 @@ builder.Services.AddSingleton<ITestDiscoveryService, TestDiscoveryService>();
 // Register repo map service
 builder.Services.AddSingleton<IRepoMapService, RepoMapService>();
 
+// Register call graph service
+builder.Services.AddSingleton<ICallGraphService, CallGraphService>();
+
 // Register tools via DI (add new tools here)
 builder.Services.AddSingleton<ITool, GrepTool>();
 builder.Services.AddSingleton<ITool, ReadFileTool>();
@@ -64,6 +67,7 @@ builder.Services.AddSingleton<ITool, FindReferencesTool>();
 builder.Services.AddSingleton<ITool, FindTestsTool>();
 builder.Services.AddSingleton<ITool, RelatedFilesTool>();
 builder.Services.AddSingleton<ITool, RepoMapTool>();
+builder.Services.AddSingleton<ITool, CallGraphTool>();
 builder.Services.AddSingleton<ToolRegistry>();
 
 // Register Agent Service (agentic tool-calling loop)

@@ -1428,7 +1428,8 @@
                 get_related_files: '🔗',
                 read_symbol: '🧩',
                 find_references: '📚',
-                find_tests: '🧪'
+                find_tests: '🧪',
+                repo_map: '🗺️'
             }[n] || '⚙';
         }
 
@@ -1443,7 +1444,8 @@
                 get_related_files: 'Related',
                 read_symbol: 'ReadSym',
                 find_references: 'FindRefs',
-                find_tests: 'FindTests'
+                find_tests: 'FindTests',
+                repo_map: 'RepoMap'
             }[n] || n;
         }
         function updateStepsLabel() { const el = document.getElementById('elapsedTime'); if (el) el.textContent = `${Math.round((Date.now() - startTime) / 1000)}s`; }

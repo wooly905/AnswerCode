@@ -1429,7 +1429,8 @@
                 read_symbol: '🧩',
                 find_references: '📚',
                 find_tests: '🧪',
-                repo_map: '🗺️'
+                repo_map: '🗺️',
+                call_graph: '🔀'
             }[n] || '⚙';
         }
 
@@ -1445,7 +1446,8 @@
                 read_symbol: 'ReadSym',
                 find_references: 'FindRefs',
                 find_tests: 'FindTests',
-                repo_map: 'RepoMap'
+                repo_map: 'RepoMap',
+                call_graph: 'CallGraph'
             }[n] || n;
         }
         function updateStepsLabel() { const el = document.getElementById('elapsedTime'); if (el) el.textContent = `${Math.round((Date.now() - startTime) / 1000)}s`; }

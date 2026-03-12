@@ -52,6 +52,10 @@ public static class ToolResultFormatter
                     ? $"scope={rms.GetString()}"
                     : "(full repository)",
 
+                CallGraphTool.ToolName => $"symbol={args.GetProperty("symbol").GetString()}"
+                    + (args.TryGetProperty("direction", out var cgd) && !string.IsNullOrWhiteSpace(cgd.GetString()) ? $"  direction={cgd.GetString()}" : "")
+                    + (args.TryGetProperty("depth", out var cgdp) && cgdp.ValueKind == JsonValueKind.Number ? $"  depth={cgdp.GetInt32()}" : ""),
+
                 _ => argsJson.Length > 100 ? argsJson[..100] + "..." : argsJson
             };
         }
@@ -89,6 +93,7 @@ public static class ToolResultFormatter
                 FindTestsTool.ToolName => ParseFindTestsResultSummary(toolResult),
                 RelatedFilesTool.ToolName => ParseRelatedResultSummary(toolResult),
                 RepoMapTool.ToolName => ParseRepoMapResultSummary(toolResult),
+                CallGraphTool.ToolName => ParseCallGraphResultSummary(toolResult),
                 _ => ""
             };
         }
@@ -126,6 +131,7 @@ public static class ToolResultFormatter
                 FindTestsTool.ToolName => ExtractFindTestsDetailItems(toolResult),
                 RelatedFilesTool.ToolName => ExtractRelatedDetailItems(toolResult),
                 RepoMapTool.ToolName => ExtractRepoMapDetailItems(toolResult),
+                CallGraphTool.ToolName => ExtractCallGraphDetailItems(toolResult),
                 _ => (null, null)
             };
         }
@@ -207,6 +213,27 @@ public static class ToolResultFormatter
                 try
                 {
                     var fullPath = Path.GetFullPath(Path.Combine(rootPath, trimmed));
+                    filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
+                }
+                catch { /* ignore */ }
+            }
+        }
+        else if (toolName == CallGraphTool.ToolName)
+        {
+            // Extract file paths from call graph edge list lines like "  A → B (path/file.cs:42)"
+            var lines = toolResult.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var match = Regex.Match(line, @"\(([^:()\r\n]+\.\w+):(\d+)");
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                var relPath = match.Groups[1].Value.Trim();
+                try
+                {
+                    var fullPath = Path.GetFullPath(Path.Combine(rootPath, relPath));
                     filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
                 }
                 catch { /* ignore */ }
@@ -747,5 +774,73 @@ public static class ToolResultFormatter
         }
 
         return items.Count > 0 ? ("Repository Map", items) : (null, null);
+    }
+
+    private static string ParseCallGraphResultSummary(string result)
+    {
+        if (result.StartsWith("Multiple symbol matches") || result.StartsWith("No symbols found") || result.StartsWith("No call graph"))
+        {
+            return result.Split('\n')[0].TrimEnd();
+        }
+
+        var edgeMatch = Regex.Match(result, @"Edges \((\d+)\):");
+        var dirMatch = Regex.Match(result, @"Static Call Graph \((\w+)\) for '([^']+)'");
+
+        if (!dirMatch.Success)
+        {
+            return "";
+        }
+
+        var summary = $"{dirMatch.Groups[1].Value} call graph for '{dirMatch.Groups[2].Value}'";
+        if (edgeMatch.Success)
+        {
+            summary += $", {edgeMatch.Groups[1].Value} edges";
+        }
+
+        var warningCount = Regex.Matches(result, "⚠").Count;
+        if (warningCount > 0)
+        {
+            summary += $", {warningCount} warning(s)";
+        }
+
+        return summary;
+    }
+
+    private static (string?, List<string>?) ExtractCallGraphDetailItems(string result)
+    {
+        if (result.StartsWith("Multiple symbol matches") || result.StartsWith("No symbols found") || result.StartsWith("No call graph"))
+        {
+            return ("Result", result.Split('\n', StringSplitOptions.RemoveEmptyEntries).Take(8).ToList());
+        }
+
+        var lines = result.Split('\n');
+        var items = new List<string>();
+
+        foreach (var line in lines)
+        {
+            var t = line.TrimEnd();
+
+            // Include tree lines (with ├── └── │ prefixes) and edge lines
+            if (t.Contains("├──") || t.Contains("└──") || t.Contains("│"))
+            {
+                items.Add(t);
+                continue;
+            }
+
+            // Include edge list lines
+            if (t.TrimStart().StartsWith("→") || (t.Contains(" → ") && t.TrimStart().Length > 0 && !t.StartsWith("Static") && !t.StartsWith("Edges")))
+            {
+                items.Add(t.Trim());
+                continue;
+            }
+
+            // Include warnings
+            if (t.TrimStart().StartsWith("⚠"))
+            {
+                items.Add(t.Trim());
+            }
+        }
+
+        return items.Count > 0 ? ("Call Graph", items) : (null, null);
     }
 }

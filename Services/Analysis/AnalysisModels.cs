@@ -87,6 +87,32 @@ public sealed record TestDiscoveryResult(string Query,
     public bool IsAmbiguous => Targets.Count == 0 && Candidates.Count > 1 && string.IsNullOrWhiteSpace(Message);
 }
 
+// ── Call Graph Models ─────────────────────────────────────────────────────
+
+public sealed record CallGraphNode(string Name,
+                                   string FullyQualifiedName,
+                                   string Kind,
+                                   string FilePath,
+                                   string RelativePath,
+                                   int Line,
+                                   string Signature);
+
+public sealed record CallGraphEdge(CallGraphNode Source,
+                                   CallGraphNode Target,
+                                   string Label,
+                                   int SourceCallLine);
+
+public sealed record CallGraphResult(string Query,
+                                     string Direction,
+                                     int Depth,
+                                     CallGraphNode? Root,
+                                     IReadOnlyList<CallGraphEdge> Edges,
+                                     IReadOnlyList<string> Warnings,
+                                     string? Message = null)
+{
+    public bool IsSuccess => Root is not null;
+}
+
 internal static class AnalysisFormatting
 {
     internal static readonly SymbolDisplayFormat SignatureDisplayFormat = new(

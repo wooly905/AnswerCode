@@ -48,6 +48,10 @@ public static class ToolResultFormatter
 
                 RelatedFilesTool.ToolName => ExtractFileName(args.GetProperty("file_path").GetString() ?? "", rootPath),
 
+                RepoMapTool.ToolName => args.TryGetProperty("scope", out var rms) && !string.IsNullOrWhiteSpace(rms.GetString())
+                    ? $"scope={rms.GetString()}"
+                    : "(full repository)",
+
                 _ => argsJson.Length > 100 ? argsJson[..100] + "..." : argsJson
             };
         }
@@ -84,6 +88,7 @@ public static class ToolResultFormatter
                 FindReferencesTool.ToolName => ParseFindReferencesResultSummary(toolResult),
                 FindTestsTool.ToolName => ParseFindTestsResultSummary(toolResult),
                 RelatedFilesTool.ToolName => ParseRelatedResultSummary(toolResult),
+                RepoMapTool.ToolName => ParseRepoMapResultSummary(toolResult),
                 _ => ""
             };
         }
@@ -120,6 +125,7 @@ public static class ToolResultFormatter
                 FindReferencesTool.ToolName => ExtractFindReferencesDetailItems(toolResult),
                 FindTestsTool.ToolName => ExtractFindTestsDetailItems(toolResult),
                 RelatedFilesTool.ToolName => ExtractRelatedDetailItems(toolResult),
+                RepoMapTool.ToolName => ExtractRepoMapDetailItems(toolResult),
                 _ => (null, null)
             };
         }
@@ -683,5 +689,63 @@ public static class ToolResultFormatter
         }
 
         return items.Count > 0 ? ("Related Files", items) : (null, null);
+    }
+
+    private static string ParseRepoMapResultSummary(string result)
+    {
+        var moduleMatch = Regex.Match(result, @"Modules \((\d+)\):");
+        var depMatch = Regex.Match(result, @"Module Dependencies:");
+
+        if (!moduleMatch.Success) return "";
+
+        var summary = $"{moduleMatch.Groups[1].Value} modules";
+        if (depMatch.Success)
+        {
+            var edgeCount = Regex.Matches(result, @"→").Count;
+            if (edgeCount > 0)
+            {
+                summary += $", {edgeCount} dependency edges";
+            }
+        }
+
+        return summary;
+    }
+
+    private static (string?, List<string>?) ExtractRepoMapDetailItems(string result)
+    {
+        var lines = result.Split('\n');
+        var items = new List<string>();
+
+        foreach (var line in lines)
+        {
+            var t = line.Trim();
+
+            if (t.StartsWith("Modules"))
+            {
+                items.Add($"── {t} ──");
+                continue;
+            }
+
+            if (t.StartsWith("Entry Points:") || t.StartsWith("Module Dependencies:") || t.StartsWith("Mermaid:"))
+            {
+                if (!t.StartsWith("Mermaid:"))
+                {
+                    items.Add($"── {t.TrimEnd(':')} ──");
+                }
+                continue;
+            }
+
+            if (t.StartsWith("graph ") || t.StartsWith("Repository Map:") || t.StartsWith("Type:") || string.IsNullOrWhiteSpace(t))
+            {
+                continue;
+            }
+
+            if (!t.StartsWith("──") && !string.IsNullOrWhiteSpace(t))
+            {
+                items.Add(t);
+            }
+        }
+
+        return items.Count > 0 ? ("Repository Map", items) : (null, null);
     }
 }

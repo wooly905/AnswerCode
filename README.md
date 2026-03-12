@@ -7,7 +7,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 ## Features
 
 - **Source Code Upload**: Upload your project files directly in the browser (drag & drop files or folders, up to 20 MB) — no server-side path configuration required
-- **Agentic Q&A**: An AI agent uses tools (grep, read file, read symbol, list directory, glob search, file outline, find definition, find references, find tests, related files) to explore your codebase and answer questions autonomously
+- **Agentic Q&A**: An AI agent uses tools (grep, read file, read symbol, list directory, glob search, file outline, find definition, find references, find tests, related files, repo map) to explore your codebase and answer questions autonomously
 - **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
 - **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
@@ -120,6 +120,7 @@ The agent uses these tools to explore your codebase:
 | `find_references` | Find where a symbol is used, called, inherited, implemented, or imported across the repository |
 | `find_tests` | Find likely tests related to a source symbol or file |
 | `get_related_files` | Find a file's dependencies (imports) and dependents (files that reference it) |
+| `repo_map` | Generate a repository map showing module boundaries, architectural roles, cross-module dependencies, entry points, and a Mermaid diagram |
 | `grep_search` | Search file contents by pattern (regex) |
 | `glob_search` | Find files by name pattern (e.g. `*.cs`) |
 | `read_file` | Read file contents (with optional line range) |

@@ -128,7 +128,8 @@ public class CodeQAController : ControllerBase
     /// </summary>
     [HttpPost("upload")]
     [RequestSizeLimit(MaxUploadBytes + 1024 * 1024)] // a bit of headroom for form overhead
-    [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadBytes + 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadBytes + 1024 * 1024,
+                       ValueCountLimit = 10000)]
     public async Task<IActionResult> UploadSourceCode(
         [FromForm] List<IFormFile> files,
         [FromForm] List<string>? relativePaths,

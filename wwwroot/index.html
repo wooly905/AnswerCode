@@ -1051,6 +1051,15 @@
         let pendingFiles = [];   // { file, relativePath }
         let currentFolderId = null;
 
+        // ── Auto-cleanup on page unload ──
+        // When the user closes the tab, navigates away, or closes the browser,
+        // sendBeacon fires a POST to delete the uploaded source code.
+        window.addEventListener('beforeunload', () => {
+            if (currentFolderId) {
+                navigator.sendBeacon(`/api/CodeQA/upload/${currentFolderId}/cleanup`);
+            }
+        });
+
         // ── Drag & drop ──
         const dropZone = document.getElementById('dropZone');
         ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.style.borderColor = 'var(--accent-color)'; dropZone.style.background = 'rgba(88,166,255,.06)'; }));

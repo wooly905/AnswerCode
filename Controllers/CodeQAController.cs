@@ -23,7 +23,7 @@ public class CodeQAController : ControllerBase
     /// <summary>
     /// Max upload size: 20 MB
     /// </summary>
-    private const long MaxUploadBytes = 20 * 1024 * 1024;
+    private const long _maxUploadBytes = 20 * 1024 * 1024;
 
     public CodeQAController(IAgentService agentService,
                             ICodeExplorerService codeExplorer,
@@ -42,7 +42,7 @@ public class CodeQAController : ControllerBase
     //  Source-code upload / delete
     // ────────────────────────────────────────────
 
-    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> _allowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".cs", ".fs", ".vb",     // .NET
         ".js", ".ts", ".jsx", ".tsx", // Node.js
@@ -51,61 +51,100 @@ public class CodeQAController : ControllerBase
         ".rs",                   // Rust
         ".java",                 // Java
         ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hxx", // C/C++
-        ".html", ".css", ".md", ".json", ".xml", ".toml", ".yml", ".yaml", ".sql", ".sh", ".bat",
+        ".htm", ".html", ".css", ".md", ".json", ".xml", ".toml", ".yml", ".yaml", ".sql",
         ".csproj", ".fsproj", ".vbproj", ".sln"
     };
 
-    private static readonly HashSet<string> AllowedFiles = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> _allowedFiles = new(StringComparer.OrdinalIgnoreCase)
     {
-        "package.json", "package-lock.json",
-        "requirements.txt", "pyproject.toml",
-        "go.mod", "go.sum",
-        "Cargo.toml", "Cargo.lock",
-        "pom.xml", "build.gradle",
+        "package.json",
+        "package-lock.json",
+        "requirements.txt",
+        "pyproject.toml",
+        "go.mod",
+        "go.sum",
+        "Cargo.toml",
+        "Cargo.lock",
+        "pom.xml",
+        "build.gradle",
         "CMakeLists.txt",
-        "Dockerfile", ".gitignore", ".editorconfig",
+        "Dockerfile",
+        ".gitignore",
+        ".editorconfig",
         "Makefile"
     };
 
-    private static readonly HashSet<string> IgnoredDirs = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> _ignoredDirs = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".git", "node_modules", "bin", "obj", ".vs", ".vscode", ".idea",
-        "dist", "build", "out", "target", "__pycache__", "venv", ".venv"
+        ".git",
+        "node_modules",
+        "bin",
+        "obj",
+        ".vs",
+        ".vscode",
+        ".idea",
+        "dist",
+        "build",
+        "out",
+        "target",
+        "__pycache__",
+        "venv",
+        ".venv"
     };
 
-    private bool IsValidFile(string filePath)
+    private static bool IsValidFile(string filePath)
     {
-        var parts = filePath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Any(p => IgnoredDirs.Contains(p))) return false;
+        var parts = filePath.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Any(_ignoredDirs.Contains))
+        {
+            return false;
+        }
 
         string fileName = Path.GetFileName(filePath);
-        if (AllowedFiles.Contains(fileName)) return true;
+
+        if (_allowedFiles.Contains(fileName))
+        {
+            return true;
+        }
 
         string ext = Path.GetExtension(fileName);
-        if (AllowedExtensions.Contains(ext)) return true;
 
-        return false;
+        return _allowedExtensions.Contains(ext);
     }
 
     private async Task<bool> IsSafeFileContentAsync(IFormFile file)
     {
-        if (file.Length < 4) return true; // Too small for standard executable headers
+        if (file.Length < 4)
+        {
+            return true; // Too small for standard executable headers
+        }
 
         using var stream = file.OpenReadStream();
         byte[] buffer = new byte[4];
         int bytesRead = await stream.ReadAsync(buffer, 0, 4);
 
-        if (bytesRead < 2) return true;
+        if (bytesRead < 2)
+        {
+            return true;
+        }
 
         // Check for Windows PE (EXE, DLL) - "MZ" (4D 5A)
         if (buffer[0] == 0x4D && buffer[1] == 0x5A)
+        {
             return false;
+        }
 
         if (bytesRead >= 4)
         {
             // Check for ELF (Linux executable) - "\x7fELF" (7F 45 4C 46)
-            if (buffer[0] == 0x7F && buffer[1] == 0x45 && buffer[2] == 0x4C && buffer[3] == 0x46)
+            if (buffer[0] == 0x7F
+                && buffer[1] == 0x45
+                && buffer[2] == 0x4C
+                && buffer[3] == 0x46)
+            {
                 return false;
+            }
 
             // Check for Mach-O (macOS executable)
             if ((buffer[0] == 0xFE && buffer[1] == 0xED && buffer[2] == 0xFA && buffer[3] == 0xCE) || // FEEDFACE
@@ -127,13 +166,11 @@ public class CodeQAController : ControllerBase
     /// preserving relative paths sent via the "relativePaths" form values.
     /// </summary>
     [HttpPost("upload")]
-    [RequestSizeLimit(MaxUploadBytes + 1024 * 1024)] // a bit of headroom for form overhead
-    [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadBytes + 1024 * 1024,
-                       ValueCountLimit = 10000)]
-    public async Task<IActionResult> UploadSourceCode(
-        [FromForm] List<IFormFile> files,
-        [FromForm] List<string>? relativePaths,
-        [FromForm] string? folderId)
+    [RequestSizeLimit(_maxUploadBytes + 1024 * 1024)] // a bit of headroom for form overhead
+    [RequestFormLimits(MultipartBodyLengthLimit = _maxUploadBytes + 1024 * 1024, ValueCountLimit = 10000)]
+    public async Task<IActionResult> UploadSourceCode([FromForm] List<IFormFile> files,
+                                                      [FromForm] List<string>? relativePaths,
+                                                      [FromForm] string? folderId)
     {
         if (files == null || files.Count == 0)
         {
@@ -142,7 +179,8 @@ public class CodeQAController : ControllerBase
 
         // ── size gate ──
         long totalSize = files.Sum(f => f.Length);
-        if (totalSize > MaxUploadBytes)
+
+        if (totalSize > _maxUploadBytes)
         {
             return BadRequest(new
             {
@@ -165,8 +203,7 @@ public class CodeQAController : ControllerBase
         string destRoot = Path.Combine(_env.WebRootPath, "source-code", folderId);
         Directory.CreateDirectory(destRoot);
 
-        _logger.LogInformation("Uploading {Count} files ({Size} bytes) to {Dest}",
-            files.Count, totalSize, destRoot);
+        _logger.LogInformation("Uploading {Count} files ({Size} bytes) to {Dest}", files.Count, totalSize, destRoot);
 
         int saved = 0;
         for (int i = 0; i < files.Count; i++)
@@ -179,6 +216,7 @@ public class CodeQAController : ControllerBase
 
             // Sanitize: prevent path traversal
             relativePath = relativePath.Replace('\\', '/');
+
             if (relativePath.Contains(".."))
             {
                 _logger.LogWarning("Skipping file with suspicious path: {Path}", relativePath);
@@ -200,6 +238,7 @@ public class CodeQAController : ControllerBase
 
             string destPath = Path.Combine(destRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
             string? dir = Path.GetDirectoryName(destPath);
+
             if (!string.IsNullOrEmpty(dir))
             {
                 Directory.CreateDirectory(dir);
@@ -210,11 +249,11 @@ public class CodeQAController : ControllerBase
             saved++;
         }
 
-        _logger.LogInformation("Upload complete: {Saved}/{Total} files saved to folder {Id}",
-            saved, files.Count, folderId);
+        _logger.LogInformation("Upload complete: {Saved}/{Total} files saved to folder {Id}", saved, files.Count, folderId);
 
         long totalFolderSizeBytes = 0;
         int totalFolderFileCount = 0;
+
         if (Directory.Exists(destRoot))
         {
             var allFiles = Directory.GetFiles(destRoot, "*", SearchOption.AllDirectories);
@@ -263,12 +302,23 @@ public class CodeQAController : ControllerBase
     }
 
     /// <summary>
+    /// Cleanup endpoint called via navigator.sendBeacon() when the browser tab is closed.
+    /// sendBeacon can only send POST requests, so this is a POST alias for delete.
+    /// </summary>
+    [HttpPost("upload/{folderId}/cleanup")]
+    public IActionResult CleanupSourceCode(string folderId)
+    {
+        return DeleteSourceCode(folderId);
+    }
+
+    /// <summary>
     /// List existing source-code upload folders.
     /// </summary>
     [HttpGet("uploads")]
     public IActionResult ListUploads()
     {
         string root = Path.Combine(_env.WebRootPath, "source-code");
+
         if (!Directory.Exists(root))
         {
             return Ok(Array.Empty<object>());
@@ -302,9 +352,7 @@ public class CodeQAController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<AnswerResponse>> AskQuestion([FromBody] QuestionRequest request)
     {
-        _logger.LogInformation("Received question: {Question} for project: {ProjectPath}",
-                               request.Question,
-                               request.ProjectPath);
+        _logger.LogInformation("Received question: {Question} for project: {ProjectPath}", request.Question, request.ProjectPath);
 
         // Validate input
         if (string.IsNullOrWhiteSpace(request.Question))
@@ -328,12 +376,11 @@ public class CodeQAController : ControllerBase
             var sessionId = request.SessionId ?? Guid.NewGuid().ToString();
 
             // Run the agent (agentic tool-calling loop)
-            var agentResult = await _agentService.RunAsync(
-                request.Question,
-                projectPath,
-                sessionId,
-                request.ModelProvider,
-                request.UserRole);
+            var agentResult = await _agentService.RunAsync(request.Question,
+                                                           projectPath,
+                                                           sessionId,
+                                                           request.ModelProvider,
+                                                           request.UserRole);
 
             stopwatch.Stop();
 
@@ -350,11 +397,10 @@ public class CodeQAController : ControllerBase
                 TotalOutputTokens = agentResult.TotalOutputTokens
             };
 
-            _logger.LogInformation(
-                "Question answered in {ElapsedMs}ms ({ToolCalls} tool calls, {Iterations} iterations)",
-                stopwatch.ElapsedMilliseconds,
-                agentResult.TotalToolCalls,
-                agentResult.IterationCount);
+            _logger.LogInformation("Question answered in {ElapsedMs}ms ({ToolCalls} tool calls, {Iterations} iterations)",
+                                   stopwatch.ElapsedMilliseconds,
+                                   agentResult.TotalToolCalls,
+                                   agentResult.IterationCount);
 
             return Ok(response);
         }
@@ -394,13 +440,12 @@ public class CodeQAController : ControllerBase
 
         try
         {
-            var agentResult = await _agentService.RunAsync(
-                request.Question,
-                projectPath,
-                WriteSSE,
-                sessionId,
-                request.ModelProvider,
-                request.UserRole);
+            var agentResult = await _agentService.RunAsync(request.Question,
+                                                           projectPath,
+                                                           WriteSSE,
+                                                           sessionId,
+                                                           request.ModelProvider,
+                                                           request.UserRole);
 
             // Send final answer event
             var answerResponse = new AnswerResponse

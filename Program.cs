@@ -9,14 +9,12 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .WriteTo.Console()
-    .WriteTo.File($"logs/log-{DateTime.Now:yyyy-MM-dd_HHmmss}.txt")
-    .CreateLogger();
+Log.Logger = new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration).WriteTo
+                                               .Console().WriteTo
+                                               .File($"logs/log-{DateTime.Now:yyyy-MM-dd_HHmmss}.txt")
+                                               .CreateLogger();
 
 builder.Host.UseSerilog();
-
 
 // Load appsettings.Local.json for local overrides (gitignored - copy from appsettings.Example.json)
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true);
@@ -72,6 +70,9 @@ builder.Services.AddSingleton<ToolRegistry>();
 
 // Register Agent Service (agentic tool-calling loop)
 builder.Services.AddScoped<IAgentService, AgentService>();
+
+// Register upload cleanup background service (auto-delete expired uploads)
+builder.Services.AddHostedService<UploadCleanupService>();
 
 // Add CORS for development
 builder.Services.AddCors(options =>

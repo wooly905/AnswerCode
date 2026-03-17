@@ -16,6 +16,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 - **Multi-Language Project Support**: Auto-detects and summarizes project metadata for .NET, Node.js, Python, Go, Rust, Java, and C/C++ projects
 - **Hybrid Multi-Language Code Analysis**: `C#` uses Roslyn for precise symbol reads and reference lookup, while JavaScript, TypeScript, Python, Java, Go, Rust, and C/C++ use heuristic symbol, reference, and test discovery
 - **Dark Theme UI**: Web interface with syntax highlighting, Markdown rendering, Mermaid diagram support with interactive zoom/pan and fullscreen view
+- **Automatic Upload Cleanup**: Uploaded source code is automatically deleted when the user leaves the page (`beforeunload` + `sendBeacon`), with a background service as a safety net that removes expired uploads based on a configurable TTL
 - **Structured Logging**: Request/response logging via Serilog with console and rolling file sinks
 
 ## Prerequisites
@@ -61,6 +62,7 @@ Source code is uploaded directly from the browser:
 - The total upload size limit is **20 MB**.
 - Once uploaded, a green status badge shows the folder ID and file count. Click **Remove** to delete the uploaded code from the server.
 - Multiple uploads are supported — each upload gets a unique folder ID on the server under `wwwroot/source-code/{folderId}/`.
+- **Automatic cleanup**: When the user closes the browser tab or navigates away, the uploaded code is automatically deleted via `navigator.sendBeacon()`. As a safety net, a background service periodically scans for and removes uploads older than the configured TTL (default: 120 minutes).
 
 The uploaded folder ID is automatically used as the `projectPath` for all Q&A requests.
 
@@ -104,6 +106,22 @@ LLM providers are configured under the `LLM` section. You can add as many provid
 
 - **AzureOpenAI**: Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The key must contain `azure` (case-insensitive).
 - **OpenAI / OpenAI-compatible** (any other key, including Ollama): Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The factory treats every non-AzureOpenAI key as an OpenAI-compatible provider — Ollama works out of the box via its `/v1/` endpoint.
+
+### Upload Cleanup
+
+Automatic cleanup of expired uploads is configured under the `UploadCleanup` section:
+
+```json
+{
+  "UploadCleanup": {
+    "ScanIntervalMinutes": 10,
+    "MaxAgeMinutes": 120
+  }
+}
+```
+
+- `ScanIntervalMinutes`: How often the background service scans for expired folders (default: 10).
+- `MaxAgeMinutes`: Folders with no file activity beyond this age are deleted (default: 120).
 
 ### Local Overrides
 
@@ -164,7 +182,8 @@ AnswerCode/
 ├── Services/
 │   ├── Analysis/          # Roslyn + heuristic multi-language analysis services
 │   ├── Providers/         # LLM provider implementations (OpenAI, AzureOpenAI)
-│   └── Tools/             # Agent tools + ReActParser
+│   ├── Tools/             # Agent tools + ReActParser
+│   └── UploadCleanupService.cs  # Background service for expired upload cleanup
 ├── wwwroot/               # Static frontend (index.html)
 │   └── source-code/       # Uploaded source code folders (runtime, gitignored)
 ├── appsettings.json       # Main configuration

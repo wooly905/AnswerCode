@@ -14,7 +14,8 @@ public interface IAgentService
                                string rootPath,
                                string? sessionId = null,
                                string? modelProvider = null,
-                               string? userRole = null);
+                               string? userRole = null,
+                               List<ConversationTurn>? conversationHistory = null);
 
     /// <summary>
     /// Run the agent with a progress callback for SSE streaming
@@ -24,7 +25,8 @@ public interface IAgentService
                                Func<AgentEvent, Task> onProgress,
                                string? sessionId = null,
                                string? modelProvider = null,
-                               string? userRole = null);
+                               string? userRole = null,
+                               List<ConversationTurn>? conversationHistory = null);
 }
 
 /// <summary>

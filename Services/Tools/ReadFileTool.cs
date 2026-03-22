@@ -106,11 +106,13 @@ public class ReadFileTool : ITool
             return "Error: file_path is required";
         }
 
-        // Resolve relative paths
-        if (!Path.IsPathRooted(filePath))
+        // Resolve and confine path within project root
+        var resolved = context.ResolvePath(filePath);
+        if (resolved == null)
         {
-            filePath = Path.GetFullPath(Path.Combine(context.RootPath, filePath));
+            return "Error: Access denied — path is outside the project directory";
         }
+        filePath = resolved;
 
         if (!File.Exists(filePath))
         {

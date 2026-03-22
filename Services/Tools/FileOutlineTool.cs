@@ -55,10 +55,12 @@ public class FileOutlineTool : ITool
             return "Error: file_path is required";
         }
 
-        if (!Path.IsPathRooted(filePath))
+        var resolved = context.ResolvePath(filePath);
+        if (resolved == null)
         {
-            filePath = Path.GetFullPath(Path.Combine(context.RootPath, filePath));
+            return "Error: Access denied — path is outside the project directory";
         }
+        filePath = resolved;
 
         if (!File.Exists(filePath))
         {

@@ -16,6 +16,9 @@ project-code/*
 # VS code folder
 **/.vscode
 
+# project source-code folder
+wwwroot/source-code/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

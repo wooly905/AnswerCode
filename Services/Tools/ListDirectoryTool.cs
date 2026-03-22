@@ -138,9 +138,20 @@ when you need to explore a subdirectory in more detail than the overview shows.
         var path = args.TryGetProperty("path", out var p) ? p.GetString() : null;
         int maxDepth = args.TryGetProperty("max_depth", out var d) ? d.GetInt32() : 3;
 
-        var dirPath = string.IsNullOrWhiteSpace(path)
-            ? context.RootPath
-            : Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(context.RootPath, path));
+        string dirPath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            dirPath = context.RootPath;
+        }
+        else
+        {
+            var resolved = context.ResolvePath(path);
+            if (resolved == null)
+            {
+                return Task.FromResult("Error: Access denied — path is outside the project directory");
+            }
+            dirPath = resolved;
+        }
 
         if (!Directory.Exists(dirPath))
         {

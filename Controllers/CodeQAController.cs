@@ -1,8 +1,12 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AnswerCode.Models;
 using AnswerCode.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AnswerCode.Controllers;
@@ -19,23 +23,75 @@ public class CodeQAController : ControllerBase
     private readonly ILLMServiceFactory _llmFactory;
     private readonly ILogger<CodeQAController> _logger;
     private readonly IWebHostEnvironment _env;
+    private readonly IUserStorageService _userStorage;
 
     /// <summary>
-    /// Max upload size: 20 MB
+    /// Max upload size: 20 MB (anonymous), 300 MB (authenticated - enforced via quota)
     /// </summary>
     private const long _maxUploadBytes = 20 * 1024 * 1024;
+    private const long _maxAuthUploadBytes = 300 * 1024 * 1024;
 
     public CodeQAController(IAgentService agentService,
                             ICodeExplorerService codeExplorer,
                             ILLMServiceFactory llmFactory,
                             IWebHostEnvironment env,
-                            ILogger<CodeQAController> logger)
+                            ILogger<CodeQAController> logger,
+                            IUserStorageService userStorage)
     {
         _agentService = agentService;
         _codeExplorer = codeExplorer;
         _llmFactory = llmFactory;
         _env = env;
         _logger = logger;
+        _userStorage = userStorage;
+    }
+
+    private bool IsAuthenticated => User.Identity?.IsAuthenticated == true;
+
+    /// <summary>
+    /// Maps anonymous folderId → deleteToken (SHA-256 hex).
+    /// Tokens are issued at upload time and required for delete/cleanup.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, string> _deleteTokens = new();
+
+    private static string GenerateDeleteToken()
+    {
+        return Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Validate that a resolved path is within an allowed storage directory
+    /// (anonymous upload storage or the authenticated user's own storage).
+    /// Prevents path-traversal attacks.
+    /// </summary>
+    private bool IsPathWithinAllowedStorage(string path)
+    {
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(path);
+        }
+        catch
+        {
+            return false;
+        }
+
+        // Allow anonymous upload storage
+        var anonStorage = Path.GetFullPath(Path.Combine(_env.WebRootPath, "source-code"));
+        if (fullPath.StartsWith(anonStorage + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || fullPath.Equals(anonStorage, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Allow authenticated user's own storage
+        if (IsAuthenticated)
+        {
+            var userStorage = Path.GetFullPath(_userStorage.GetUserStoragePath(User));
+            if (fullPath.StartsWith(userStorage + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || fullPath.Equals(userStorage, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     // ────────────────────────────────────────────
@@ -166,8 +222,8 @@ public class CodeQAController : ControllerBase
     /// preserving relative paths sent via the "relativePaths" form values.
     /// </summary>
     [HttpPost("upload")]
-    [RequestSizeLimit(_maxUploadBytes + 1024 * 1024)] // a bit of headroom for form overhead
-    [RequestFormLimits(MultipartBodyLengthLimit = _maxUploadBytes + 1024 * 1024, ValueCountLimit = 10000)]
+    [RequestSizeLimit(_maxAuthUploadBytes + 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = _maxAuthUploadBytes + 1024 * 1024, ValueCountLimit = 10000)]
     public async Task<IActionResult> UploadSourceCode([FromForm] List<IFormFile> files,
                                                       [FromForm] List<string>? relativePaths,
                                                       [FromForm] string? folderId)
@@ -177,14 +233,29 @@ public class CodeQAController : ControllerBase
             return BadRequest(new { error = "No files provided" });
         }
 
+        bool persistent = IsAuthenticated;
+        long sizeLimit = persistent ? _maxAuthUploadBytes : _maxUploadBytes;
+
         // ── size gate ──
         long totalSize = files.Sum(f => f.Length);
 
-        if (totalSize > _maxUploadBytes)
+        if (totalSize > sizeLimit)
         {
+            var limitMB = sizeLimit / (1024.0 * 1024.0);
             return BadRequest(new
             {
-                error = $"Total upload size ({totalSize / (1024.0 * 1024.0):F2} MB) exceeds the 20 MB limit."
+                error = $"Total upload size ({totalSize / (1024.0 * 1024.0):F2} MB) exceeds the {limitMB:F0} MB limit."
+            });
+        }
+
+        // ── quota check for authenticated users ──
+        if (persistent && !_userStorage.CheckQuota(User, totalSize))
+        {
+            var maxMB = _userStorage.GetMaxSizeMB();
+            var usedMB = _userStorage.GetUsageMB(User);
+            return BadRequest(new
+            {
+                error = $"Storage quota exceeded. Used: {usedMB:F1} MB / {maxMB} MB. Please delete some projects first."
             });
         }
 
@@ -200,7 +271,18 @@ public class CodeQAController : ControllerBase
             }
         }
 
-        string destRoot = Path.Combine(_env.WebRootPath, "source-code", folderId);
+        // Authenticated users: store under users/{hashedEmail}/{folderId}
+        // Anonymous users: store under source-code/{folderId}
+        string destRoot;
+        if (persistent)
+        {
+            var userPath = _userStorage.GetUserStoragePath(User);
+            destRoot = Path.Combine(userPath, folderId);
+        }
+        else
+        {
+            destRoot = Path.Combine(_env.WebRootPath, "source-code", folderId);
+        }
         Directory.CreateDirectory(destRoot);
 
         _logger.LogInformation("Uploading {Count} files ({Size} bytes) to {Dest}", files.Count, totalSize, destRoot);
@@ -261,33 +343,71 @@ public class CodeQAController : ControllerBase
             totalFolderSizeBytes = allFiles.Sum(f => new FileInfo(f).Length);
         }
 
+        // Issue a delete token for anonymous uploads
+        string? deleteToken = null;
+        if (!persistent)
+        {
+            deleteToken = GenerateDeleteToken();
+            _deleteTokens[folderId] = deleteToken;
+        }
+
         return Ok(new
         {
             folderId,
             fileCount = totalFolderFileCount,
             totalSizeBytes = totalFolderSizeBytes,
-            totalSizeMB = Math.Round(totalFolderSizeBytes / (1024.0 * 1024.0), 2)
+            totalSizeMB = Math.Round(totalFolderSizeBytes / (1024.0 * 1024.0), 2),
+            persistent,
+            deleteToken
         });
     }
 
     /// <summary>
     /// Delete a previously uploaded source-code folder.
+    /// Authenticated users can delete their own folders.
+    /// Anonymous users must provide the deleteToken issued at upload time.
     /// </summary>
     [HttpDelete("upload/{folderId}")]
-    public IActionResult DeleteSourceCode(string folderId)
+    public IActionResult DeleteSourceCode(string folderId, [FromQuery] string? deleteToken = null)
     {
         if (string.IsNullOrWhiteSpace(folderId) || folderId.Contains("..") || folderId.Contains('/') || folderId.Contains('\\'))
         {
             return BadRequest(new { error = "Invalid folder ID" });
         }
 
-        string folderPath = Path.Combine(_env.WebRootPath, "source-code", folderId);
-
-        if (!Directory.Exists(folderPath))
+        // Authenticated users can delete their own folders without a token
+        if (IsAuthenticated)
         {
+            var userPath = _userStorage.GetUserStoragePath(User);
+            var userCandidate = Path.Combine(userPath, folderId);
+            if (Directory.Exists(userCandidate))
+                return DoDelete(userCandidate, folderId);
+
             return NotFound(new { error = $"Folder not found: {folderId}" });
         }
 
+        // Anonymous: require a valid delete token
+        if (string.IsNullOrWhiteSpace(deleteToken)
+            || !_deleteTokens.TryGetValue(folderId, out var expected)
+            || !string.Equals(deleteToken, expected, StringComparison.Ordinal))
+        {
+            return Unauthorized(new { error = "Invalid or missing delete token" });
+        }
+
+        string folderPath = Path.Combine(_env.WebRootPath, "source-code", folderId);
+        if (!Directory.Exists(folderPath))
+        {
+            _deleteTokens.TryRemove(folderId, out _);
+            return NotFound(new { error = $"Folder not found: {folderId}" });
+        }
+
+        var result = DoDelete(folderPath, folderId);
+        _deleteTokens.TryRemove(folderId, out _);
+        return result;
+    }
+
+    private IActionResult DoDelete(string folderPath, string folderId)
+    {
         try
         {
             Directory.Delete(folderPath, recursive: true);
@@ -304,17 +424,19 @@ public class CodeQAController : ControllerBase
     /// <summary>
     /// Cleanup endpoint called via navigator.sendBeacon() when the browser tab is closed.
     /// sendBeacon can only send POST requests, so this is a POST alias for delete.
+    /// The deleteToken is passed as a query parameter.
     /// </summary>
     [HttpPost("upload/{folderId}/cleanup")]
-    public IActionResult CleanupSourceCode(string folderId)
+    public IActionResult CleanupSourceCode(string folderId, [FromQuery] string? deleteToken = null)
     {
-        return DeleteSourceCode(folderId);
+        return DeleteSourceCode(folderId, deleteToken);
     }
 
     /// <summary>
-    /// List existing source-code upload folders.
+    /// List existing source-code upload folders (authenticated users only).
     /// </summary>
     [HttpGet("uploads")]
+    [Authorize]
     public IActionResult ListUploads()
     {
         string root = Path.Combine(_env.WebRootPath, "source-code");
@@ -407,7 +529,7 @@ public class CodeQAController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing question");
-            return StatusCode(500, new { error = "An error occurred while processing your question", details = ex.Message });
+            return StatusCode(500, new { error = "An error occurred while processing your question" });
         }
     }
 
@@ -504,6 +626,11 @@ public class CodeQAController : ControllerBase
             return BadRequest(new { error = $"Project path does not exist: {projectPath}" });
         }
 
+        if (!IsPathWithinAllowedStorage(projectPath))
+        {
+            return Forbid();
+        }
+
         var structure = await _codeExplorer.GetProjectStructureAsync(projectPath, 4);
         return Ok(new { structure });
     }
@@ -520,6 +647,11 @@ public class CodeQAController : ControllerBase
         if (string.IsNullOrWhiteSpace(filePath))
         {
             return BadRequest(new { error = "FilePath is required" });
+        }
+
+        if (!IsPathWithinAllowedStorage(filePath))
+        {
+            return Forbid();
         }
 
         if (!System.IO.File.Exists(filePath))
@@ -542,10 +674,64 @@ public class CodeQAController : ControllerBase
         return Ok(providers);
     }
 
+    // ────────────────────────────────────────────
+    //  Authenticated user folders
+    // ────────────────────────────────────────────
+
+    /// <summary>
+    /// List authenticated user's uploaded folders (for project selector on main page).
+    /// </summary>
+    [HttpGet("user-folders")]
+    [Authorize]
+    public IActionResult ListUserFolders()
+    {
+        var userPath = _userStorage.GetUserStoragePath(User);
+
+        if (!Directory.Exists(userPath))
+            return Ok(Array.Empty<object>());
+
+        var folders = Directory.GetDirectories(userPath)
+            .Select(d => new DirectoryInfo(d))
+            .Select(d =>
+            {
+                var allFiles = d.GetFiles("*", SearchOption.AllDirectories);
+                return new
+                {
+                    folderId = d.Name,
+                    fileCount = allFiles.Length,
+                    sizeMB = Math.Round(allFiles.Sum(f => f.Length) / (1024.0 * 1024.0), 2),
+                    createdAt = d.CreationTimeUtc
+                };
+            })
+            .OrderByDescending(f => f.createdAt)
+            .ToList();
+
+        return Ok(folders);
+    }
+
     // ── helpers ──
 
     /// <summary>
-    /// Resolve project path: if it's a folderId, resolve to source-code/{folderId},
+    /// Resolve a folderId to its full filesystem path, checking both
+    /// authenticated user storage and anonymous storage.
+    /// </summary>
+    private string ResolveFolderPath(string folderId)
+    {
+        // Check authenticated user's storage first
+        if (IsAuthenticated)
+        {
+            var userPath = _userStorage.GetUserStoragePath(User);
+            var userCandidate = Path.Combine(userPath, folderId);
+            if (Directory.Exists(userCandidate))
+                return userCandidate;
+        }
+
+        // Fall back to anonymous storage
+        return Path.Combine(_env.WebRootPath, "source-code", folderId);
+    }
+
+    /// <summary>
+    /// Resolve project path: if it's a folderId, resolve to the correct storage path,
     /// otherwise treat it as-is.
     /// </summary>
     private string ResolveProjectPath(string? input)
@@ -559,6 +745,16 @@ public class CodeQAController : ControllerBase
         // resolve it relative to source-code/
         if (!input.Contains('/') && !input.Contains('\\') && !input.Contains(':'))
         {
+            // Check authenticated user storage first
+            if (IsAuthenticated)
+            {
+                var userPath = _userStorage.GetUserStoragePath(User);
+                var userCandidate = Path.Combine(userPath, input);
+                if (Directory.Exists(userCandidate))
+                    return userCandidate;
+            }
+
+            // Then check anonymous storage
             string candidate = Path.Combine(_env.WebRootPath, "source-code", input);
             if (Directory.Exists(candidate))
             {
@@ -566,12 +762,18 @@ public class CodeQAController : ControllerBase
             }
         }
 
-        // Resolve relative paths from the app base directory
-        if (!Path.IsPathRooted(input))
+        // For any other path (absolute or relative), resolve and validate
+        string resolved = Path.IsPathRooted(input)
+            ? Path.GetFullPath(input)
+            : Path.GetFullPath(Path.Combine(_env.WebRootPath, "source-code", input));
+
+        // Only allow paths within permitted storage directories
+        if (!IsPathWithinAllowedStorage(resolved))
         {
-            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", input));
+            _logger.LogWarning("Blocked path traversal attempt: {Input}", input);
+            return string.Empty;
         }
 
-        return input;
+        return resolved;
     }
 }

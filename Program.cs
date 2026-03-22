@@ -4,6 +4,9 @@ using AnswerCode.Services;
 using AnswerCode.Services.Providers;
 using AnswerCode.Services.Tools;
 
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -74,14 +77,67 @@ builder.Services.AddScoped<IAgentService, AgentService>();
 // Register upload cleanup background service (auto-delete expired uploads)
 builder.Services.AddHostedService<UploadCleanupService>();
 
-// Add CORS for development
+// Register user storage service
+builder.Services.AddSingleton<IUserStorageService, UserStorageService>();
+
+// Configure Authentication (Google OAuth + Cookie)
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
+})
+.AddCookie(options =>
+{
+    options.Cookie.Name = "AnswerCode.Auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.ExpireTimeSpan = TimeSpan.FromDays(7);
+    options.SlidingExpiration = true;
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = 401;
+            return Task.CompletedTask;
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+})
+.AddGoogle(options =>
+{
+    options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? "";
+    options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "";
+    options.CallbackPath = "/signin-google";
+    options.Scope.Add("profile");
+    options.Scope.Add("email");
+    options.SaveTokens = false;
+    options.ClaimActions.MapJsonKey("picture", "picture");
+});
+
+builder.Services.AddAuthorization();
+
+// Add CORS — restrict to configured origins (defaults to same-origin only)
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
+                     ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
+        else
+        {
+            // No origins configured — allow same-origin only (no CORS headers emitted)
+            policy.AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
     });
 });
 
@@ -99,9 +155,21 @@ app.UseStaticFiles();
 
 app.UseCors();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Serve dashboard.html for the /dashboard route
+app.MapGet("/dashboard", async context =>
+{
+    context.Response.ContentType = "text/html";
+    var filePath = Path.Combine(app.Environment.WebRootPath, "dashboard.html");
+    if (File.Exists(filePath))
+        await context.Response.SendFileAsync(filePath);
+    else
+        context.Response.StatusCode = 404;
+});
 
 // Fallback to index.html for SPA-like behavior
 app.MapFallbackToFile("index.html");

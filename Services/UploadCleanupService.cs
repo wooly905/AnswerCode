@@ -62,6 +62,10 @@ public class UploadCleanupService : BackgroundService
             {
                 var info = new DirectoryInfo(dir);
 
+                // Skip the "users" directory — authenticated user uploads are persistent
+                if (string.Equals(info.Name, "users", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 // Use the most recent write time of any file inside the folder,
                 // so folders being actively used won't be deleted.
                 var lastActivity = GetLastActivityUtc(info);

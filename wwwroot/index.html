@@ -798,6 +798,47 @@
             font-size: 0.95rem;
         }
 
+        /* Auth area in header */
+        .auth-area { display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
+        .auth-area .login-btn {
+            display:inline-flex; align-items:center; gap:6px; padding:8px 16px;
+            background:rgba(88,166,255,.12); border:1px solid var(--accent-color);
+            border-radius:8px; color:var(--accent-color); font-size:.85rem;
+            cursor:pointer; text-decoration:none; transition:background .2s;
+        }
+        .auth-area .login-btn:hover { background:rgba(88,166,255,.22); }
+        .auth-area .user-info { display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--text-secondary); }
+        .auth-area .user-info img { width:28px; height:28px; border-radius:50%; }
+        .auth-area .dashboard-link { color:var(--accent-color); text-decoration:none; font-weight:500; font-size:.85rem; }
+        .auth-area .dashboard-link:hover { text-decoration:underline; }
+
+        /* My Projects section (authenticated users) */
+        .my-projects {
+            background:var(--bg-secondary); border:1px solid var(--border-color);
+            border-radius:12px; padding:16px; display:none;
+        }
+        .my-projects label { display:block; margin-bottom:6px; font-weight:600; font-size:1.05rem; }
+        .my-projects select {
+            width:100%; padding:10px 12px; background:var(--bg-primary);
+            border:1px solid var(--border-color); border-radius:8px;
+            color:var(--text-primary); font-size:.9rem; margin-bottom:8px;
+        }
+        .my-projects .manage-link {
+            display:inline-block; font-size:.82rem; color:var(--accent-color);
+            text-decoration:none; margin-top:4px;
+        }
+        .my-projects .manage-link:hover { text-decoration:underline; }
+        .my-projects .or-divider {
+            text-align:center; color:var(--text-secondary); font-size:.82rem;
+            margin:10px 0; position:relative;
+        }
+        .my-projects .or-divider::before, .my-projects .or-divider::after {
+            content:''; position:absolute; top:50%; width:calc(50% - 30px);
+            height:1px; background:var(--border-color);
+        }
+        .my-projects .or-divider::before { left:0; }
+        .my-projects .or-divider::after { right:0; }
+
         /* Workflow / steps section (left panel) */
         .workflow-section {
             background: var(--bg-secondary);
@@ -852,12 +893,28 @@
             <div class="app-header">
                 <h1>🔍 AnswerCode</h1>
                 <p>AI-Powered Code Q&A System — Ask questions about your project and get intelligent answers</p>
+                <div class="auth-area" id="authArea">
+                    <a href="/api/auth/login" class="login-btn" id="loginBtn">
+                        <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8.5h11.3C33.8 33.2 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c2.9 0 5.5 1 7.6 2.8l6.3-6.3C34.1 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 19.6-7.6 20.8-18 .1-.7.2-1.3.2-2 0-1.7-.2-3.3-.4-5z"/></svg>
+                        Sign in with Google
+                    </a>
+                </div>
+            </div>
+
+            <!-- My Projects (authenticated users only) -->
+            <div class="my-projects" id="myProjectsSection">
+                <label>📂 My Projects</label>
+                <select id="userFolderSelect" onchange="selectUserFolder(this.value)">
+                    <option value="">— Select an existing project —</option>
+                </select>
+                <a href="/dashboard" class="manage-link">Manage Projects →</a>
+                <div class="or-divider">or upload new</div>
             </div>
 
             <!-- Upload Section -->
             <section class="input-section" id="uploadSection">
                 <label style="display:block;margin-bottom:6px;font-weight:600;font-size:1.05rem;">📁 Upload Source Code
-                    <small style="color:var(--text-secondary);font-weight:400;">(max 20 MB)</small></label>
+                    <small id="uploadLimitLabel" style="color:var(--text-secondary);font-weight:400;">(max 20 MB)</small></label>
                 <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">
                     Supports 8 languages: C#, Node.js, Python, Go, Rust, Java, C, C++
                 </div>
@@ -1046,19 +1103,99 @@
         let stepCounter = 0;
         let startTime = 0;
 
+        // ── Auth state ──
+        let isAuthenticated = false;
+        let currentUser = null;
+
         // ── Upload state ──
-        const MAX_BYTES = 20 * 1024 * 1024;
+        let MAX_BYTES = 20 * 1024 * 1024;
         let pendingFiles = [];   // { file, relativePath }
         let currentFolderId = null;
+        let currentFolderPersistent = false;
+        let currentDeleteToken = null;
 
         // ── Auto-cleanup on page unload ──
         // When the user closes the tab, navigates away, or closes the browser,
         // sendBeacon fires a POST to delete the uploaded source code.
+        // Skip cleanup for authenticated users (persistent storage).
         window.addEventListener('beforeunload', () => {
-            if (currentFolderId) {
-                navigator.sendBeacon(`/api/CodeQA/upload/${currentFolderId}/cleanup`);
+            if (currentFolderId && !currentFolderPersistent && currentDeleteToken) {
+                navigator.sendBeacon(`/api/CodeQA/upload/${currentFolderId}/cleanup?deleteToken=${encodeURIComponent(currentDeleteToken)}`);
             }
         });
+
+        // ── Auth check on page load ──
+        async function checkAuthStatus() {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    const user = await res.json();
+                    if (user.authenticated) {
+                        isAuthenticated = true;
+                        currentUser = user;
+                        MAX_BYTES = 300 * 1024 * 1024;
+                        document.getElementById('uploadLimitLabel').textContent = '(max 300 MB)';
+
+                        const authArea = document.getElementById('authArea');
+                        authArea.innerHTML = `
+                            <div class="user-info">
+                                ${user.picture ? `<img src="${user.picture}" alt="">` : ''}
+                                <span>${escapeHtml(user.name || user.email)}</span>
+                            </div>
+                            <a href="/dashboard" class="dashboard-link">Dashboard</a>
+                            <a href="/api/auth/logout" class="login-btn" style="font-size:.78rem;padding:6px 12px;">Logout</a>
+                        `;
+
+                        document.getElementById('myProjectsSection').style.display = 'block';
+                        loadUserFolders();
+                    }
+                }
+            } catch (e) { /* not logged in */ }
+        }
+
+        async function loadUserFolders() {
+            try {
+                const res = await fetch('/api/codeqa/user-folders');
+                if (!res.ok) return;
+                const folders = await res.json();
+                const sel = document.getElementById('userFolderSelect');
+                sel.innerHTML = '<option value="">— Select an existing project —</option>';
+                folders.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f.folderId;
+                    opt.textContent = `${f.folderId} (${f.fileCount} files, ${f.sizeMB} MB)`;
+                    sel.appendChild(opt);
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        function selectUserFolder(folderId) {
+            if (!folderId) {
+                currentFolderId = null;
+                currentFolderPersistent = false;
+                document.getElementById('askDevBtn').disabled = true;
+                document.getElementById('askPMBtn').disabled = true;
+                document.getElementById('currentUploadInfo').style.display = 'none';
+                return;
+            }
+            currentFolderId = folderId;
+            currentFolderPersistent = true;
+
+            const sel = document.getElementById('userFolderSelect');
+            const text = sel.options[sel.selectedIndex]?.textContent || folderId;
+            document.getElementById('currentUploadInfo').style.display = '';
+            document.getElementById('uploadInfoDetail').textContent = `Project: ${text} (persistent)`;
+            document.getElementById('askDevBtn').disabled = false;
+            document.getElementById('askPMBtn').disabled = false;
+        }
+
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        checkAuthStatus();
 
         // ── Drag & drop ──
         const dropZone = document.getElementById('dropZone');
@@ -1188,6 +1325,8 @@
                 });
 
                 currentFolderId = result.folderId;
+                currentFolderPersistent = !!result.persistent;
+                currentDeleteToken = result.deleteToken || null;
                 progressLabel.textContent = '✅ Upload complete';
                 progressBar.style.width = '100%';
                 progressPct.textContent = '100%';
@@ -1220,11 +1359,13 @@
                 const res = await fetch(`/api/CodeQA/upload/${currentFolderId}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error('Delete failed');
                 currentFolderId = null;
+                currentFolderPersistent = false;
                 document.getElementById('currentUploadInfo').style.display = 'none';
                 document.getElementById('askDevBtn').disabled = true;
                 document.getElementById('askPmBtn').disabled = true;
                 document.getElementById('uploadBtn').disabled = true;
                 document.getElementById('uploadProgressWrap').style.display = 'none';
+                if (isAuthenticated) loadUserFolders();
             } catch (e) {
                 alert('Failed to remove source code: ' + e.message);
             }

@@ -226,7 +226,8 @@ public class CodeQAController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = _maxAuthUploadBytes + 1024 * 1024, ValueCountLimit = 10000)]
     public async Task<IActionResult> UploadSourceCode([FromForm] List<IFormFile> files,
                                                       [FromForm] List<string>? relativePaths,
-                                                      [FromForm] string? folderId)
+                                                      [FromForm] string? folderId,
+                                                      [FromForm] string? projectName)
     {
         if (files == null || files.Count == 0)
         {
@@ -343,6 +344,15 @@ public class CodeQAController : ControllerBase
             totalFolderSizeBytes = allFiles.Sum(f => new FileInfo(f).Length);
         }
 
+        // ── write project metadata ──
+        var displayName = !string.IsNullOrWhiteSpace(projectName)
+            ? projectName.Trim()
+            : DetectProjectName(relativePaths);
+        var meta = new { displayName, createdAt = DateTime.UtcNow };
+        var metaPath = Path.Combine(destRoot, ".project-meta.json");
+        await System.IO.File.WriteAllTextAsync(metaPath,
+            JsonSerializer.Serialize(meta, new JsonSerializerOptions { WriteIndented = true }));
+
         // Issue a delete token for anonymous uploads
         string? deleteToken = null;
         if (!persistent)
@@ -354,6 +364,7 @@ public class CodeQAController : ControllerBase
         return Ok(new
         {
             folderId,
+            displayName,
             fileCount = totalFolderFileCount,
             totalSizeBytes = totalFolderSizeBytes,
             totalSizeMB = Math.Round(totalFolderSizeBytes / (1024.0 * 1024.0), 2),
@@ -694,10 +705,12 @@ public class CodeQAController : ControllerBase
             .Select(d => new DirectoryInfo(d))
             .Select(d =>
             {
-                var allFiles = d.GetFiles("*", SearchOption.AllDirectories);
+                var allFiles = d.GetFiles("*", SearchOption.AllDirectories)
+                    .Where(f => f.Name != ".project-meta.json").ToArray();
                 return new
                 {
                     folderId = d.Name,
+                    displayName = ReadDisplayName(d.FullName) ?? d.Name,
                     fileCount = allFiles.Length,
                     sizeMB = Math.Round(allFiles.Sum(f => f.Length) / (1024.0 * 1024.0), 2),
                     createdAt = d.CreationTimeUtc
@@ -775,5 +788,79 @@ public class CodeQAController : ControllerBase
         }
 
         return resolved;
+    }
+
+    /// <summary>
+    /// Auto-detect a human-readable project name from the uploaded file paths.
+    /// </summary>
+    private static string DetectProjectName(List<string>? relativePaths)
+    {
+        if (relativePaths == null || relativePaths.Count == 0)
+            return $"Project {DateTime.UtcNow:yyyy-MM-dd}";
+
+        // Normalise to forward slashes and split into segments
+        var paths = relativePaths
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p.Replace('\\', '/').TrimStart('/'))
+            .ToList();
+
+        // If every path starts with the same top-level directory, use it as the project name
+        var topDirs = paths
+            .Select(p => p.Split('/').FirstOrDefault() ?? "")
+            .Where(d => d.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (topDirs.Count == 1 && paths.Any(p => p.Contains('/')))
+            return topDirs[0];
+
+        // Otherwise, derive from the dominant file extension
+        var extGroups = paths
+            .Select(p => Path.GetExtension(p).ToLowerInvariant())
+            .Where(e => e.Length > 0)
+            .GroupBy(e => e)
+            .OrderByDescending(g => g.Count())
+            .ToList();
+
+        if (extGroups.Count > 0)
+        {
+            var dominant = extGroups[0].Key;
+            var lang = dominant switch
+            {
+                ".cs" => "C#",
+                ".js" => "JavaScript",
+                ".ts" => "TypeScript",
+                ".tsx" => "TypeScript",
+                ".jsx" => "JavaScript",
+                ".py" => "Python",
+                ".go" => "Go",
+                ".rs" => "Rust",
+                ".java" => "Java",
+                ".c" => "C",
+                ".cpp" or ".cc" or ".cxx" => "C++",
+                _ => dominant.TrimStart('.')?.ToUpperInvariant() ?? "Code"
+            };
+            return $"{lang} Project {DateTime.UtcNow:yyyy-MM-dd}";
+        }
+
+        return $"Project {DateTime.UtcNow:yyyy-MM-dd}";
+    }
+
+    /// <summary>
+    /// Read the displayName from a folder's .project-meta.json, if it exists.
+    /// </summary>
+    internal static string? ReadDisplayName(string folderPath)
+    {
+        var metaPath = Path.Combine(folderPath, ".project-meta.json");
+        if (!System.IO.File.Exists(metaPath)) return null;
+        try
+        {
+            var json = System.IO.File.ReadAllText(metaPath);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("displayName", out var val))
+                return val.GetString();
+        }
+        catch { /* corrupted meta file – ignore */ }
+        return null;
     }
 }

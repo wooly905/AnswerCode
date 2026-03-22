@@ -71,7 +71,16 @@
              text-transform:uppercase; letter-spacing:.5px; padding:8px 12px; border-bottom:1px solid var(--border-color); }
         td { padding:10px 12px; border-bottom:1px solid var(--border-color); font-size:.9rem; }
         tr:hover td { background:rgba(88,166,255,.04); }
-        .folder-id { font-family:monospace; color:var(--accent-color); }
+        .folder-id { font-family:monospace; color:var(--text-secondary); font-size:.78rem; }
+        .display-name {
+            font-weight:600; cursor:pointer; padding:2px 6px; border-radius:4px;
+            border:1px solid transparent; transition:border-color .2s, background .2s;
+        }
+        .display-name:hover { border-color:var(--border-color); background:var(--bg-tertiary); }
+        .rename-input {
+            background:var(--bg-tertiary); border:1px solid var(--accent-color); border-radius:4px;
+            color:var(--text-primary); padding:4px 8px; font-size:.9rem; width:100%; outline:none;
+        }
         .btn-delete {
             padding:5px 12px; background:transparent; border:1px solid var(--danger-color);
             color:var(--danger-color); border-radius:6px; cursor:pointer; font-size:.8rem; transition:background .2s;
@@ -162,13 +171,19 @@
             }
 
             let html = `<table><thead><tr>
-                <th>Folder ID</th><th>Files</th><th>Size</th><th>Created</th><th></th>
+                <th>Project Name</th><th>Files</th><th>Size</th><th>Created</th><th></th>
             </tr></thead><tbody>`;
 
             folders.forEach(f => {
                 const date = new Date(f.createdAt).toLocaleDateString();
+                const name = f.displayName || f.folderId;
                 html += `<tr id="row-${f.folderId}">
-                    <td class="folder-id">${esc(f.folderId)}</td>
+                    <td>
+                        <span class="display-name" id="name-${f.folderId}"
+                            onclick="startRename('${esc(f.folderId)}')"
+                            title="Click to rename">${esc(name)}</span>
+                        <div class="folder-id">${esc(f.folderId)}</div>
+                    </td>
                     <td>${f.fileCount}</td>
                     <td>${f.sizeMB} MB</td>
                     <td>${date}</td>
@@ -181,6 +196,44 @@
         } catch (e) {
             container.innerHTML = '<div class="empty-msg">Error loading folders.</div>';
         }
+    }
+
+    function startRename(folderId) {
+        const span = document.getElementById('name-' + folderId);
+        if (!span) return;
+        const current = span.textContent;
+        const input = document.createElement('input');
+        input.className = 'rename-input';
+        input.id = 'rename-' + folderId;
+        input.value = current;
+        input.onblur = () => commitRename(folderId);
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') input.blur();
+            if (e.key === 'Escape') { input.dataset.cancel = '1'; input.blur(); }
+        };
+        span.replaceWith(input);
+        input.focus();
+        input.select();
+    }
+
+    async function commitRename(folderId) {
+        const input = document.getElementById('rename-' + folderId);
+        if (!input) return;
+        if (input.dataset.cancel === '1') {
+            await loadFolders(); // restore original
+            return;
+        }
+        const newName = input.value.trim();
+        if (!newName) { await loadFolders(); return; }
+        try {
+            const res = await fetch(`/api/dashboard/folders/${folderId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ displayName: newName })
+            });
+            if (!res.ok) { alert('Failed to rename'); }
+        } catch (e) { alert('Error: ' + e.message); }
+        await loadFolders();
     }
 
     async function deleteFolder(folderId) {

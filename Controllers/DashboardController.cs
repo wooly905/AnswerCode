@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AnswerCode.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -54,10 +55,12 @@ public class DashboardController : ControllerBase
             .Select(d => new DirectoryInfo(d))
             .Select(d =>
             {
-                var allFiles = d.GetFiles("*", SearchOption.AllDirectories);
+                var allFiles = d.GetFiles("*", SearchOption.AllDirectories)
+                    .Where(f => f.Name != ".project-meta.json").ToArray();
                 return new
                 {
                     folderId = d.Name,
+                    displayName = CodeQAController.ReadDisplayName(d.FullName) ?? d.Name,
                     fileCount = allFiles.Length,
                     sizeMB = Math.Round(allFiles.Sum(f => f.Length) / (1024.0 * 1024.0), 2),
                     createdAt = d.CreationTimeUtc
@@ -67,6 +70,57 @@ public class DashboardController : ControllerBase
             .ToList();
 
         return Ok(folders);
+    }
+
+    /// <summary>
+    /// Rename a folder (update its displayName).
+    /// </summary>
+    [HttpPatch("folders/{folderId}")]
+    public async Task<IActionResult> RenameFolder(string folderId, [FromBody] RenameFolderRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(folderId) || folderId.Contains("..") || folderId.Contains('/') || folderId.Contains('\\'))
+            return BadRequest(new { error = "Invalid folder ID" });
+
+        if (string.IsNullOrWhiteSpace(request?.DisplayName))
+            return BadRequest(new { error = "displayName is required" });
+
+        var userPath = _userStorage.GetUserStoragePath(User);
+        var folderPath = Path.Combine(userPath, folderId);
+
+        if (!Directory.Exists(folderPath))
+            return NotFound(new { error = $"Folder not found: {folderId}" });
+
+        var metaPath = Path.Combine(folderPath, ".project-meta.json");
+        object meta;
+        if (System.IO.File.Exists(metaPath))
+        {
+            try
+            {
+                var existing = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                    await System.IO.File.ReadAllTextAsync(metaPath)) ?? new();
+                existing["displayName"] = request.DisplayName.Trim();
+                meta = existing;
+            }
+            catch
+            {
+                meta = new { displayName = request.DisplayName.Trim(), createdAt = DateTime.UtcNow };
+            }
+        }
+        else
+        {
+            meta = new { displayName = request.DisplayName.Trim(), createdAt = DateTime.UtcNow };
+        }
+
+        await System.IO.File.WriteAllTextAsync(metaPath,
+            JsonSerializer.Serialize(meta, new JsonSerializerOptions { WriteIndented = true }));
+
+        _logger.LogInformation("Dashboard: renamed folder {FolderId} to '{DisplayName}'", folderId, request.DisplayName.Trim());
+        return Ok(new { folderId, displayName = request.DisplayName.Trim() });
+    }
+
+    public class RenameFolderRequest
+    {
+        public string? DisplayName { get; set; }
     }
 
     /// <summary>

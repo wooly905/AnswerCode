@@ -967,6 +967,13 @@
                     </div>
                 </div>
 
+                <!-- Project name (optional) -->
+                <div id="projectNameWrap" style="margin-bottom:14px;">
+                    <input type="text" id="projectNameInput" placeholder="Project name (optional — auto-detected if empty)"
+                        style="width:100%;padding:10px 14px;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:.9rem;outline:none;"
+                        onfocus="this.style.borderColor='var(--accent-color)'" onblur="this.style.borderColor='var(--border-color)'">
+                </div>
+
                 <button class="btn btn-primary" id="uploadBtn" style="width:100%;justify-content:center;"
                     onclick="uploadFiles()" disabled>
                     <span>⬆️</span><span>Upload Source Code</span>
@@ -1163,7 +1170,8 @@
                 folders.forEach(f => {
                     const opt = document.createElement('option');
                     opt.value = f.folderId;
-                    opt.textContent = `${f.folderId} (${f.fileCount} files, ${f.sizeMB} MB)`;
+                    const name = f.displayName || f.folderId;
+                    opt.textContent = `${name} (${f.fileCount} files, ${f.sizeMB} MB)`;
                     sel.appendChild(opt);
                 });
             } catch (e) { /* ignore */ }
@@ -1300,6 +1308,10 @@
             if (currentFolderId) {
                 formData.append('folderId', currentFolderId);
             }
+            const projectName = document.getElementById('projectNameInput').value.trim();
+            if (projectName) {
+                formData.append('projectName', projectName);
+            }
 
             try {
                 const result = await new Promise((resolve, reject) => {
@@ -1332,7 +1344,9 @@
                 progressPct.textContent = '100%';
 
                 // Show upload info
-                document.getElementById('uploadInfoDetail').textContent = `Folder: ${result.folderId} · ${result.fileCount} files · ${result.totalSizeMB} MB`;
+                const dispName = result.displayName || result.folderId;
+                document.getElementById('uploadInfoDetail').textContent = `${dispName} · ${result.fileCount} files · ${result.totalSizeMB} MB`;
+                document.getElementById('projectNameInput').value = '';
                 document.getElementById('currentUploadInfo').style.display = '';
 
                 // Enable ask buttons

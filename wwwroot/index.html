@@ -1101,7 +1101,7 @@
             }
             currentFolderId = folderId;
             currentFolderPersistent = true;
-            document.getElementById('currentUploadInfo').style.display = '';
+            document.getElementById('currentUploadInfo').style.display = 'block';
             document.getElementById('uploadInfoDetail').textContent = displayName || folderId;
             document.getElementById('sendBtn').disabled = false;
             highlightActiveProject(folderId);
@@ -1145,14 +1145,24 @@
         }
 
         async function traverseEntry(entry, pathPrefix, out) {
-            if (entry.isDirectory) {
-                if (IGNORED_DIRS.includes(entry.name)) return;
-                const reader = entry.createReader();
-                const children = await new Promise(r => reader.readEntries(r));
-                await Promise.all(children.map(c => traverseEntry(c, pathPrefix + entry.name + '/', out)));
-            } else if (entry.isFile) {
-                const file = await new Promise(r => entry.file(r));
-                if (isValidFile(file)) out.push({ file, relativePath: pathPrefix + entry.name });
+            try {
+                if (entry.isDirectory) {
+                    if (IGNORED_DIRS.includes(entry.name)) return;
+                    const reader = entry.createReader();
+                    let allChildren = [];
+                    // readEntries returns batches; must call repeatedly until empty
+                    while (true) {
+                        const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+                        if (batch.length === 0) break;
+                        allChildren = allChildren.concat(Array.from(batch));
+                    }
+                    await Promise.all(allChildren.map(c => traverseEntry(c, pathPrefix + entry.name + '/', out)));
+                } else if (entry.isFile) {
+                    const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+                    if (isValidFile(file)) out.push({ file, relativePath: pathPrefix + entry.name });
+                }
+            } catch (e) {
+                console.warn('traverseEntry failed for', pathPrefix + entry.name, e);
             }
         }
 
@@ -1178,7 +1188,7 @@
                 html += show.map(i => `<div style="padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(i.relativePath)} <span style="color:var(--text-secondary);font-size:.72rem;">(${(i.file.size/1024).toFixed(1)} KB)</span></div>`).join('');
                 if (items.length > 40) html += `<div style="color:var(--accent-color);margin-top:2px;">\u2026 and ${items.length - 40} more</div>`;
                 preview.innerHTML = html;
-                preview.style.display = '';
+                preview.style.display = 'block';
             } else { preview.style.display = 'none'; }
             document.getElementById('sizeWarning').style.display = overLimit ? '' : 'none';
             document.getElementById('uploadBtn').disabled = items.length === 0 || overLimit;
@@ -1192,7 +1202,7 @@
             const progressBar = document.getElementById('uploadProgressBar');
             const progressPct = document.getElementById('uploadProgressPct');
             const progressLabel = document.getElementById('uploadProgressLabel');
-            progressWrap.style.display = '';
+            progressWrap.style.display = 'block';
             progressBar.style.width = '0%';
             progressPct.textContent = '0%';
             progressLabel.textContent = 'Uploading\u2026';
@@ -1228,7 +1238,7 @@
                 const dispName = result.displayName || result.folderId;
                 document.getElementById('uploadInfoDetail').textContent = `${dispName} \u00b7 ${result.fileCount} files \u00b7 ${result.totalSizeMB} MB`;
                 document.getElementById('projectNameInput').value = '';
-                document.getElementById('currentUploadInfo').style.display = '';
+                document.getElementById('currentUploadInfo').style.display = 'block';
                 document.getElementById('sendBtn').disabled = false;
                 pendingFiles = [];
                 document.getElementById('fileListPreview').style.display = 'none';

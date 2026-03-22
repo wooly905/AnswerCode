@@ -69,10 +69,14 @@ builder.Services.AddSingleton<ITool, FindTestsTool>();
 builder.Services.AddSingleton<ITool, RelatedFilesTool>();
 builder.Services.AddSingleton<ITool, RepoMapTool>();
 builder.Services.AddSingleton<ITool, CallGraphTool>();
+builder.Services.AddSingleton<ITool, WebSearchTool>();
 builder.Services.AddSingleton<ToolRegistry>();
 
 // Register Agent Service (agentic tool-calling loop)
 builder.Services.AddScoped<IAgentService, AgentService>();
+
+// Register Conversation History Service (in-memory chat history per session)
+builder.Services.AddSingleton<IConversationHistoryService, ConversationHistoryService>();
 
 // Register upload cleanup background service (auto-delete expired uploads)
 builder.Services.AddHostedService<UploadCleanupService>();

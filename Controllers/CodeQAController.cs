@@ -24,6 +24,7 @@ public class CodeQAController : ControllerBase
     private readonly ILogger<CodeQAController> _logger;
     private readonly IWebHostEnvironment _env;
     private readonly IUserStorageService _userStorage;
+    private readonly IConversationHistoryService _conversationHistory;
 
     /// <summary>
     /// Max upload size: 20 MB (anonymous), 300 MB (authenticated - enforced via quota)
@@ -36,7 +37,8 @@ public class CodeQAController : ControllerBase
                             ILLMServiceFactory llmFactory,
                             IWebHostEnvironment env,
                             ILogger<CodeQAController> logger,
-                            IUserStorageService userStorage)
+                            IUserStorageService userStorage,
+                            IConversationHistoryService conversationHistory)
     {
         _agentService = agentService;
         _codeExplorer = codeExplorer;
@@ -44,6 +46,7 @@ public class CodeQAController : ControllerBase
         _env = env;
         _logger = logger;
         _userStorage = userStorage;
+        _conversationHistory = conversationHistory;
     }
 
     private bool IsAuthenticated => User.Identity?.IsAuthenticated == true;
@@ -508,12 +511,20 @@ public class CodeQAController : ControllerBase
         {
             var sessionId = request.SessionId ?? Guid.NewGuid().ToString();
 
+            // Retrieve conversation history for follow-up questions
+            var history = _conversationHistory.GetHistory(sessionId);
+
             // Run the agent (agentic tool-calling loop)
             var agentResult = await _agentService.RunAsync(request.Question,
                                                            projectPath,
                                                            sessionId,
                                                            request.ModelProvider,
-                                                           request.UserRole);
+                                                           request.UserRole,
+                                                           history);
+
+            // Save this Q&A turn to conversation history
+            _conversationHistory.AddTurn(sessionId, new ConversationTurn { Role = "user", Content = request.Question });
+            _conversationHistory.AddTurn(sessionId, new ConversationTurn { Role = "assistant", Content = agentResult.Answer });
 
             stopwatch.Stop();
 
@@ -573,12 +584,20 @@ public class CodeQAController : ControllerBase
 
         try
         {
+            // Retrieve conversation history for follow-up questions
+            var history = _conversationHistory.GetHistory(sessionId);
+
             var agentResult = await _agentService.RunAsync(request.Question,
                                                            projectPath,
                                                            WriteSSE,
                                                            sessionId,
                                                            request.ModelProvider,
-                                                           request.UserRole);
+                                                           request.UserRole,
+                                                           history);
+
+            // Save this Q&A turn to conversation history
+            _conversationHistory.AddTurn(sessionId, new ConversationTurn { Role = "user", Content = request.Question });
+            _conversationHistory.AddTurn(sessionId, new ConversationTurn { Role = "assistant", Content = agentResult.Answer });
 
             // Send final answer event
             var answerResponse = new AnswerResponse

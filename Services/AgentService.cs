@@ -46,6 +46,10 @@ You are an expert code analyst and software engineer. Your task is to answer use
   - Use `find_tests` to locate tests that exercise a symbol or file.
   - Use `call_graph` to trace what a method calls (downstream) or what calls it (upstream) — ideal for understanding execution flow and impact of changes.
 
+- **External Information**:
+  - Use `web_search` when the question requires knowledge beyond the codebase — e.g., library docs, API references, best practices, error explanations, or latest updates.
+  - Do NOT use `web_search` for questions answerable by reading the code. Always search the codebase first.
+
 ## Exploration Strategy (When you don't know where to start)
 1. **Check the Overview**: Look for high-level folders (Controllers, Services, Src) that match the domain of the question.
 2. **Search Concepts**: If no obvious file exists, `grep_search` for the *concept* (e.g., ""tax"", ""auth"", ""retry"").
@@ -100,6 +104,10 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
     - Use `get_related_files` to understand nearby modules, imports, and dependencies.
     - Use `find_tests` to discover expected behavior, business rules, and covered scenarios.
 
+- **External Information**:
+    - Use `web_search` when the question needs context beyond the codebase — e.g., what a library does, industry best practices, or competitive landscape.
+    - Always search the codebase first before reaching for external information.
+
 ## Exploration Strategy
 1. Identify the high-level feature areas related to the question (e.g., user login, order processing).
 2. Search for files and code related to those areas.
@@ -126,9 +134,10 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
                                       string rootPath,
                                       string? sessionId = null,
                                       string? modelProvider = null,
-                                      string? userRole = null)
+                                      string? userRole = null,
+                                      List<ConversationTurn>? conversationHistory = null)
     {
-        return RunAsync(question, rootPath, _ => Task.CompletedTask, sessionId, modelProvider, userRole);
+        return RunAsync(question, rootPath, _ => Task.CompletedTask, sessionId, modelProvider, userRole, conversationHistory);
     }
 
     /// <summary>
@@ -139,7 +148,8 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
                                             Func<AgentEvent, Task> onProgress,
                                             string? sessionId = null,
                                             string? modelProvider = null,
-                                            string? userRole = null)
+                                            string? userRole = null,
+                                            List<ConversationTurn>? conversationHistory = null)
     {
         logger.LogInformation("Agent starting for question: {Question}, project: {RootPath}", question, rootPath);
 
@@ -151,7 +161,7 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
         if (!provider.SupportsToolCalling)
         {
             logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
-            return await RunReActLoopAsync(question, rootPath, provider, onProgress);
+            return await RunReActLoopAsync(question, rootPath, provider, onProgress, conversationHistory);
         }
 
         var toolContext = new ToolContext
@@ -171,8 +181,23 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
             new SystemChatMessage(string.Equals(userRole, "PM", StringComparison.OrdinalIgnoreCase)
                 ? _pmSystemPrompt
                 : _agentSystemPrompt),
-            new UserChatMessage($"## Project Overview\n{projectOverview}\n\n## Question\n{question}")
+            new UserChatMessage($"## Project Overview\n{projectOverview}")
         };
+
+        // Inject conversation history (previous Q&A turns) so the LLM has context
+        if (conversationHistory is { Count: > 0 })
+        {
+            foreach (var turn in conversationHistory)
+            {
+                if (turn.Role == "user")
+                    messages.Add(new UserChatMessage(turn.Content));
+                else
+                    messages.Add(new AssistantChatMessage(turn.Content));
+            }
+        }
+
+        // Current question
+        messages.Add(new UserChatMessage($"## Question\n{question}"));
 
         for (int iteration = 0; iteration < _maxIterations; iteration++)
         {
@@ -320,7 +345,8 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
     private async Task<AgentResult> RunReActLoopAsync(string question,
                                                       string rootPath,
                                                       ILLMProvider provider,
-                                                      Func<AgentEvent, Task> onProgress)
+                                                      Func<AgentEvent, Task> onProgress,
+                                                      List<ConversationTurn>? conversationHistory = null)
     {
         logger.LogInformation("Starting ReAct agent loop for provider {Provider}", provider.Name);
 
@@ -337,8 +363,22 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(systemPrompt),
-            new UserChatMessage($"## Project Overview\n{projectOverview}\n\n## Question\n{question}")
+            new UserChatMessage($"## Project Overview\n{projectOverview}")
         };
+
+        // Inject conversation history for follow-up questions
+        if (conversationHistory is { Count: > 0 })
+        {
+            foreach (var turn in conversationHistory)
+            {
+                if (turn.Role == "user")
+                    messages.Add(new UserChatMessage(turn.Content));
+                else
+                    messages.Add(new AssistantChatMessage(turn.Content));
+            }
+        }
+
+        messages.Add(new UserChatMessage($"## Question\n{question}"));
 
         for (int iteration = 0; iteration < _maxIterations; iteration++)
         {

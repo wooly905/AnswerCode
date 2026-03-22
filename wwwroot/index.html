@@ -21,81 +21,165 @@
             --danger-color: #f85149;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
-            min-height: 100vh;
+            height: 100vh;
             line-height: 1.6;
+            overflow: hidden;
         }
 
-        /* Input Section */
-        .input-section {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 24px;
+        /* ===== 2-Column Layout ===== */
+        .page-layout {
+            display: flex;
+            height: 100vh;
         }
 
-        .input-group {
-            margin-bottom: 20px;
+        /* ── Left Panel (fixed, no scroll) ── */
+        .left-panel {
+            width: 38%;
+            min-width: 340px;
+            max-width: 520px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            height: 100vh;
+            overflow-y: auto;
         }
 
-        .input-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: var(--text-primary);
+        /* Header inside left panel */
+        .app-header {
+            background: linear-gradient(135deg, #1a1f35 0%, #0d1117 100%);
+            border-bottom: 1px solid var(--border-color);
+            padding: 20px;
+        }
+
+        .app-header h1 {
+            font-size: 1.6rem;
+            background: linear-gradient(90deg, var(--accent-color), #a371f7, #f778ba);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+
+        .app-header p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .auth-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .auth-area .login-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: rgba(88,166,255,.12);
+            border: 1px solid var(--accent-color);
+            border-radius: 8px;
+            color: var(--accent-color);
+            font-size: .82rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background .2s;
+        }
+
+        .auth-area .login-btn:hover { background: rgba(88,166,255,.22); }
+
+        .auth-area .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: .82rem;
+            color: var(--text-secondary);
+        }
+
+        .auth-area .user-info img { width: 24px; height: 24px; border-radius: 50%; }
+
+        .auth-area .dashboard-link {
+            color: var(--accent-color);
+            text-decoration: none;
             font-weight: 500;
+            font-size: .82rem;
         }
 
-        .input-group input,
-        .input-group textarea,
-        .input-group select {
-            width: 100%;
-            padding: 12px 16px;
+        .auth-area .dashboard-link:hover { text-decoration: underline; }
+
+        /* Left panel sections */
+        .left-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .left-section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 0.88rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 10px;
+            padding: 24px 16px;
+            text-align: center;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: border-color .2s, background .2s;
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+        }
+
+        .drop-zone:hover { border-color: var(--accent-color); }
+
+        .upload-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .upload-info {
+            display: none;
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 1rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            margin-top: 10px;
         }
 
-        .input-group input:focus,
-        .input-group textarea:focus,
-        .input-group select:focus {
-            outline: none;
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
-        }
-
-        .input-group textarea {
-            min-height: 120px;
-            resize: vertical;
-            font-family: inherit;
-        }
-
-        .input-group input::placeholder,
-        .input-group textarea::placeholder {
-            color: var(--text-secondary);
+        .upload-info .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         /* Buttons */
         .btn {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 12px 24px;
+            gap: 6px;
+            padding: 8px 16px;
             border: none;
             border-radius: 8px;
-            font-size: 1rem;
+            font-size: 0.85rem;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
@@ -106,16 +190,8 @@
             color: white;
         }
 
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(88,166,255,0.3); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
         .btn-secondary {
             background: var(--bg-tertiary);
@@ -123,109 +199,383 @@
             border: 1px solid var(--border-color);
         }
 
-        .btn-secondary:hover {
-            background: var(--border-color);
+        .btn-secondary:hover { background: var(--border-color); }
+
+        .btn-danger-ghost {
+            font-size: .78rem;
+            padding: 4px 10px;
+            background: rgba(248,81,73,.12);
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+            border-radius: 6px;
+            cursor: pointer;
         }
 
-        .btn-pm {
-            background: linear-gradient(135deg, #2ea043, #1a7f37);
-            color: white;
-        }
-
-        .btn-pm:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(46, 160, 67, 0.35);
-        }
-
-        .btn-pm:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Answer Section */
-        .answer-section {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        .answer-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 24px;
+        /* File list preview */
+        .file-list-preview {
+            display: none;
+            max-height: 140px;
+            overflow-y: auto;
             background: var(--bg-tertiary);
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .answer-header h3 {
-            color: var(--text-primary);
-            font-size: 1.1rem;
-        }
-
-        .answer-meta {
-            display: flex;
-            gap: 16px;
-            font-size: 0.875rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+            font-size: .78rem;
             color: var(--text-secondary);
         }
 
-        .answer-content {
-            padding: 24px;
-            min-height: 200px;
+        /* Progress bar */
+        .upload-progress {
+            display: none;
+            margin-bottom: 10px;
         }
 
-        .answer-content.empty {
+        .upload-progress .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: .78rem;
+            margin-bottom: 4px;
+        }
+
+        .upload-progress .progress-track {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .upload-progress .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-color), #a371f7);
+            border-radius: 3px;
+            transition: width .15s;
+        }
+
+        /* My Projects */
+        .my-projects-area { display: none; }
+
+        .my-projects-area .manage-link {
+            font-size: .78rem;
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        .my-projects-area .manage-link:hover { text-decoration: underline; }
+
+        .project-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 280px;
+            overflow-y: auto;
+            margin-bottom: 8px;
+        }
+
+        .project-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            border: 1px solid transparent;
+            transition: all 0.15s;
+            user-select: none;
+        }
+
+        .project-item:hover {
+            background: rgba(255,255,255,0.04);
+            color: var(--text-primary);
+        }
+
+        .project-item.active {
+            background: rgba(88,166,255,0.12);
+            border-color: rgba(88,166,255,0.35);
+            color: var(--text-primary);
+        }
+
+        .project-item .project-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .project-item.active .project-name {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .project-item .project-meta {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .project-list-empty {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            padding: 8px 0;
+        }
+
+        /* ── Right Panel (chat) ── */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        /* Provider bar */
+        .provider-bar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 18px;
+            font-size: 0.92rem;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+
+        .provider-bar > label {
+            color: var(--text-secondary);
+            font-weight: 600;
+            white-space: nowrap;
+            font-size: 0.92rem;
+        }
+
+        .provider-bar select {
+            padding: 8px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            font-weight: 500;
+        }
+
+        .provider-bar select:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 0 2px rgba(88,166,255,0.15); }
+
+        /* Role radio */
+        .role-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .role-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .role-group label:hover { background: rgba(255,255,255,0.04); }
+
+        .role-group input[type="radio"] { accent-color: var(--accent-color); width: 16px; height: 16px; }
+
+        .role-monthly label:has(input:checked) { color: var(--text-primary); font-weight: 600; }
+        .role-group label:has(input:checked) {
+            color: var(--text-primary);
+            font-weight: 600;
+            background: rgba(88,166,255,0.08);
+            border-color: rgba(88,166,255,0.25);
+        }
+
+        /* Token stats + New Chat in top bar */
+        .chat-top-bar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 8px 18px;
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            font-size: 0.82rem;
+        }
+
+        .token-stats {
+            display: flex;
+            gap: 14px;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .token-stats span { white-space: nowrap; }
+        .token-stats .stat-value { color: var(--text-primary); font-weight: 600; }
+
+        .chat-top-bar .spacer { flex: 1; }
+
+        .new-chat-btn {
+            padding: 6px 14px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .new-chat-btn:hover { color: var(--text-primary); border-color: var(--accent-color); }
+
+        /* Analyzed files expander */
+        .analyzed-files-expander { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+        .analyzed-files-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .analyzed-files-toggle:hover { color: var(--accent-color); }
+        .analyzed-files-toggle .arrow { font-size: 0.6rem; transition: transform 0.2s; }
+        .analyzed-files-toggle .arrow.open { transform: rotate(90deg); }
+        .analyzed-files-content { display: none; margin-top: 8px; }
+        .analyzed-files-content.open { display: block; }
+
+        /* Chat messages area */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 0;
+        }
+
+        .chat-messages .empty-state {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             color: var(--text-secondary);
             font-style: italic;
+            font-size: 0.92rem;
         }
 
-        /* ===== Tool Steps (OpenCode-style) ===== */
-        .steps-section {
-            margin-bottom: 16px;
+        /* Message bubbles */
+        .msg {
+            max-width: 100%;
+            animation: fadeIn 0.3s ease-out;
         }
 
-        .steps-toggle {
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-user {
+            align-self: flex-end;
+            background: rgba(88,166,255,.1);
+            border: 1px solid rgba(88,166,255,.25);
+            border-radius: 12px 12px 2px 12px;
+            padding: 12px 16px;
+            max-width: 85%;
+            white-space: pre-wrap;
+            font-size: 0.92rem;
+            flex-shrink: 0;
+        }
+
+        .msg-user .msg-label {
+            font-size: 0.72rem;
+            color: var(--accent-color);
+            font-weight: 600;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .msg-ai {
+            align-self: stretch;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px 12px 12px 2px;
+            padding: 16px;
+            flex-shrink: 0;
+            min-width: 0;
+        }
+
+        .msg-ai .msg-label {
+            font-size: 0.72rem;
+            color: var(--success-color);
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .msg-ai .msg-meta {
+            display: flex;
+            gap: 14px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+
+        /* Tool steps inside AI bubble */
+        .msg-steps { margin-bottom: 12px; }
+
+        .msg-steps .steps-toggle {
             display: flex;
             align-items: center;
             gap: 8px;
             cursor: pointer;
             color: var(--warning-color);
-            font-size: 0.875rem;
+            font-size: 0.82rem;
             font-weight: 500;
-            padding: 8px 0;
+            padding: 6px 0;
             user-select: none;
         }
 
-        .steps-toggle:hover {
-            color: var(--accent-hover);
-        }
+        .msg-steps .steps-toggle:hover { color: var(--accent-hover); }
 
-        .steps-toggle .arrow {
-            font-size: 0.7rem;
+        .msg-steps .steps-toggle .arrow {
+            font-size: 0.65rem;
             transition: transform 0.2s;
         }
 
-        .steps-toggle .arrow.open {
-            transform: rotate(90deg);
-        }
+        .msg-steps .steps-toggle .arrow.open { transform: rotate(90deg); }
 
         .steps-list {
             display: flex;
             flex-direction: column;
             gap: 2px;
-            margin-top: 8px;
+            margin-top: 6px;
         }
 
         .step-item {
-            background: rgba(22, 27, 34, 0.8);
+            background: rgba(13,17,23,0.6);
             border-radius: 6px;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
             border-left: 3px solid transparent;
             transition: all 0.2s;
@@ -233,42 +583,24 @@
             overflow: hidden;
         }
 
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateX(-8px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
-        .step-item.running {
-            border-left-color: var(--warning-color);
-            background: rgba(210, 153, 34, 0.08);
-        }
-
-        .step-item.done {
-            border-left-color: var(--border-color);
-        }
+        .step-item.running { border-left-color: var(--warning-color); background: rgba(210,153,34,0.08); }
+        .step-item.done { border-left-color: var(--border-color); }
 
         .step-header {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
+            gap: 8px;
+            padding: 6px 10px;
             cursor: pointer;
             user-select: none;
+            min-width: 0;
+            overflow: hidden;
         }
 
-        .step-header:hover {
-            background: rgba(255, 255, 255, 0.03);
-        }
+        .step-header:hover { background: rgba(255,255,255,0.03); }
 
         .step-expander {
-            font-size: 0.6rem;
+            font-size: 0.55rem;
             color: var(--text-secondary);
             transition: transform 0.2s;
             flex-shrink: 0;
@@ -276,42 +608,15 @@
             text-align: center;
         }
 
-        .step-expander.open {
-            transform: rotate(90deg);
-        }
+        .step-expander.open { transform: rotate(90deg); }
 
-        .step-icon {
-            font-size: 0.9rem;
-            width: 20px;
-            text-align: center;
-            flex-shrink: 0;
-        }
+        .step-icon { font-size: 0.85rem; width: 18px; text-align: center; flex-shrink: 0; }
+        .step-icon.running { animation: pulse 1.2s ease-in-out infinite; }
 
-        .step-icon.running {
-            animation: pulse 1.2s ease-in-out infinite;
-        }
+        @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 0.5;
-            }
-
-            50% {
-                opacity: 1;
-            }
-        }
-
-        .step-tool {
-            color: var(--accent-color);
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        .step-separator {
-            color: var(--text-secondary);
-        }
+        .step-tool { color: var(--accent-color); font-weight: 600; white-space: nowrap; }
+        .step-separator { color: var(--text-secondary); }
 
         .step-summary {
             color: var(--text-secondary);
@@ -322,7 +627,7 @@
 
         .step-result {
             color: var(--success-color);
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -333,30 +638,25 @@
         .step-duration {
             margin-left: auto;
             color: var(--text-secondary);
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             white-space: nowrap;
             flex-shrink: 0;
         }
 
-        /* Expandable details section */
         .step-details {
             display: none;
-            padding: 0 12px 10px 42px;
-            border-top: 1px solid rgba(48, 54, 61, 0.5);
-            font-size: 0.8rem;
+            padding: 0 10px 8px 38px;
+            border-top: 1px solid rgba(48,54,61,0.5);
+            font-size: 0.78rem;
         }
 
-        .step-details.open {
-            display: block;
-        }
+        .step-details.open { display: block; }
 
-        .step-details-section {
-            margin-top: 8px;
-        }
+        .step-details-section { margin-top: 6px; }
 
         .step-details-label {
             color: var(--text-secondary);
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 4px;
@@ -364,66 +664,53 @@
         }
 
         .step-details-content {
-            background: rgba(13, 17, 23, 0.6);
+            background: rgba(13,17,23,0.6);
             border: 1px solid var(--border-color);
             border-radius: 4px;
-            padding: 8px 10px;
+            padding: 6px 8px;
             color: var(--text-primary);
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             line-height: 1.5;
             white-space: pre-wrap;
             word-break: break-all;
-            max-height: 300px;
+            max-height: 250px;
             overflow-y: auto;
             margin: 0;
             font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
         }
 
-        /* Bullet list inside expander */
-        .step-detail-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
+        .step-detail-list { list-style: none; padding: 0; margin: 0; }
 
         .step-detail-list li {
-            padding: 3px 0;
+            padding: 2px 0;
             color: var(--text-primary);
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
             display: flex;
             align-items: baseline;
             gap: 6px;
         }
 
-        .step-detail-list li::before {
-            content: '•';
-            color: var(--accent-color);
-            font-size: 0.9em;
-            flex-shrink: 0;
-        }
+        .step-detail-list li::before { content: '\2022'; color: var(--accent-color); font-size: 0.9em; flex-shrink: 0; }
 
         .step-detail-list li.section-header {
             color: var(--text-secondary);
             font-weight: 600;
-            font-size: 0.75rem;
-            margin-top: 6px;
+            font-size: 0.72rem;
+            margin-top: 4px;
             letter-spacing: 0.3px;
         }
 
-        .step-detail-list li.section-header::before {
-            content: '';
-        }
+        .step-detail-list li.section-header::before { content: ''; }
 
-        /* Raw output toggle */
         .step-raw-toggle {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            margin-top: 8px;
+            margin-top: 6px;
             padding: 2px 0;
             color: var(--text-secondary);
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             cursor: pointer;
             user-select: none;
             border: none;
@@ -431,454 +718,141 @@
             font-family: inherit;
         }
 
-        .step-raw-toggle:hover {
-            color: var(--accent-color);
-        }
+        .step-raw-toggle:hover { color: var(--accent-color); }
+        .step-raw-toggle .raw-arrow { font-size: 0.5rem; transition: transform 0.2s; }
+        .step-raw-toggle .raw-arrow.open { transform: rotate(90deg); }
 
-        .step-raw-toggle .raw-arrow {
-            font-size: 0.55rem;
-            transition: transform 0.2s;
-        }
-
-        .step-raw-toggle .raw-arrow.open {
-            transform: rotate(90deg);
-        }
-
-        /* Active thinking indicator */
+        /* Thinking indicator */
         .thinking-indicator {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 12px;
+            padding: 8px 0;
             color: var(--text-secondary);
-            font-size: 0.85rem;
+            font-size: 0.82rem;
         }
 
-        .thinking-dots {
-            display: flex;
-            gap: 4px;
-        }
+        .thinking-dots { display: flex; gap: 4px; }
 
         .thinking-dots span {
-            width: 6px;
-            height: 6px;
+            width: 5px; height: 5px;
             background: var(--accent-color);
             border-radius: 50%;
             animation: bounce 1.4s ease-in-out infinite;
         }
 
-        .thinking-dots span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
+        .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
 
-        .thinking-dots span:nth-child(3) {
-            animation-delay: 0.4s;
-        }
+        @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-5px); } }
 
-        @keyframes bounce {
-
-            0%,
-            80%,
-            100% {
-                transform: translateY(0);
-            }
-
-            40% {
-                transform: translateY(-6px);
-            }
-        }
-
-        /* Markdown Styling */
-        .markdown-body {
-            color: var(--text-primary);
-        }
-
-        .markdown-body h1,
-        .markdown-body h2,
-        .markdown-body h3 {
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 8px;
-            margin-top: 24px;
-            margin-bottom: 16px;
-        }
-
-        .markdown-body code {
-            background: var(--bg-tertiary);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Fira Code', 'Consolas', monospace;
-            font-size: 0.9em;
-        }
-
-        .markdown-body pre {
-            background: var(--bg-tertiary);
-            padding: 16px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 16px 0;
-        }
-
-        .markdown-body pre code {
-            background: transparent;
-            padding: 0;
-        }
-
-        .markdown-body ul,
-        .markdown-body ol {
-            padding-left: 24px;
-            margin: 16px 0;
-        }
-
-        .markdown-body li {
-            margin: 4px 0;
-        }
-
-        .markdown-body blockquote {
-            border-left: 3px solid var(--accent-color);
-            padding-left: 16px;
-            margin: 16px 0;
-            color: var(--text-secondary);
-        }
+        /* Markdown */
+        .markdown-body { color: var(--text-primary); }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-top: 20px; margin-bottom: 12px; }
+        .markdown-body code { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; font-family: 'Fira Code', 'Consolas', monospace; font-size: 0.9em; }
+        .markdown-body pre { background: var(--bg-tertiary); padding: 14px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+        .markdown-body pre code { background: transparent; padding: 0; }
+        .markdown-body ul, .markdown-body ol { padding-left: 24px; margin: 12px 0; }
+        .markdown-body li { margin: 4px 0; }
+        .markdown-body blockquote { border-left: 3px solid var(--accent-color); padding-left: 16px; margin: 12px 0; color: var(--text-secondary); }
 
         /* Relevant Files */
-        .relevant-files {
-            margin-top: 24px;
-            padding-top: 24px;
+        .relevant-files { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+        .relevant-files h4 { margin-bottom: 8px; color: var(--text-secondary); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .file-list { display: flex; flex-wrap: wrap; gap: 6px; }
+        .file-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 100px; font-size: 0.78rem; color: var(--accent-color); }
+
+        .spinner { width: 20px; height: 20px; border: 3px solid var(--border-color); border-top-color: var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite; flex-shrink: 0; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .error { background: rgba(248,81,73,0.1); border: 1px solid var(--danger-color); border-radius: 8px; padding: 12px; color: var(--danger-color); font-size: 0.88rem; }
+
+        /* ── Input Bar (bottom of right panel) ── */
+        .input-bar {
+            flex-shrink: 0;
+            background: var(--bg-secondary);
             border-top: 1px solid var(--border-color);
+            padding: 12px 16px;
         }
 
-        .relevant-files h4 {
-            margin-bottom: 12px;
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .file-list {
+        .input-bar-inner {
             display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
+            gap: 10px;
+            align-items: flex-end;
         }
 
-        .file-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 4px 12px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 100px;
-            font-size: 0.875rem;
-            color: var(--accent-color);
-        }
-
-        /* Loading */
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            padding: 40px;
-            color: var(--text-secondary);
-        }
-
-        .spinner {
-            width: 24px;
-            height: 24px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--accent-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Error */
-        .error {
-            background: rgba(248, 81, 73, 0.1);
-            border: 1px solid var(--danger-color);
-            border-radius: 8px;
-            padding: 16px;
-            color: var(--danger-color);
-        }
-
-        /* Mermaid Diagrams */
-        .mermaid {
-            background: var(--bg-tertiary);
-            border-radius: 8px;
-            padding: 16px;
-            margin: 16px 0;
-            display: flex;
-            justify-content: center;
-            overflow-x: auto;
-        }
-
-        .mermaid svg {
-            max-width: 100%;
-        }
-
-        /* ===== Mermaid Zoom Container ===== */
-        .mermaid-zoom-wrapper {
-            position: relative;
+        .input-bar textarea {
+            flex: 1;
+            padding: 10px 14px;
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
             border-radius: 10px;
-            margin: 16px 0;
-            overflow: hidden;
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            font-family: inherit;
+            resize: none;
+            min-height: 44px;
+            max-height: 160px;
+            line-height: 1.5;
+            outline: none;
+            transition: border-color 0.2s;
         }
 
-        .mermaid-zoom-toolbar {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 6px 10px;
-            background: rgba(13, 17, 23, 0.7);
-            border-bottom: 1px solid var(--border-color);
-            font-size: 0.78rem;
-            color: var(--text-secondary);
-            user-select: none;
-        }
+        .input-bar textarea:focus { border-color: var(--accent-color); }
+        .input-bar textarea::placeholder { color: var(--text-secondary); }
 
-        .mermaid-zoom-toolbar .mz-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px;
-            height: 28px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
+        .send-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--accent-color), #a371f7);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 0.85rem;
-            transition: all 0.15s;
+            transition: all 0.2s;
+            white-space: nowrap;
         }
 
-        .mermaid-zoom-toolbar .mz-btn:hover {
-            background: var(--border-color);
-            color: var(--text-primary);
-            border-color: var(--accent-color);
-        }
+        .send-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(88,166,255,0.3); }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .mermaid-zoom-toolbar .mz-label {
-            min-width: 42px;
-            text-align: center;
-            font-weight: 600;
-            color: var(--text-primary);
-            font-size: 0.78rem;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .mermaid-zoom-toolbar .mz-sep {
-            width: 1px;
-            height: 18px;
-            background: var(--border-color);
-            margin: 0 4px;
-        }
-
-        .mermaid-zoom-toolbar .mz-hint {
-            margin-left: auto;
+        .send-btn kbd {
+            font-family: inherit;
             font-size: 0.72rem;
-            color: var(--text-secondary);
-            opacity: 0.7;
+            font-weight: 400;
+            background: rgba(255,255,255,0.18);
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 4px;
+            opacity: 0.8;
         }
 
-        .mermaid-zoom-viewport {
-            position: relative;
-            width: 100%;
-            height: 400px;
-            overflow: hidden;
-            cursor: grab;
-        }
+        /* ===== Mermaid ===== */
+        .mermaid { background: var(--bg-tertiary); border-radius: 8px; padding: 16px; margin: 12px 0; display: flex; justify-content: center; overflow-x: auto; }
+        .mermaid svg { max-width: 100%; }
 
-        .mermaid-zoom-viewport:active {
-            cursor: grabbing;
-        }
+        .mermaid-zoom-wrapper { position: relative; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+        .mermaid-zoom-toolbar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: rgba(13,17,23,0.7); border-bottom: 1px solid var(--border-color); font-size: 0.75rem; color: var(--text-secondary); user-select: none; }
+        .mermaid-zoom-toolbar .mz-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; font-size: 0.82rem; transition: all 0.15s; }
+        .mermaid-zoom-toolbar .mz-btn:hover { background: var(--border-color); color: var(--text-primary); border-color: var(--accent-color); }
+        .mermaid-zoom-toolbar .mz-label { min-width: 40px; text-align: center; font-weight: 600; color: var(--text-primary); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+        .mermaid-zoom-toolbar .mz-sep { width: 1px; height: 16px; background: var(--border-color); margin: 0 4px; }
+        .mermaid-zoom-toolbar .mz-hint { margin-left: auto; font-size: 0.7rem; color: var(--text-secondary); opacity: 0.7; }
+        .mermaid-zoom-viewport { position: relative; width: 100%; height: 360px; overflow: hidden; cursor: grab; }
+        .mermaid-zoom-viewport:active { cursor: grabbing; }
+        .mermaid-zoom-viewport .mermaid-zoom-content { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; display: flex; align-items: center; justify-content: center; min-width: 100%; min-height: 100%; }
+        .mermaid-zoom-viewport .mermaid-zoom-content svg { display: block; }
+        .mermaid-fullscreen-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.92); display: flex; flex-direction: column; animation: mzFadeIn 0.2s ease-out; }
+        @keyframes mzFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .mermaid-fullscreen-overlay .mermaid-zoom-toolbar { background: rgba(22,27,34,0.95); border-bottom: 1px solid var(--border-color); padding: 8px 16px; }
+        .mermaid-fullscreen-overlay .mermaid-zoom-viewport { flex: 1; height: auto; }
 
-        .mermaid-zoom-viewport .mermaid-zoom-content {
-            position: absolute;
-            top: 0;
-            left: 0;
-            transform-origin: 0 0;
-            will-change: transform;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 100%;
-            min-height: 100%;
-        }
-
-        .mermaid-zoom-viewport .mermaid-zoom-content svg {
-            display: block;
-        }
-
-        /* Fullscreen overlay */
-        .mermaid-fullscreen-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 9999;
-            background: rgba(0, 0, 0, 0.92);
-            display: flex;
-            flex-direction: column;
-            animation: mzFadeIn 0.2s ease-out;
-        }
-
-        @keyframes mzFadeIn {
-            from {
-                opacity: 0;
-            }
-
-            to {
-                opacity: 1;
-            }
-        }
-
-        .mermaid-fullscreen-overlay .mermaid-zoom-toolbar {
-            background: rgba(22, 27, 34, 0.95);
-            border-bottom: 1px solid var(--border-color);
-            padding: 8px 16px;
-        }
-
-        .mermaid-fullscreen-overlay .mermaid-zoom-viewport {
-            flex: 1;
-            height: auto;
-        }
-
-        /* ===== 2-Column Layout ===== */
-        .page-layout {
-            display: flex;
-            gap: 24px;
-            padding: 20px;
-            max-width: 1800px;
-            margin: 0 auto;
-            align-items: flex-start;
-            min-height: 100vh;
-        }
-
-        .left-panel {
-            width: 40%;
-            flex-shrink: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .right-panel {
-            width: 60%;
-            position: sticky;
-            top: 20px;
-            max-height: calc(100vh - 40px);
-            overflow-y: auto;
-        }
-
-        /* Logo / header inside left panel */
-        .app-header {
-            background: linear-gradient(135deg, #1a1f35 0%, #0d1117 100%);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 24px;
-        }
-
-        .app-header h1 {
-            font-size: 2rem;
-            background: linear-gradient(90deg, var(--accent-color), #a371f7, #f778ba);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
-        }
-
-        .app-header p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-        }
-
-        /* Auth area in header */
-        .auth-area { display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
-        .auth-area .login-btn {
-            display:inline-flex; align-items:center; gap:6px; padding:8px 16px;
-            background:rgba(88,166,255,.12); border:1px solid var(--accent-color);
-            border-radius:8px; color:var(--accent-color); font-size:.85rem;
-            cursor:pointer; text-decoration:none; transition:background .2s;
-        }
-        .auth-area .login-btn:hover { background:rgba(88,166,255,.22); }
-        .auth-area .user-info { display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--text-secondary); }
-        .auth-area .user-info img { width:28px; height:28px; border-radius:50%; }
-        .auth-area .dashboard-link { color:var(--accent-color); text-decoration:none; font-weight:500; font-size:.85rem; }
-        .auth-area .dashboard-link:hover { text-decoration:underline; }
-
-        /* My Projects section (authenticated users) */
-        .my-projects {
-            background:var(--bg-secondary); border:1px solid var(--border-color);
-            border-radius:12px; padding:16px; display:none;
-        }
-        .my-projects label { display:block; margin-bottom:6px; font-weight:600; font-size:1.05rem; }
-        .my-projects select {
-            width:100%; padding:10px 12px; background:var(--bg-primary);
-            border:1px solid var(--border-color); border-radius:8px;
-            color:var(--text-primary); font-size:.9rem; margin-bottom:8px;
-        }
-        .my-projects .manage-link {
-            display:inline-block; font-size:.82rem; color:var(--accent-color);
-            text-decoration:none; margin-top:4px;
-        }
-        .my-projects .manage-link:hover { text-decoration:underline; }
-        .my-projects .or-divider {
-            text-align:center; color:var(--text-secondary); font-size:.82rem;
-            margin:10px 0; position:relative;
-        }
-        .my-projects .or-divider::before, .my-projects .or-divider::after {
-            content:''; position:absolute; top:50%; width:calc(50% - 30px);
-            height:1px; background:var(--border-color);
-        }
-        .my-projects .or-divider::before { left:0; }
-        .my-projects .or-divider::after { right:0; }
-
-        /* Workflow / steps section (left panel) */
-        .workflow-section {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 16px;
-            overflow-y: auto;
-            max-height: 480px;
-        }
-
-        .workflow-section-header {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
-        }
-
-        /* Responsive */
-        @media (max-width: 900px) {
-            .page-layout {
-                flex-direction: column;
-                padding: 16px;
-            }
-
-            .left-panel,
-            .right-panel {
-                width: 100%;
-                position: static;
-                max-height: none;
-            }
-
-            .app-header h1 {
-                font-size: 1.6rem;
-            }
-
-            .input-section {
-                padding: 16px;
-            }
+        /* ===== Responsive ===== */
+        @media (max-width: 800px) {
+            .page-layout { flex-direction: column; }
+            .left-panel { width: 100%; max-width: none; min-width: 0; height: auto; max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border-color); overflow-y: auto; }
+            .right-panel { height: 60vh; }
         }
     </style>
 </head>
@@ -886,170 +860,125 @@
 <body>
     <div class="page-layout">
 
-        <!-- ===== LEFT PANEL (40%) ===== -->
+        <!-- ===== LEFT PANEL ===== -->
         <div class="left-panel">
 
-            <!-- Logo / Header -->
+            <!-- Header -->
             <div class="app-header">
-                <h1>🔍 AnswerCode</h1>
-                <p>AI-Powered Code Q&A System — Ask questions about your project and get intelligent answers</p>
+                <h1>AnswerCode</h1>
+                <p>AI-Powered Code Q&A System</p>
                 <div class="auth-area" id="authArea">
                     <a href="/api/auth/login" class="login-btn" id="loginBtn">
-                        <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8.5h11.3C33.8 33.2 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c2.9 0 5.5 1 7.6 2.8l6.3-6.3C34.1 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 19.6-7.6 20.8-18 .1-.7.2-1.3.2-2 0-1.7-.2-3.3-.4-5z"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8.5h11.3C33.8 33.2 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c2.9 0 5.5 1 7.6 2.8l6.3-6.3C34.1 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 19.6-7.6 20.8-18 .1-.7.2-1.3.2-2 0-1.7-.2-3.3-.4-5z"/></svg>
                         Sign in with Google
                     </a>
                 </div>
             </div>
 
-            <!-- My Projects (authenticated users only) -->
-            <div class="my-projects" id="myProjectsSection">
-                <label>📂 My Projects</label>
-                <select id="userFolderSelect" onchange="selectUserFolder(this.value)">
-                    <option value="">— Select an existing project —</option>
-                </select>
-                <a href="/dashboard" class="manage-link">Manage Projects →</a>
-                <div class="or-divider">or upload new</div>
-            </div>
-
-            <!-- Upload Section -->
-            <section class="input-section" id="uploadSection">
-                <label style="display:block;margin-bottom:6px;font-weight:600;font-size:1.05rem;">📁 Upload Source Code
-                    <small id="uploadLimitLabel" style="color:var(--text-secondary);font-weight:400;">(max 20 MB)</small></label>
-                <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">
-                    Supports 8 languages: C#, Node.js, Python, Go, Rust, Java, C, C++
+            <!-- Upload -->
+            <div class="left-section">
+                <div class="section-title">Upload Source Code
+                    <small id="uploadLimitLabel" style="color:var(--text-secondary);font-weight:400;font-size:.78rem;">(max 20 MB)</small>
                 </div>
-
-                <!-- Drop zone -->
-                <div id="dropZone"
-                    style="border:2px dashed var(--border-color);border-radius:10px;padding:32px 16px;text-align:center;color:var(--text-secondary);cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:14px;"
-                    onclick="document.getElementById('fileInput').click()">
-                    <div style="font-size:2.4rem;margin-bottom:8px;">📂</div>
-                    <div>Drag &amp; drop files / folders here, or <span
-                            style="color:var(--accent-color);text-decoration:underline;">browse</span></div>
-                    <div style="font-size:.8rem;margin-top:6px;">You can select multiple files and folders</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);margin-bottom:8px;">
+                    C#, Node.js, Python, Go, Rust, Java, C, C++
+                </div>
+                <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <div style="font-size:1.8rem;margin-bottom:4px;">&#128194;</div>
+                    Drop files/folders here or <span style="color:var(--accent-color);text-decoration:underline;">browse</span>
                     <input type="file" id="fileInput"
                         accept=".cs,.js,.ts,.jsx,.tsx,.py,.go,.rs,.java,.c,.cpp,.cc,.cxx,.h,.hpp,.hxx,.html,.css,.json,.md,.xml,.toml,.yml,.yaml,.csproj,.sln"
                         multiple webkitdirectory style="display:none;" onchange="handleFileSelect(this.files)">
-                    <!-- extra plain-file picker so users can also pick individual files -->
                     <input type="file" id="fileInputPlain"
                         accept=".cs,.js,.ts,.jsx,.tsx,.py,.go,.rs,.java,.c,.cpp,.cc,.cxx,.h,.hpp,.hxx,.html,.css,.json,.md,.xml,.toml,.yml,.yaml,.csproj,.sln"
                         multiple style="display:none;" onchange="handleFileSelect(this.files)">
                 </div>
-
-                <!-- action row: two browse buttons -->
-                <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-                    <button class="btn btn-secondary" style="font-size:.85rem;padding:8px 14px;"
-                        onclick="document.getElementById('fileInputPlain').click()">📄 Browse Files</button>
-                    <button class="btn btn-secondary" style="font-size:.85rem;padding:8px 14px;"
-                        onclick="document.getElementById('fileInput').click()">📁 Browse Folder</button>
+                <div class="upload-actions">
+                    <button class="btn btn-secondary" style="font-size:.78rem;padding:6px 12px;"
+                        onclick="document.getElementById('fileInputPlain').click()">Browse Files</button>
+                    <button class="btn btn-secondary" style="font-size:.78rem;padding:6px 12px;"
+                        onclick="document.getElementById('fileInput').click()">Browse Folder</button>
                 </div>
-
-                <!-- File list preview -->
-                <div id="fileListPreview"
-                    style="display:none;max-height:160px;overflow-y:auto;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:var(--text-secondary);">
-                </div>
-
-                <!-- Size warning -->
+                <input type="text" id="projectNameInput" placeholder="Project name (optional)"
+                    style="width:100%;padding:8px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:.82rem;outline:none;margin-bottom:10px;"
+                    onfocus="this.style.borderColor='var(--accent-color)'" onblur="this.style.borderColor='var(--border-color)'">
+                <div class="file-list-preview" id="fileListPreview"></div>
                 <div id="sizeWarning"
-                    style="display:none;background:rgba(248,81,73,.12);border:1px solid var(--danger-color);border-radius:8px;padding:10px 14px;color:var(--danger-color);font-size:.88rem;margin-bottom:14px;">
-                    ⚠️ Total size exceeds 20 MB limit.</div>
-
-                <!-- Progress bar -->
-                <div id="uploadProgressWrap" style="display:none;margin-bottom:14px;">
-                    <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px;">
-                        <span id="uploadProgressLabel">Uploading…</span>
+                    style="display:none;background:rgba(248,81,73,.12);border:1px solid var(--danger-color);border-radius:8px;padding:8px 12px;color:var(--danger-color);font-size:.82rem;margin-bottom:10px;">
+                    Total size exceeds limit.</div>
+                <div class="upload-progress" id="uploadProgressWrap">
+                    <div class="progress-info">
+                        <span id="uploadProgressLabel">Uploading...</span>
                         <span id="uploadProgressPct">0%</span>
                     </div>
-                    <div style="height:8px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;">
-                        <div id="uploadProgressBar"
-                            style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent-color),#a371f7);border-radius:4px;transition:width .15s;">
-                        </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="uploadProgressBar"></div>
                     </div>
                 </div>
-
-                <!-- Project name (optional) -->
-                <div id="projectNameWrap" style="margin-bottom:14px;">
-                    <input type="text" id="projectNameInput" placeholder="Project name (optional — auto-detected if empty)"
-                        style="width:100%;padding:10px 14px;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:.9rem;outline:none;"
-                        onfocus="this.style.borderColor='var(--accent-color)'" onblur="this.style.borderColor='var(--border-color)'">
-                </div>
-
-                <button class="btn btn-primary" id="uploadBtn" style="width:100%;justify-content:center;"
-                    onclick="uploadFiles()" disabled>
-                    <span>⬆️</span><span>Upload Source Code</span>
-                </button>
-
-                <!-- Current upload info -->
-                <div id="currentUploadInfo"
-                    style="display:none;margin-top:14px;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:8px;padding:14px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                <button class="btn btn-primary" id="uploadBtn" onclick="uploadFiles()" disabled
+                    style="width:100%;justify-content:center;">Upload Source Code</button>
+                <div class="upload-info" id="currentUploadInfo">
+                    <div class="info-row">
                         <div>
-                            <div style="font-weight:600;font-size:.92rem;color:var(--success-color);">✅ Source code
-                                uploaded</div>
-                            <div style="font-size:.8rem;color:var(--text-secondary);margin-top:4px;"
-                                id="uploadInfoDetail"></div>
+                            <span style="color:var(--success-color);font-weight:600;">&#10003; Uploaded</span>
+                            <span id="uploadInfoDetail" style="color:var(--text-secondary);margin-left:8px;font-size:.82rem;"></span>
                         </div>
-                        <button class="btn btn-secondary"
-                            style="font-size:.82rem;padding:6px 14px;background:rgba(248,81,73,.15);border-color:var(--danger-color);color:var(--danger-color);"
-                            onclick="removeSourceCode()">🗑️ Remove</button>
+                        <button class="btn-danger-ghost" onclick="removeSourceCode()">Remove</button>
                     </div>
                 </div>
-            </section>
+            </div>
 
-            <!-- Input Section -->
-            <section class="input-section">
-                <div class="input-group">
-                    <label for="modelProvider">🤖 Model Provider</label>
-                    <select id="modelProvider">
-                        <option value="">Loading providers...</option>
-                    </select>
+            <!-- My Projects (authenticated) -->
+            <div class="left-section my-projects-area" id="myProjectsSection">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                    <div class="section-title" style="margin-bottom:0;">My Projects</div>
+                    <a href="/dashboard" class="manage-link">Manage</a>
                 </div>
-
-                <div class="input-group">
-                    <label for="question">💬 Your Question</label>
-                    <textarea id="question"
-                        placeholder="Example: How does the authentication logic work in this project? Or: Help me find all classes related to UserService"></textarea>
+                <div class="project-list" id="projectList">
+                    <div class="project-list-empty">No projects yet</div>
                 </div>
-
-                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <button class="btn btn-primary" id="askDevBtn" onclick="askQuestion('Developer')" disabled>
-                        <span>🧑‍💻</span>
-                        <span>Answer as Developer</span>
-                    </button>
-                    <button class="btn btn-pm" id="askPmBtn" onclick="askQuestion('PM')" disabled>
-                        <span>📊</span>
-                        <span>Answer as PM</span>
-                    </button>
-                    <button class="btn btn-secondary" onclick="clearAll()">
-                        <span>🗑️</span>
-                        <span>Clear</span>
-                    </button>
-                </div>
-            </section>
-
-            <!-- Agent Workflow Progress -->
-            <section class="workflow-section" id="workflowSection" style="display: none;">
-                <div class="workflow-section-header">⚙ Agent Workflow</div>
-                <div id="workflowInner"></div>
-            </section>
-
+            </div>
         </div><!-- /left-panel -->
 
-        <!-- ===== RIGHT PANEL (60%) ===== -->
+        <!-- ===== RIGHT PANEL (chat) ===== -->
         <div class="right-panel">
-            <section class="answer-section">
-                <div class="answer-header">
-                    <h3>📝 AI Answer</h3>
-                    <div class="answer-meta" id="answerMeta" style="display: none;">
-                        <span id="processingTime">⏱️ --ms</span>
-                        <span id="tokenCount">🪙 -- tokens</span>
-                        <span id="sessionId">🔗 --</span>
-                    </div>
+
+            <!-- Token stats + New Chat -->
+            <div class="chat-top-bar">
+                <div class="token-stats">
+                    <span>Input: <span class="stat-value" id="totalInputTokens">0</span></span>
+                    <span>Output: <span class="stat-value" id="totalOutputTokens">0</span></span>
+                    <span>Total: <span class="stat-value" id="totalAllTokens">0</span></span>
                 </div>
-                <div class="answer-content" id="answerContent">
-                    <div class="empty">Upload source code and enter your question to begin...</div>
+                <span class="spacer"></span>
+                <button class="new-chat-btn" onclick="newChat()" title="Start a new conversation">New Chat</button>
+            </div>
+
+            <!-- Provider + Role bar -->
+            <div class="provider-bar">
+                <label>Model:</label>
+                <select id="modelProvider">
+                    <option value="">Loading...</option>
+                </select>
+                <div class="role-group">
+                    <label><input type="radio" name="userRole" value="Developer" checked> Developer</label>
+                    <label><input type="radio" name="userRole" value="PM"> PM</label>
                 </div>
-            </section>
+            </div>
+
+            <!-- Chat messages -->
+            <div class="chat-messages" id="chatMessages">
+                <div class="empty-state" id="emptyState">Upload source code and ask a question to begin...</div>
+            </div>
+
+            <!-- Input bar -->
+            <div class="input-bar">
+                <div class="input-bar-inner">
+                    <textarea id="question" rows="1" placeholder="Ask a question about your code... (Ctrl+Enter to send)"
+                        oninput="autoResize(this)"></textarea>
+                    <button class="send-btn" id="sendBtn" onclick="askQuestion()" disabled title="Ctrl+Enter">Send <kbd>Ctrl+Enter</kbd></button>
+                </div>
+            </div>
         </div><!-- /right-panel -->
 
     </div><!-- /page-layout -->
@@ -1058,80 +987,61 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script>
-        // Initialize Mermaid with dark theme
+        // ── Mermaid init ──
         mermaid.initialize({
-            startOnLoad: false,
-            theme: 'dark',
-            themeVariables: {
-                darkMode: true,
-                background: '#21262d',
-                primaryColor: '#58a6ff',
-                primaryTextColor: '#e6edf3',
-                lineColor: '#8b949e',
-                secondaryColor: '#30363d',
-                tertiaryColor: '#161b22'
-            }
+            startOnLoad: false, theme: 'dark',
+            themeVariables: { darkMode: true, background: '#21262d', primaryColor: '#58a6ff', primaryTextColor: '#e6edf3', lineColor: '#8b949e', secondaryColor: '#30363d', tertiaryColor: '#161b22' }
         });
 
-        // Custom renderer: convert ```mermaid blocks into <pre class="mermaid">
+        // ── Marked renderer ──
         const renderer = new marked.Renderer();
         const mermaidKeywordsRe = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|mindmap|timeline|journey|block-beta|sankey-beta|sankey|xychart-beta|xychart|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|C4Deployment|C4Dynamic|zenuml|packet-beta|architecture-beta|kanban|actor)\b/i;
+
         function looksLikeMermaid(src) {
             const stripped = src.replace(/^(%%[^\n]*\n\s*)+/, '').trim();
             return mermaidKeywordsRe.test(src) || mermaidKeywordsRe.test(stripped);
         }
+
         renderer.code = function (token) {
             const text = (typeof token === 'string' ? token : (token.text || token.code || '')) || '';
             const lang = (typeof token === 'string' ? '' : (token.lang || '')) || '';
             if (lang === 'mermaid' || (lang === '' && looksLikeMermaid(text.trim()))) {
-                // HTML-escape the mermaid source so innerHTML doesn't corrupt it;
-                // mermaid.render() reads textContent which auto-decodes entities.
                 const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                 return `<pre class="mermaid">${safeText}</pre>`;
             }
             try {
-                if (lang && hljs.getLanguage(lang)) {
-                    const highlighted = hljs.highlight(text, { language: lang }).value;
-                    return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
-                }
-                if (text) {
-                    const auto = hljs.highlightAuto(text).value;
-                    return `<pre><code class="hljs">${auto}</code></pre>`;
-                }
-            } catch (e) { console.warn('Highlight.js error in renderer:', e); }
-            const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            return `<pre><code>${escaped}</code></pre>`;
+                if (lang && hljs.getLanguage(lang)) return `<pre><code class="hljs language-${lang}">${hljs.highlight(text, { language: lang }).value}</code></pre>`;
+                if (text) return `<pre><code class="hljs">${hljs.highlightAuto(text).value}</code></pre>`;
+            } catch (e) { }
+            return `<pre><code>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
         };
-
         marked.setOptions({ renderer, breaks: true, gfm: true });
 
+        // ── State ──
         let currentSessionId = null;
-        let stepsVisible = true;
         let stepCounter = 0;
         let startTime = 0;
-
-        // ── Auth state ──
         let isAuthenticated = false;
         let currentUser = null;
-
-        // ── Upload state ──
         let MAX_BYTES = 20 * 1024 * 1024;
-        let pendingFiles = [];   // { file, relativePath }
+        let pendingFiles = [];
         let currentFolderId = null;
         let currentFolderPersistent = false;
         let currentDeleteToken = null;
+        let isAsking = false;
+        let currentMsgId = 0;
+        let cumulativeInputTokens = 0;
+        let cumulativeOutputTokens = 0;
 
-        // ── Auto-cleanup on page unload ──
-        // When the user closes the tab, navigates away, or closes the browser,
-        // sendBeacon fires a POST to delete the uploaded source code.
-        // Skip cleanup for authenticated users (persistent storage).
-        window.addEventListener('beforeunload', () => {
-            if (currentFolderId && !currentFolderPersistent && currentDeleteToken) {
-                navigator.sendBeacon(`/api/CodeQA/upload/${currentFolderId}/cleanup?deleteToken=${encodeURIComponent(currentDeleteToken)}`);
-            }
-        });
+        // ── Utils ──
+        function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 
-        // ── Auth check on page load ──
+        function autoResize(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+        }
+
+        // ── Auth ──
         async function checkAuthStatus() {
             try {
                 const res = await fetch('/api/auth/me');
@@ -1142,22 +1052,19 @@
                         currentUser = user;
                         MAX_BYTES = 300 * 1024 * 1024;
                         document.getElementById('uploadLimitLabel').textContent = '(max 300 MB)';
-
-                        const authArea = document.getElementById('authArea');
-                        authArea.innerHTML = `
+                        document.getElementById('authArea').innerHTML = `
                             <div class="user-info">
                                 ${user.picture ? `<img src="${user.picture}" alt="">` : ''}
                                 <span>${escapeHtml(user.name || user.email)}</span>
                             </div>
                             <a href="/dashboard" class="dashboard-link">Dashboard</a>
-                            <a href="/api/auth/logout" class="login-btn" style="font-size:.78rem;padding:6px 12px;">Logout</a>
+                            <a href="/api/auth/logout" class="login-btn" style="font-size:.75rem;padding:4px 10px;">Logout</a>
                         `;
-
                         document.getElementById('myProjectsSection').style.display = 'block';
                         loadUserFolders();
                     }
                 }
-            } catch (e) { /* not logged in */ }
+            } catch (e) { }
         }
 
         async function loadUserFolders() {
@@ -1165,45 +1072,55 @@
                 const res = await fetch('/api/codeqa/user-folders');
                 if (!res.ok) return;
                 const folders = await res.json();
-                const sel = document.getElementById('userFolderSelect');
-                sel.innerHTML = '<option value="">— Select an existing project —</option>';
+                const list = document.getElementById('projectList');
+                if (folders.length === 0) {
+                    list.innerHTML = '<div class="project-list-empty">No projects yet</div>';
+                    return;
+                }
+                list.innerHTML = '';
                 folders.forEach(f => {
-                    const opt = document.createElement('option');
-                    opt.value = f.folderId;
                     const name = f.displayName || f.folderId;
-                    opt.textContent = `${name} (${f.fileCount} files, ${f.sizeMB} MB)`;
-                    sel.appendChild(opt);
+                    const item = document.createElement('div');
+                    item.className = 'project-item' + (currentFolderId === f.folderId ? ' active' : '');
+                    item.dataset.folderId = f.folderId;
+                    item.onclick = () => selectUserFolder(f.folderId, name);
+                    item.innerHTML = `<span class="project-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span><span class="project-meta">${f.fileCount} files &middot; ${f.sizeMB} MB</span>`;
+                    list.appendChild(item);
                 });
-            } catch (e) { /* ignore */ }
+            } catch (e) { }
         }
 
-        function selectUserFolder(folderId) {
+        function selectUserFolder(folderId, displayName) {
             if (!folderId) {
                 currentFolderId = null;
                 currentFolderPersistent = false;
-                document.getElementById('askDevBtn').disabled = true;
-                document.getElementById('askPMBtn').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
                 document.getElementById('currentUploadInfo').style.display = 'none';
+                highlightActiveProject(null);
                 return;
             }
             currentFolderId = folderId;
             currentFolderPersistent = true;
-
-            const sel = document.getElementById('userFolderSelect');
-            const text = sel.options[sel.selectedIndex]?.textContent || folderId;
             document.getElementById('currentUploadInfo').style.display = '';
-            document.getElementById('uploadInfoDetail').textContent = `Project: ${text} (persistent)`;
-            document.getElementById('askDevBtn').disabled = false;
-            document.getElementById('askPMBtn').disabled = false;
+            document.getElementById('uploadInfoDetail').textContent = displayName || folderId;
+            document.getElementById('sendBtn').disabled = false;
+            highlightActiveProject(folderId);
         }
 
-        function escapeHtml(str) {
-            const d = document.createElement('div');
-            d.textContent = str;
-            return d.innerHTML;
+        function highlightActiveProject(folderId) {
+            document.querySelectorAll('#projectList .project-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.folderId === folderId);
+            });
         }
 
         checkAuthStatus();
+
+        // ── Cleanup on unload ──
+        window.addEventListener('beforeunload', () => {
+            if (currentFolderId && !currentFolderPersistent && currentDeleteToken) {
+                navigator.sendBeacon(`/api/CodeQA/upload/${currentFolderId}/cleanup?deleteToken=${encodeURIComponent(currentDeleteToken)}`);
+            }
+        });
 
         // ── Drag & drop ──
         const dropZone = document.getElementById('dropZone');
@@ -1212,25 +1129,19 @@
         dropZone.addEventListener('drop', async (ev) => {
             const items = ev.dataTransfer.items;
             if (!items) return;
-            const collected = [];
-            const entries = [];
-            for (const item of items) {
-                const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
-                if (entry) entries.push(entry);
-            }
+            const collected = [], entries = [];
+            for (const item of items) { const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null; if (entry) entries.push(entry); }
             await Promise.all(entries.map(e => traverseEntry(e, '', collected)));
             setPendingFiles(collected);
         });
 
-        const ALLOWED_EXTS = ['.cs', '.js', '.ts', '.jsx', '.tsx', '.py', '.go', '.rs', '.java', '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hxx', '.html', '.css', '.json', '.md', '.xml', '.toml', '.yml', '.yaml', '.csproj', '.fsproj', '.vbproj', '.sln', '.sql'];
-        const ALLOWED_FILES = ['package.json', 'package-lock.json', 'requirements.txt', 'pyproject.toml', 'go.mod', 'go.sum', 'Cargo.toml', 'Cargo.lock', 'pom.xml', 'build.gradle', 'CMakeLists.txt', '.gitignore', '.editorconfig', 'Dockerfile', 'Makefile'];
-        const IGNORED_DIRS = ['.git', 'node_modules', 'bin', 'obj', '.vs', '.vscode', '.idea', 'dist', 'build', 'out', 'target', '__pycache__', 'venv', '.venv'];
+        const ALLOWED_EXTS = ['.cs','.js','.ts','.jsx','.tsx','.py','.go','.rs','.java','.c','.cpp','.cc','.cxx','.h','.hpp','.hxx','.html','.css','.json','.md','.xml','.toml','.yml','.yaml','.csproj','.fsproj','.vbproj','.sln','.sql'];
+        const ALLOWED_FILES = ['package.json','package-lock.json','requirements.txt','pyproject.toml','go.mod','go.sum','Cargo.toml','Cargo.lock','pom.xml','build.gradle','CMakeLists.txt','.gitignore','.editorconfig','Dockerfile','Makefile'];
+        const IGNORED_DIRS = ['.git','node_modules','bin','obj','.vs','.vscode','.idea','dist','build','out','target','__pycache__','venv','.venv'];
 
         function isValidFile(file) {
             const name = file.name.toLowerCase();
-            if (ALLOWED_FILES.includes(name)) return true;
-            if (ALLOWED_EXTS.some(ext => name.endsWith(ext))) return true;
-            return false;
+            return ALLOWED_FILES.includes(name) || ALLOWED_EXTS.some(ext => name.endsWith(ext));
         }
 
         async function traverseEntry(entry, pathPrefix, out) {
@@ -1241,9 +1152,7 @@
                 await Promise.all(children.map(c => traverseEntry(c, pathPrefix + entry.name + '/', out)));
             } else if (entry.isFile) {
                 const file = await new Promise(r => entry.file(r));
-                if (isValidFile(file)) {
-                    out.push({ file, relativePath: pathPrefix + entry.name });
-                }
+                if (isValidFile(file)) out.push({ file, relativePath: pathPrefix + entry.name });
             }
         }
 
@@ -1251,11 +1160,8 @@
             const collected = [];
             for (const f of fileList) {
                 const rel = f.webkitRelativePath || f.name;
-                const parts = rel.split('/');
-                if (parts.some(p => IGNORED_DIRS.includes(p))) continue;
-                if (isValidFile(f)) {
-                    collected.push({ file: f, relativePath: rel });
-                }
+                if (rel.split('/').some(p => IGNORED_DIRS.includes(p))) continue;
+                if (isValidFile(f)) collected.push({ file: f, relativePath: rel });
             }
             setPendingFiles(collected);
         }
@@ -1264,33 +1170,24 @@
             pendingFiles = items;
             const totalSize = items.reduce((s, i) => s + i.file.size, 0);
             const overLimit = totalSize > MAX_BYTES;
-
-            // file list preview
             const preview = document.getElementById('fileListPreview');
             if (items.length > 0) {
                 const sizeMB = (totalSize / 1024 / 1024).toFixed(2);
-                let html = `<div style="margin-bottom:6px;color:var(--text-primary);font-weight:600;">${items.length} file(s) — ${sizeMB} MB</div>`;
-                const show = items.slice(0, 60);
-                html += show.map(i => `<div style="padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📄 ${escapeHtml(i.relativePath)} <span style="color:var(--text-secondary);font-size:.75rem;">(${(i.file.size / 1024).toFixed(1)} KB)</span></div>`).join('');
-                if (items.length > 60) html += `<div style="color:var(--accent-color);margin-top:4px;">… and ${items.length - 60} more</div>`;
+                let html = `<div style="margin-bottom:4px;color:var(--text-primary);font-weight:600;">${items.length} file(s) \u2014 ${sizeMB} MB</div>`;
+                const show = items.slice(0, 40);
+                html += show.map(i => `<div style="padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(i.relativePath)} <span style="color:var(--text-secondary);font-size:.72rem;">(${(i.file.size/1024).toFixed(1)} KB)</span></div>`).join('');
+                if (items.length > 40) html += `<div style="color:var(--accent-color);margin-top:2px;">\u2026 and ${items.length - 40} more</div>`;
                 preview.innerHTML = html;
                 preview.style.display = '';
-            } else {
-                preview.style.display = 'none';
-            }
-
-            // size warning
+            } else { preview.style.display = 'none'; }
             document.getElementById('sizeWarning').style.display = overLimit ? '' : 'none';
-            // upload button
             document.getElementById('uploadBtn').disabled = items.length === 0 || overLimit;
         }
 
         async function uploadFiles() {
             if (pendingFiles.length === 0) return;
-
             const btn = document.getElementById('uploadBtn');
             btn.disabled = true;
-
             const progressWrap = document.getElementById('uploadProgressWrap');
             const progressBar = document.getElementById('uploadProgressBar');
             const progressPct = document.getElementById('uploadProgressPct');
@@ -1298,20 +1195,13 @@
             progressWrap.style.display = '';
             progressBar.style.width = '0%';
             progressPct.textContent = '0%';
-            progressLabel.textContent = 'Uploading…';
+            progressLabel.textContent = 'Uploading\u2026';
 
             const formData = new FormData();
-            for (const item of pendingFiles) {
-                formData.append('files', item.file, item.relativePath);
-                formData.append('relativePaths', item.relativePath);
-            }
-            if (currentFolderId) {
-                formData.append('folderId', currentFolderId);
-            }
+            for (const item of pendingFiles) { formData.append('files', item.file, item.relativePath); formData.append('relativePaths', item.relativePath); }
+            if (currentFolderId) formData.append('folderId', currentFolderId);
             const projectName = document.getElementById('projectNameInput').value.trim();
-            if (projectName) {
-                formData.append('projectName', projectName);
-            }
+            if (projectName) formData.append('projectName', projectName);
 
             try {
                 const result = await new Promise((resolve, reject) => {
@@ -1322,45 +1212,32 @@
                             const pct = Math.round((e.loaded / e.total) * 100);
                             progressBar.style.width = pct + '%';
                             progressPct.textContent = pct + '%';
-                            progressLabel.textContent = pct < 100 ? 'Uploading…' : 'Processing…';
+                            progressLabel.textContent = pct < 100 ? 'Uploading\u2026' : 'Processing\u2026';
                         }
                     });
-                    xhr.onload = () => {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            resolve(JSON.parse(xhr.responseText));
-                        } else {
-                            try { reject(JSON.parse(xhr.responseText).error); } catch { reject('Upload failed'); }
-                        }
-                    };
+                    xhr.onload = () => { if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText)); else { try { reject(JSON.parse(xhr.responseText).error); } catch { reject('Upload failed'); } } };
                     xhr.onerror = () => reject('Network error');
                     xhr.send(formData);
                 });
-
                 currentFolderId = result.folderId;
                 currentFolderPersistent = !!result.persistent;
                 currentDeleteToken = result.deleteToken || null;
-                progressLabel.textContent = '✅ Upload complete';
+                progressLabel.textContent = 'Upload complete';
                 progressBar.style.width = '100%';
                 progressPct.textContent = '100%';
-
-                // Show upload info
                 const dispName = result.displayName || result.folderId;
-                document.getElementById('uploadInfoDetail').textContent = `${dispName} · ${result.fileCount} files · ${result.totalSizeMB} MB`;
+                document.getElementById('uploadInfoDetail').textContent = `${dispName} \u00b7 ${result.fileCount} files \u00b7 ${result.totalSizeMB} MB`;
                 document.getElementById('projectNameInput').value = '';
                 document.getElementById('currentUploadInfo').style.display = '';
-
-                // Enable ask buttons
-                document.getElementById('askDevBtn').disabled = false;
-                document.getElementById('askPmBtn').disabled = false;
-
-                // Reset file list
+                document.getElementById('sendBtn').disabled = false;
                 pendingFiles = [];
                 document.getElementById('fileListPreview').style.display = 'none';
                 btn.disabled = true;
-
                 setTimeout(() => { progressWrap.style.display = 'none'; }, 2000);
+                // Refresh project list for authenticated users
+                if (isAuthenticated) loadUserFolders();
             } catch (err) {
-                progressLabel.textContent = '❌ ' + err;
+                progressLabel.textContent = err;
                 progressBar.style.background = 'var(--danger-color)';
                 btn.disabled = false;
             }
@@ -1375,21 +1252,18 @@
                 currentFolderId = null;
                 currentFolderPersistent = false;
                 document.getElementById('currentUploadInfo').style.display = 'none';
-                document.getElementById('askDevBtn').disabled = true;
-                document.getElementById('askPmBtn').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
                 document.getElementById('uploadBtn').disabled = true;
                 document.getElementById('uploadProgressWrap').style.display = 'none';
                 if (isAuthenticated) loadUserFolders();
-            } catch (e) {
-                alert('Failed to remove source code: ' + e.message);
-            }
+            } catch (e) { alert('Failed to remove: ' + e.message); }
         }
 
         // ── Providers ──
         async function loadProviders() {
             try {
                 const response = await fetch('/api/CodeQA/providers');
-                if (!response.ok) throw new Error('Failed to load providers');
+                if (!response.ok) throw new Error('Failed');
                 const providers = await response.json();
                 const select = document.getElementById('modelProvider');
                 select.innerHTML = '';
@@ -1400,50 +1274,102 @@
                     select.appendChild(option);
                 }
                 if (select.options.length > 0) select.selectedIndex = 0;
-            } catch (error) {
-                console.error('Error loading providers:', error);
-                document.getElementById('modelProvider').innerHTML = '<option value="">Error loading providers</option>';
-            }
+            } catch (error) { document.getElementById('modelProvider').innerHTML = '<option value="">Error loading</option>'; }
         }
-
         loadProviders();
 
-        // ── Ask ──
-        async function askQuestion(role) {
-            if (!currentFolderId) { showError('Please upload source code first'); return; }
-            const question = document.getElementById('question').value.trim();
+        // ── Chat Logic ──
+        function getSelectedRole() { return document.querySelector('input[name="userRole"]:checked')?.value || 'Developer'; }
+
+        function removeEmptyState() { const es = document.getElementById('emptyState'); if (es) es.remove(); }
+
+        function addUserMessage(question) {
+            removeEmptyState();
+            const div = document.createElement('div');
+            div.className = 'msg msg-user';
+            div.innerHTML = `<div class="msg-label">You</div><div>${escapeHtml(question)}</div>`;
+            document.getElementById('chatMessages').appendChild(div);
+            scrollToBottom();
+        }
+
+        function addAIMessagePlaceholder() {
+            removeEmptyState();
+            currentMsgId++;
+            const id = `ai-msg-${currentMsgId}`;
+            const div = document.createElement('div');
+            div.className = 'msg msg-ai';
+            div.id = id;
+            div.innerHTML = `
+                <div class="msg-label">AI Assistant</div>
+                <div class="msg-steps" id="${id}-steps">
+                    <div class="steps-toggle" onclick="toggleMsgSteps('${id}')">
+                        <span class="arrow open" id="${id}-steps-arrow">&#9654;</span>
+                        <span>Agent Workflow</span>
+                        <span style="margin-left:4px;color:var(--text-secondary);">\u00b7</span>
+                        <span id="${id}-elapsed" style="color:var(--text-secondary);">0s</span>
+                    </div>
+                    <div class="steps-list" id="${id}-steps-list"></div>
+                    <div class="thinking-indicator" id="${id}-thinking">
+                        <div class="thinking-dots"><span></span><span></span><span></span></div>
+                        <span>Agent is thinking...</span>
+                    </div>
+                </div>
+                <div class="msg-answer" id="${id}-answer" style="display:none;"></div>
+            `;
+            document.getElementById('chatMessages').appendChild(div);
+            scrollToBottom();
+            return id;
+        }
+
+        function scrollToBottom() {
+            const cm = document.getElementById('chatMessages');
+            requestAnimationFrame(() => { cm.scrollTop = cm.scrollHeight; });
+        }
+
+        function toggleMsgSteps(msgId) {
+            const list = document.getElementById(`${msgId}-steps-list`);
+            const arrow = document.getElementById(`${msgId}-steps-arrow`);
+            if (!list) return;
+            const visible = list.style.display !== 'none';
+            list.style.display = visible ? 'none' : 'flex';
+            arrow.classList.toggle('open', !visible);
+        }
+
+        async function askQuestion() {
+            if (isAsking) return;
+            if (!currentFolderId) { alert('Please upload source code first.'); return; }
+            const questionEl = document.getElementById('question');
+            const question = questionEl.value.trim();
+            if (!question) return;
+            const role = getSelectedRole();
             const modelProvider = document.getElementById('modelProvider').value;
+            if (!currentSessionId) currentSessionId = crypto.randomUUID();
 
-            if (!question) { showError('Please enter your question'); return; }
-
-            const askDevBtn = document.getElementById('askDevBtn');
-            const askPmBtn = document.getElementById('askPmBtn');
-            askDevBtn.disabled = true;
-            askPmBtn.disabled = true;
-
+            isAsking = true;
+            document.getElementById('sendBtn').disabled = true;
+            questionEl.value = '';
+            autoResize(questionEl);
             stepCounter = 0;
             startTime = Date.now();
-            showStreamingUI();
+
+            addUserMessage(question);
+            const msgId = addAIMessagePlaceholder();
+
+            const elapsedTimer = setInterval(() => {
+                const el = document.getElementById(`${msgId}-elapsed`);
+                if (el) el.textContent = `${Math.round((Date.now() - startTime) / 1000)}s`;
+            }, 1000);
 
             try {
                 const response = await fetch('/api/CodeQA/ask/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        projectPath: currentFolderId,
-                        question,
-                        sessionId: currentSessionId,
-                        modelProvider,
-                        userRole: role
-                    })
+                    body: JSON.stringify({ projectPath: currentFolderId, question, sessionId: currentSessionId, modelProvider, userRole: role })
                 });
-
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
-
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
@@ -1452,84 +1378,56 @@
                     buffer = lines.pop() || '';
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
-                            try { handleEvent(JSON.parse(line.slice(6))); } catch (e) { console.warn('SSE parse error:', e); }
+                            try { handleEvent(JSON.parse(line.slice(6)), msgId); } catch (e) { console.warn('SSE parse:', e); }
                         }
                     }
                 }
             } catch (error) {
-                showError(error.message);
+                showMsgError(msgId, error.message);
             } finally {
-                askDevBtn.disabled = false;
-                askPmBtn.disabled = false;
+                clearInterval(elapsedTimer);
+                isAsking = false;
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('question').focus();
             }
         }
 
-        function showStreamingUI() {
-            const workflowSection = document.getElementById('workflowSection');
-            workflowSection.style.display = '';
-            document.getElementById('workflowInner').innerHTML = `
-                <div class="steps-section" id="stepsSection">
-                    <div class="steps-toggle" onclick="toggleSteps()">
-                        <span class="arrow open" id="stepsArrow">▶</span>
-                        <span>⚠ Steps</span>
-                        <span style="margin-left: 4px; color: var(--text-secondary);">·</span>
-                        <span id="elapsedTime" style="color: var(--text-secondary);">0s</span>
-                    </div>
-                    <div class="steps-list" id="stepsList"></div>
-                </div>
-                <div class="thinking-indicator" id="thinkingIndicator">
-                    <div class="thinking-dots"><span></span><span></span><span></span></div>
-                    <span>Agent is thinking...</span>
-                </div>
-            `;
-            document.getElementById('answerContent').innerHTML = `<div class="loading"><div class="spinner"></div><span>Waiting for answer...</span></div>`;
-            if (window._elapsedTimer) clearInterval(window._elapsedTimer);
-            window._elapsedTimer = setInterval(() => {
-                const el = document.getElementById('elapsedTime');
-                if (el) el.textContent = `${Math.round((Date.now() - startTime) / 1000)}s`;
-            }, 1000);
-            document.getElementById('answerMeta').style.display = 'none';
-        }
-
-        function handleEvent(event) {
+        function handleEvent(event, msgId) {
             switch (event.type) {
                 case 'Started': break;
                 case 'ToolCallStart':
-                    addStepItem(event, true);
-                    updateThinkingText(`Running ${formatToolName(event.toolName)}...`);
+                    addStepItem(event, true, msgId);
+                    updateThinkingText(msgId, `Running ${formatToolName(event.toolName)}...`);
                     break;
                 case 'ToolCallEnd':
-                    markStepDone(event);
-                    updateThinkingText('Agent is thinking...');
+                    markStepDone(event, msgId);
+                    updateThinkingText(msgId, 'Agent is thinking...');
                     break;
                 case 'Answer':
-                    if (window._elapsedTimer) clearInterval(window._elapsedTimer);
-                    try { showFinalAnswer(event.result); } catch (e) { console.error('showFinalAnswer error:', e); removeThinking(); showError('Failed to render answer: ' + e.message); }
+                    removeThinking(msgId);
+                    try { showFinalAnswer(event.result, msgId); } catch (e) { showMsgError(msgId, 'Failed to render: ' + e.message); }
                     break;
                 case 'Error':
-                    if (window._elapsedTimer) clearInterval(window._elapsedTimer);
-                    removeThinking();
-                    showError(event.summary);
+                    removeThinking(msgId);
+                    showMsgError(msgId, event.summary);
                     break;
             }
         }
 
-        function addStepItem(event, running) {
-            const list = document.getElementById('stepsList');
+        function addStepItem(event, running, msgId) {
+            const list = document.getElementById(`${msgId}-steps-list`);
             if (!list) return;
             stepCounter++;
-            const id = `step-${stepCounter}`;
-            const icon = getToolIcon(event.toolName);
-            const toolLabel = formatToolName(event.toolName);
+            const id = `${msgId}-step-${stepCounter}`;
             const item = document.createElement('div');
             item.className = `step-item ${running ? 'running' : 'done'}`;
             item.id = id;
             item.dataset.toolName = event.toolName;
             item.innerHTML = `
                 <div class="step-header" onclick="toggleStepDetails('${id}')">
-                    <span class="step-expander" id="${id}-exp">▶</span>
-                    <span class="step-icon ${running ? 'running' : ''}">${icon}</span>
-                    <span class="step-tool">${toolLabel}</span>
+                    <span class="step-expander" id="${id}-exp">&#9654;</span>
+                    <span class="step-icon ${running ? 'running' : ''}">${getToolIcon(event.toolName)}</span>
+                    <span class="step-tool">${formatToolName(event.toolName)}</span>
                     <span class="step-separator">/</span>
                     <span class="step-summary">${escapeHtml(event.summary || '')}</span>
                     <span class="step-result" id="${id}-result"></span>
@@ -1538,33 +1436,29 @@
                 <div class="step-details" id="${id}-details"></div>
             `;
             list.appendChild(item);
-            item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            updateStepsLabel();
+            scrollToBottom();
         }
 
-        function markStepDone(event) {
-            const list = document.getElementById('stepsList');
+        function markStepDone(event, msgId) {
+            const list = document.getElementById(`${msgId}-steps-list`);
             if (!list) return;
             const items = list.querySelectorAll('.step-item.running');
             for (let i = items.length - 1; i >= 0; i--) {
                 if (items[i].dataset.toolName === event.toolName) {
                     items[i].className = 'step-item done';
                     const icon = items[i].querySelector('.step-icon');
-                    if (icon) { icon.className = 'step-icon'; icon.textContent = '∞'; }
+                    if (icon) { icon.className = 'step-icon'; icon.textContent = '\u221e'; }
                     const dur = items[i].querySelector('.step-duration');
-                    if (dur && event.durationMs != null) {
-                        dur.textContent = event.durationMs < 1000 ? `${event.durationMs}ms` : `${(event.durationMs / 1000).toFixed(1)}s`;
-                    }
+                    if (dur && event.durationMs != null) dur.textContent = event.durationMs < 1000 ? `${event.durationMs}ms` : `${(event.durationMs/1000).toFixed(1)}s`;
                     const resultEl = items[i].querySelector('.step-result');
-                    if (resultEl && event.resultSummary) resultEl.textContent = `→ ${event.resultSummary}`;
-
+                    if (resultEl && event.resultSummary) resultEl.textContent = `\u2192 ${event.resultSummary}`;
                     const detailsEl = items[i].querySelector('.step-details');
                     if (detailsEl) {
                         const stepId = items[i].id;
                         let dh = '';
                         if (event.detailItems && event.detailItems.length > 0) {
                             const label = event.detailLabel || 'Details';
-                            dh += `<div class="step-details-section"><div class="step-details-label">${escapeHtml(label)}</div><ul class="step-detail-list">${event.detailItems.map(it => it.startsWith('──') ? `<li class="section-header">${escapeHtml(it)}</li>` : `<li>${escapeHtml(it)}</li>`).join('')}</ul></div>`;
+                            dh += `<div class="step-details-section"><div class="step-details-label">${escapeHtml(label)}</div><ul class="step-detail-list">${event.detailItems.map(it => it.startsWith('\u2500\u2500') ? `<li class="section-header">${escapeHtml(it)}</li>` : `<li>${escapeHtml(it)}</li>`).join('')}</ul></div>`;
                         }
                         if (event.toolArgs) {
                             let ad = event.toolArgs; try { ad = JSON.stringify(JSON.parse(event.toolArgs), null, 2); } catch { }
@@ -1572,7 +1466,7 @@
                         }
                         if (event.resultDetails) {
                             const rawId = `${stepId}-raw`;
-                            dh += `<button class="step-raw-toggle" onclick="toggleRawOutput('${rawId}', event)"><span class="raw-arrow" id="${rawId}-arrow">▶</span><span>Raw Output</span></button><div id="${rawId}" style="display:none;"><pre class="step-details-content">${escapeHtml(event.resultDetails)}</pre></div>`;
+                            dh += `<button class="step-raw-toggle" onclick="toggleRawOutput('${rawId}', event)"><span class="raw-arrow" id="${rawId}-arrow">&#9654;</span><span>Raw Output</span></button><div id="${rawId}" style="display:none;"><pre class="step-details-content">${escapeHtml(event.resultDetails)}</pre></div>`;
                         }
                         detailsEl.innerHTML = dh;
                     }
@@ -1581,126 +1475,120 @@
             }
         }
 
-        function getToolIcon(n) {
-            return {
-                grep_search: '🔍',
-                glob_search: '🔎',
-                read_file: '📄',
-                list_directory: '📁',
-                find_definition: '🎯',
-                get_file_outline: '🏗️',
-                get_related_files: '🔗',
-                read_symbol: '🧩',
-                find_references: '📚',
-                find_tests: '🧪',
-                repo_map: '🗺️',
-                call_graph: '🔀'
-            }[n] || '⚙';
-        }
+        function updateThinkingText(msgId, text) { const el = document.getElementById(`${msgId}-thinking`); if (el) { const s = el.querySelector(':scope > span'); if (s) s.textContent = text; } }
+        function removeThinking(msgId) { const el = document.getElementById(`${msgId}-thinking`); if (el) el.remove(); }
 
-        function formatToolName(n) {
-            return {
-                grep_search: 'Grep',
-                glob_search: 'Glob',
-                read_file: 'Read',
-                list_directory: 'ListDir',
-                find_definition: 'FindDef',
-                get_file_outline: 'Outline',
-                get_related_files: 'Related',
-                read_symbol: 'ReadSym',
-                find_references: 'FindRefs',
-                find_tests: 'FindTests',
-                repo_map: 'RepoMap',
-                call_graph: 'CallGraph'
-            }[n] || n;
-        }
-        function updateStepsLabel() { const el = document.getElementById('elapsedTime'); if (el) el.textContent = `${Math.round((Date.now() - startTime) / 1000)}s`; }
-        function updateThinkingText(text) { const el = document.getElementById('thinkingIndicator'); if (el) { const s = el.querySelector('span:last-child'); if (s) s.textContent = text; } }
-        function removeThinking() { const el = document.getElementById('thinkingIndicator'); if (el) el.remove(); }
-
-        async function showFinalAnswer(data) {
+        async function showFinalAnswer(data, msgId) {
             if (!data) return;
-            removeThinking();
-            try {
-                const meta = document.getElementById('answerMeta');
-                meta.style.display = 'flex';
-                document.getElementById('processingTime').textContent = `⏱️ ${data.processingTimeMs}ms`;
-                const totalTokens = (data.totalInputTokens || 0) + (data.totalOutputTokens || 0);
-                document.getElementById('tokenCount').textContent = totalTokens > 0
-                    ? `🪙 ${totalTokens.toLocaleString()} tokens (↑${(data.totalInputTokens || 0).toLocaleString()} ↓${(data.totalOutputTokens || 0).toLocaleString()})`
-                    : `🪙 -- tokens`;
-                document.getElementById('sessionId').textContent = `🔗 ${(data.sessionId || '').substring(0, 8)}...`;
-                currentSessionId = data.sessionId;
-                const elapsed = Math.round((data.processingTimeMs || 0) / 1000);
-                const elapsedEl = document.getElementById('elapsedTime');
-                if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
-                const toggleEl = document.querySelector('#stepsSection .steps-toggle span:nth-child(2)');
-                if (toggleEl) toggleEl.textContent = 'Hide steps';
-            } catch (e) { console.warn('Error updating metadata:', e); }
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            const elapsedEl = document.getElementById(`${msgId}-elapsed`);
+            if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
+            const stepsToggle = document.querySelector(`#${msgId}-steps .steps-toggle span:nth-child(2)`);
+            if (stepsToggle) stepsToggle.textContent = `${data.toolCallCount || 0} tool calls`;
 
-            const content = document.getElementById('answerContent');
-            content.innerHTML = '';
-            const responseDiv = document.createElement('div');
+            const answerDiv = document.getElementById(`${msgId}-answer`);
+            answerDiv.style.display = '';
             const answerText = data.answer || '(No answer returned)';
             let parsedHtml = '';
             try { parsedHtml = marked.parse(answerText); } catch (e) { parsedHtml = `<pre style="white-space:pre-wrap;">${escapeHtml(answerText)}</pre>`; }
 
-            let html = `<div style="color:var(--accent-color);font-size:.85rem;font-weight:600;margin-bottom:12px;">Response</div>`;
-            html += `<div class="markdown-body">${parsedHtml}</div>`;
-
+            let html = `<div class="markdown-body">${parsedHtml}</div>`;
             if (data.relevantFiles && data.relevantFiles.length > 0) {
-                html += `<div class="relevant-files"><h4>📂 Analyzed Files</h4><div class="file-list">${data.relevantFiles.map(f => `<span class="file-tag">📄 ${f}</span>`).join('')}</div></div>`;
+                const filesId = `${msgId}-files`;
+                html += `<div class="analyzed-files-expander">
+                    <div class="analyzed-files-toggle" onclick="toggleAnalyzedFiles('${filesId}', this)">
+                        <span class="arrow">&#9654;</span>
+                        <span>Analyzed Files (${data.relevantFiles.length})</span>
+                    </div>
+                    <div class="analyzed-files-content" id="${filesId}">
+                        <div class="file-list">${data.relevantFiles.map(f => `<span class="file-tag">${escapeHtml(f)}</span>`).join('')}</div>
+                    </div>
+                </div>`;
             }
-            responseDiv.innerHTML = html;
-            content.appendChild(responseDiv);
+            const inTok = data.totalInputTokens || 0;
+            const outTok = data.totalOutputTokens || 0;
+            const totalTokens = inTok + outTok;
+            html += `<div class="msg-meta"><span>${data.processingTimeMs || 0}ms</span><span>${totalTokens > 0 ? totalTokens.toLocaleString() + ' tokens' : ''}</span><span>${data.toolCallCount || 0} tools</span><span>${data.iterationCount || 0} iterations</span></div>`;
+            answerDiv.innerHTML = html;
 
-            // Detect mermaid inside <pre><code> blocks that the renderer didn't tag
-            responseDiv.querySelectorAll('pre code').forEach(codeEl => {
-                const classList = Array.from(codeEl.classList);
-                const isMermaidClass = classList.some(c => c.includes('mermaid'));
+            // Update cumulative token counter
+            cumulativeInputTokens += inTok;
+            cumulativeOutputTokens += outTok;
+            updateTokenStats();
+
+            answerDiv.querySelectorAll('pre code').forEach(codeEl => {
                 const text = codeEl.textContent.trim();
-                // Strip leading %% comment lines to find the real first directive
                 const stripped = text.replace(/^(%%[^\n]*\n\s*)+/, '').trim();
-                const mermaidKeywords = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|mindmap|timeline|journey|block-beta|sankey-beta|sankey|xychart-beta|xychart|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|C4Deployment|C4Dynamic|zenuml|packet-beta|architecture-beta|kanban|actor)\b/i;
-                const isMermaidContent = mermaidKeywords.test(text) || mermaidKeywords.test(stripped);
-                // Also detect if it starts with %% comments and looks like a mermaid diagram
-                const startsWithMermaidComment = /^%%/.test(text) && mermaidKeywords.test(stripped);
-                if (isMermaidClass || isMermaidContent || startsWithMermaidComment) {
+                if (Array.from(codeEl.classList).some(c => c.includes('mermaid')) || mermaidKeywordsRe.test(text) || mermaidKeywordsRe.test(stripped)) {
                     const pre = codeEl.parentElement;
                     pre.className = 'mermaid';
-                    pre.textContent = text;   // textContent auto-escapes, safe for mermaid.render
+                    pre.textContent = text;
                 }
             });
-
-            // Syntax-highlight only non-mermaid code blocks
-            try { responseDiv.querySelectorAll('pre:not(.mermaid) code').forEach(b => hljs.highlightElement(b)); } catch (e) { }
-
-            // Render mermaid diagrams
-            await renderMermaid(responseDiv);
-
-            responseDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            try { answerDiv.querySelectorAll('pre:not(.mermaid) code').forEach(b => hljs.highlightElement(b)); } catch (e) { }
+            await renderMermaid(answerDiv);
+            scrollToBottom();
         }
 
+        function showMsgError(msgId, message) {
+            const answerDiv = document.getElementById(`${msgId}-answer`);
+            if (answerDiv) { answerDiv.style.display = ''; answerDiv.innerHTML = `<div class="error">${escapeHtml(message)}</div>`; }
+        }
+
+        // ── Tool helpers ──
+        function getToolIcon(n) {
+            return { grep_search:'\uD83D\uDD0D', glob_search:'\uD83D\uDD0E', read_file:'\uD83D\uDCC4', list_directory:'\uD83D\uDCC1', find_definition:'\uD83C\uDFAF', get_file_outline:'\uD83C\uDFD7\uFE0F', get_related_files:'\uD83D\uDD17', read_symbol:'\uD83E\uDDE9', find_references:'\uD83D\uDCDA', find_tests:'\uD83E\uDDEA', repo_map:'\uD83D\uDDFA\uFE0F', call_graph:'\uD83D\uDD00', web_search:'\uD83C\uDF10' }[n] || '\u2699';
+        }
+
+        function formatToolName(n) {
+            return { grep_search:'Grep', glob_search:'Glob', read_file:'Read', list_directory:'ListDir', find_definition:'FindDef', get_file_outline:'Outline', get_related_files:'Related', read_symbol:'ReadSym', find_references:'FindRefs', find_tests:'FindTests', repo_map:'RepoMap', call_graph:'CallGraph', web_search:'WebSearch' }[n] || n;
+        }
+
+        function toggleStepDetails(stepId) { const d = document.getElementById(`${stepId}-details`); const e = document.getElementById(`${stepId}-exp`); if (!d || !d.innerHTML.trim()) return; d.classList.toggle('open'); if (e) e.classList.toggle('open', d.classList.contains('open')); }
+        function toggleRawOutput(rawId, evt) { evt.stopPropagation(); const r = document.getElementById(rawId); const a = document.getElementById(`${rawId}-arrow`); if (!r) return; const v = r.style.display !== 'none'; r.style.display = v ? 'none' : 'block'; if (a) a.classList.toggle('open', !v); }
+
+        // ── Token stats ──
+        function updateTokenStats() {
+            document.getElementById('totalInputTokens').textContent = cumulativeInputTokens.toLocaleString();
+            document.getElementById('totalOutputTokens').textContent = cumulativeOutputTokens.toLocaleString();
+            document.getElementById('totalAllTokens').textContent = (cumulativeInputTokens + cumulativeOutputTokens).toLocaleString();
+        }
+
+        // ── Analyzed files expander ──
+        function toggleAnalyzedFiles(filesId, toggleEl) {
+            const content = document.getElementById(filesId);
+            if (!content) return;
+            const isOpen = content.classList.contains('open');
+            content.classList.toggle('open');
+            const arrow = toggleEl.querySelector('.arrow');
+            if (arrow) arrow.classList.toggle('open', !isOpen);
+        }
+
+        // ── New Chat ──
+        function newChat() {
+            currentSessionId = null;
+            stepCounter = 0;
+            cumulativeInputTokens = 0;
+            cumulativeOutputTokens = 0;
+            updateTokenStats();
+            document.getElementById('chatMessages').innerHTML = '<div class="empty-state" id="emptyState">Upload source code and ask a question to begin...</div>';
+        }
+
+        // ── Keyboard ──
+        document.getElementById('question').addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); askQuestion(); }
+        });
+
+        // ── Mermaid ──
         let mermaidIdCounter = 0;
 
-        /**
-         * Sanitize mermaid source to fix common LLM-generated issues that break the parser.
-         */
         function sanitizeMermaidSource(src) {
             let s = src;
-            // 1. Replace unicode dashes (non-breaking hyphen U+2011, hyphen U+2010, en-dash, em-dash) with ASCII hyphen
             s = s.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, '-');
-            // 2. Replace smart quotes with ASCII quotes
             s = s.replace(/[\u201C\u201D\u201E\u201F]/g, '"');
             s = s.replace(/[\u2018\u2019\u201A\u201B]/g, "'");
-            // 3. Replace ellipsis character with three dots
             s = s.replace(/\u2026/g, '...');
-            // 4. Fix participant aliases with parentheses: `participant X as Label (extra)` → `participant X as Label - extra`
-            //    Mermaid interprets () as activation so these break sequence diagrams.
             s = s.replace(/^(\s*participant\s+\S+\s+as\s+.*?)\(([^)]*)\)\s*$/gm, '$1- $2');
-            // 5. Fix note lines with parentheses after participant
-            // 6. Strip common emoji that can break the Mermaid parser (keep only basic text)
-            //    But leave %% comments as-is
             return s;
         }
 
@@ -1710,71 +1598,32 @@
             for (const block of blocks) {
                 const rawDef = block.textContent.trim();
                 if (!rawDef) continue;
-
-                // Try rendering the raw source first
-                let svg = null;
-                let lastError = null;
+                let svg = null, lastError = null;
                 const id = 'mermaid-svg-' + (++mermaidIdCounter);
-
-                try {
-                    const result = await mermaid.render(id, rawDef);
-                    svg = result.svg;
-                } catch (e1) {
+                try { svg = (await mermaid.render(id, rawDef)).svg; } catch (e1) {
                     lastError = e1;
-                    // Mermaid v11 leaves stale error containers in the DOM; clean them up
-                    const stale = document.getElementById(id);
-                    if (stale) stale.remove();
+                    document.getElementById(id)?.remove();
                     document.querySelectorAll(`[id^="${id}"]`).forEach(el => el.remove());
-                    console.warn('Mermaid render failed with raw source, trying sanitized...', e1);
-                    // Retry with sanitized source
                     const sanitized = sanitizeMermaidSource(rawDef);
-                    if (sanitized !== rawDef) {
-                        try {
-                            const retryId = 'mermaid-svg-' + (++mermaidIdCounter);
-                            const result2 = await mermaid.render(retryId, sanitized);
-                            svg = result2.svg;
-                            lastError = null;
-                        } catch (e2) {
-                            lastError = e2;
-                            console.warn('Mermaid render also failed with sanitized source:', e2);
-                        }
-                    }
+                    if (sanitized !== rawDef) { try { svg = (await mermaid.render('mermaid-svg-' + (++mermaidIdCounter), sanitized)).svg; lastError = null; } catch (e2) { lastError = e2; } }
                 }
-
-                if (svg) {
-                    const wrapper = createMermaidZoomWrapper(svg, id);
-                    block.replaceWith(wrapper);
-                } else {
+                if (svg) { block.replaceWith(createMermaidZoomWrapper(svg, id)); }
+                else {
                     block.classList.add('mermaid-error');
-                    const errMsg = (lastError && lastError.message) ? lastError.message : 'Failed to parse diagram';
-                    block.innerHTML = `<div style="color:var(--warning-color);font-size:.85rem;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><span>\u26a0\ufe0f</span><span>Mermaid diagram could not be rendered</span></div><details style="margin-top:4px;"><summary style="cursor:pointer;color:var(--text-secondary);font-size:.8rem;">Show error details</summary><div style="color:var(--danger-color);font-size:.78rem;margin-top:4px;">${escapeHtml(errMsg)}</div></details><pre style="background:rgba(13,17,23,0.6);border:1px solid var(--border-color);border-radius:6px;padding:12px;color:var(--text-secondary);font-size:.82rem;white-space:pre-wrap;margin:8px 0 0 0;max-height:400px;overflow-y:auto;">${escapeHtml(rawDef)}</pre>`;
+                    const errMsg = lastError?.message || 'Failed to parse';
+                    block.innerHTML = `<div style="color:var(--warning-color);font-size:.82rem;margin-bottom:6px;">Diagram could not be rendered</div><details><summary style="cursor:pointer;color:var(--text-secondary);font-size:.78rem;">Error</summary><div style="color:var(--danger-color);font-size:.75rem;margin-top:4px;">${escapeHtml(errMsg)}</div></details><pre style="background:rgba(13,17,23,0.6);border:1px solid var(--border-color);border-radius:6px;padding:10px;color:var(--text-secondary);font-size:.78rem;white-space:pre-wrap;margin:6px 0 0;max-height:300px;overflow-y:auto;">${escapeHtml(rawDef)}</pre>`;
                 }
             }
         }
 
-        // ── Mermaid Zoom/Pan ──
         function createMermaidZoomWrapper(svgHtml, diagramId) {
             const wrapper = document.createElement('div');
             wrapper.className = 'mermaid-zoom-wrapper';
             wrapper.dataset.diagramId = diagramId;
-
-            // Toolbar
             const toolbar = document.createElement('div');
             toolbar.className = 'mermaid-zoom-toolbar';
-            toolbar.innerHTML = `
-                <button class="mz-btn" data-action="zoom-out" title="Zoom out (−)">−</button>
-                <span class="mz-label" data-role="zoom-label">100%</span>
-                <button class="mz-btn" data-action="zoom-in" title="Zoom in (+)">+</button>
-                <div class="mz-sep"></div>
-                <button class="mz-btn" data-action="reset" title="Reset (double-click)">↺</button>
-                <button class="mz-btn" data-action="fit" title="Fit to view">⊞</button>
-                <div class="mz-sep"></div>
-                <button class="mz-btn" data-action="fullscreen" title="Fullscreen (F)">⛶</button>
-                <span class="mz-hint">Scroll to zoom · Drag to pan</span>
-            `;
+            toolbar.innerHTML = `<button class="mz-btn" data-action="zoom-out">&#8722;</button><span class="mz-label" data-role="zoom-label">100%</span><button class="mz-btn" data-action="zoom-in">+</button><div class="mz-sep"></div><button class="mz-btn" data-action="reset">&#8634;</button><button class="mz-btn" data-action="fit">&#8862;</button><div class="mz-sep"></div><button class="mz-btn" data-action="fullscreen">&#9974;</button><span class="mz-hint">Scroll to zoom &middot; Drag to pan</span>`;
             wrapper.appendChild(toolbar);
-
-            // Viewport
             const viewport = document.createElement('div');
             viewport.className = 'mermaid-zoom-viewport';
             const content = document.createElement('div');
@@ -1782,142 +1631,32 @@
             content.innerHTML = svgHtml;
             viewport.appendChild(content);
             wrapper.appendChild(viewport);
-
-            // State
-            const state = { scale: 1, panX: 0, panY: 0, dragging: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 };
-            const MIN_SCALE = 0.1;
-            const MAX_SCALE = 8;
-            const ZOOM_STEP = 0.15;
-
-            function applyTransform() {
-                content.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
-                const label = wrapper.querySelector('[data-role="zoom-label"]');
-                if (label) label.textContent = Math.round(state.scale * 100) + '%';
-                // Also update fullscreen label if open
-                const fsOverlay = document.getElementById('mz-fullscreen-' + diagramId);
-                if (fsOverlay) {
-                    const fsLabel = fsOverlay.querySelector('[data-role="zoom-label"]');
-                    if (fsLabel) fsLabel.textContent = Math.round(state.scale * 100) + '%';
-                }
-            }
-
-            function zoomAt(delta, cx, cy) {
-                const oldScale = state.scale;
-                const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, oldScale * (1 + delta)));
-                const ratio = newScale / oldScale;
-                // Zoom towards cursor position
-                state.panX = cx - ratio * (cx - state.panX);
-                state.panY = cy - ratio * (cy - state.panY);
-                state.scale = newScale;
-                applyTransform();
-            }
-
-            function resetView() {
-                state.scale = 1; state.panX = 0; state.panY = 0;
-                applyTransform();
-            }
-
-            function fitToView() {
-                const svgEl = content.querySelector('svg');
-                if (!svgEl) return;
-                const vw = viewport.clientWidth;
-                const vh = viewport.clientHeight;
-                const sw = svgEl.getBoundingClientRect().width / state.scale || svgEl.scrollWidth;
-                const sh = svgEl.getBoundingClientRect().height / state.scale || svgEl.scrollHeight;
-                if (sw === 0 || sh === 0) return;
-                const fitScale = Math.min(vw / sw, vh / sh, 2) * 0.92; // 92% to add padding
-                state.scale = fitScale;
-                state.panX = (vw - sw * fitScale) / 2;
-                state.panY = (vh - sh * fitScale) / 2;
-                applyTransform();
-            }
-
-            // Mouse wheel zoom
-            viewport.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const rect = viewport.getBoundingClientRect();
-                const cx = e.clientX - rect.left;
-                const cy = e.clientY - rect.top;
-                const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
-                zoomAt(delta, cx, cy);
-            }, { passive: false });
-
-            // Drag to pan
-            viewport.addEventListener('mousedown', (e) => {
-                if (e.button !== 0) return;
-                state.dragging = true;
-                state.startX = e.clientX;
-                state.startY = e.clientY;
-                state.startPanX = state.panX;
-                state.startPanY = state.panY;
-                e.preventDefault();
-            });
-            window.addEventListener('mousemove', (e) => {
-                if (!state.dragging) return;
-                state.panX = state.startPanX + (e.clientX - state.startX);
-                state.panY = state.startPanY + (e.clientY - state.startY);
-                applyTransform();
-            });
-            window.addEventListener('mouseup', () => { state.dragging = false; });
-
-            // Double-click to reset
-            viewport.addEventListener('dblclick', (e) => {
-                e.preventDefault();
-                resetView();
-            });
-
-            // Toolbar buttons
-            toolbar.addEventListener('click', (e) => {
-                const btn = e.target.closest('[data-action]');
-                if (!btn) return;
-                const action = btn.dataset.action;
-                const rect = viewport.getBoundingClientRect();
-                const cx = rect.width / 2;
-                const cy = rect.height / 2;
-                switch (action) {
-                    case 'zoom-in': zoomAt(ZOOM_STEP, cx, cy); break;
-                    case 'zoom-out': zoomAt(-ZOOM_STEP, cx, cy); break;
-                    case 'reset': resetView(); break;
-                    case 'fit': fitToView(); break;
-                    case 'fullscreen': openMermaidFullscreen(wrapper, svgHtml, diagramId, state); break;
-                }
-            });
-
-            // Auto-fit after a brief delay so SVG dimensions are available
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => fitToView());
-            });
-
+            const state = { scale:1, panX:0, panY:0, dragging:false, startX:0, startY:0, startPanX:0, startPanY:0 };
+            const MIN_SCALE=0.1, MAX_SCALE=8, ZOOM_STEP=0.15;
+            function applyTransform() { content.style.transform = `translate(${state.panX}px,${state.panY}px) scale(${state.scale})`; const l = wrapper.querySelector('[data-role="zoom-label"]'); if(l) l.textContent = Math.round(state.scale*100)+'%'; const fs = document.getElementById('mz-fullscreen-'+diagramId); if(fs){ const fl=fs.querySelector('[data-role="zoom-label"]'); if(fl) fl.textContent=Math.round(state.scale*100)+'%'; } }
+            function zoomAt(d,cx,cy){ const o=state.scale; const n=Math.min(MAX_SCALE,Math.max(MIN_SCALE,o*(1+d))); const r=n/o; state.panX=cx-r*(cx-state.panX); state.panY=cy-r*(cy-state.panY); state.scale=n; applyTransform(); }
+            function resetView(){ state.scale=1;state.panX=0;state.panY=0;applyTransform(); }
+            function fitToView(){ const svg=content.querySelector('svg'); if(!svg)return; const vw=viewport.clientWidth,vh=viewport.clientHeight; const sw=svg.getBoundingClientRect().width/state.scale||svg.scrollWidth; const sh=svg.getBoundingClientRect().height/state.scale||svg.scrollHeight; if(!sw||!sh)return; const f=Math.min(vw/sw,vh/sh,2)*0.92; state.scale=f;state.panX=(vw-sw*f)/2;state.panY=(vh-sh*f)/2;applyTransform(); }
+            viewport.addEventListener('wheel',(e)=>{e.preventDefault();const r=viewport.getBoundingClientRect();zoomAt(e.deltaY<0?ZOOM_STEP:-ZOOM_STEP,e.clientX-r.left,e.clientY-r.top);},{passive:false});
+            viewport.addEventListener('mousedown',(e)=>{if(e.button!==0)return;state.dragging=true;state.startX=e.clientX;state.startY=e.clientY;state.startPanX=state.panX;state.startPanY=state.panY;e.preventDefault();});
+            window.addEventListener('mousemove',(e)=>{if(!state.dragging)return;state.panX=state.startPanX+(e.clientX-state.startX);state.panY=state.startPanY+(e.clientY-state.startY);applyTransform();});
+            window.addEventListener('mouseup',()=>{state.dragging=false;});
+            viewport.addEventListener('dblclick',(e)=>{e.preventDefault();resetView();});
+            toolbar.addEventListener('click',(e)=>{const b=e.target.closest('[data-action]');if(!b)return;const r=viewport.getBoundingClientRect();const cx=r.width/2,cy=r.height/2;switch(b.dataset.action){case'zoom-in':zoomAt(ZOOM_STEP,cx,cy);break;case'zoom-out':zoomAt(-ZOOM_STEP,cx,cy);break;case'reset':resetView();break;case'fit':fitToView();break;case'fullscreen':openMermaidFullscreen(wrapper,svgHtml,diagramId,state);break;}});
+            requestAnimationFrame(()=>{requestAnimationFrame(()=>fitToView());});
             return wrapper;
         }
 
-        // ── Fullscreen overlay ──
-        function openMermaidFullscreen(sourceWrapper, svgHtml, diagramId, sourceState) {
-            // Prevent duplicates
+        function openMermaidFullscreen(sourceWrapper, svgHtml, diagramId) {
             const existing = document.getElementById('mz-fullscreen-' + diagramId);
             if (existing) { existing.remove(); return; }
-
             const overlay = document.createElement('div');
             overlay.className = 'mermaid-fullscreen-overlay';
             overlay.id = 'mz-fullscreen-' + diagramId;
-
-            // Toolbar
             const toolbar = document.createElement('div');
             toolbar.className = 'mermaid-zoom-toolbar';
-            toolbar.innerHTML = `
-                <button class="mz-btn" data-action="zoom-out" title="Zoom out">−</button>
-                <span class="mz-label" data-role="zoom-label">100%</span>
-                <button class="mz-btn" data-action="zoom-in" title="Zoom in">+</button>
-                <div class="mz-sep"></div>
-                <button class="mz-btn" data-action="reset" title="Reset">↺</button>
-                <button class="mz-btn" data-action="fit" title="Fit">⊞</button>
-                <div class="mz-sep"></div>
-                <button class="mz-btn" data-action="close" title="Close (Esc)" style="background:rgba(248,81,73,.15);border-color:var(--danger-color);color:var(--danger-color);">✕</button>
-                <span class="mz-hint">Press Esc to close · Scroll to zoom · Drag to pan</span>
-            `;
+            toolbar.innerHTML = `<button class="mz-btn" data-action="zoom-out">&#8722;</button><span class="mz-label" data-role="zoom-label">100%</span><button class="mz-btn" data-action="zoom-in">+</button><div class="mz-sep"></div><button class="mz-btn" data-action="reset">&#8634;</button><button class="mz-btn" data-action="fit">&#8862;</button><div class="mz-sep"></div><button class="mz-btn" data-action="close" style="background:rgba(248,81,73,.15);border-color:var(--danger-color);color:var(--danger-color);">&#10005;</button><span class="mz-hint">Esc to close</span>`;
             overlay.appendChild(toolbar);
-
-            // Viewport
             const viewport = document.createElement('div');
             viewport.className = 'mermaid-zoom-viewport';
             const content = document.createElement('div');
@@ -1925,130 +1664,25 @@
             content.innerHTML = svgHtml;
             viewport.appendChild(content);
             overlay.appendChild(viewport);
-
             document.body.appendChild(overlay);
-
-            // State (separate from inline)
-            const state = { scale: 1, panX: 0, panY: 0, dragging: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 };
-            const MIN_SCALE = 0.05;
-            const MAX_SCALE = 12;
-            const ZOOM_STEP = 0.15;
-
-            function applyTransform() {
-                content.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
-                const label = overlay.querySelector('[data-role="zoom-label"]');
-                if (label) label.textContent = Math.round(state.scale * 100) + '%';
-            }
-
-            function zoomAt(delta, cx, cy) {
-                const oldScale = state.scale;
-                const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, oldScale * (1 + delta)));
-                const ratio = newScale / oldScale;
-                state.panX = cx - ratio * (cx - state.panX);
-                state.panY = cy - ratio * (cy - state.panY);
-                state.scale = newScale;
-                applyTransform();
-            }
-
-            function resetView() { state.scale = 1; state.panX = 0; state.panY = 0; applyTransform(); }
-
-            function fitToView() {
-                const svgEl = content.querySelector('svg');
-                if (!svgEl) return;
-                const vw = viewport.clientWidth;
-                const vh = viewport.clientHeight;
-                const sw = svgEl.getBoundingClientRect().width / state.scale || svgEl.scrollWidth;
-                const sh = svgEl.getBoundingClientRect().height / state.scale || svgEl.scrollHeight;
-                if (sw === 0 || sh === 0) return;
-                const fitScale = Math.min(vw / sw, vh / sh, 4) * 0.92;
-                state.scale = fitScale;
-                state.panX = (vw - sw * fitScale) / 2;
-                state.panY = (vh - sh * fitScale) / 2;
-                applyTransform();
-            }
-
-            function closeFullscreen() { overlay.remove(); document.removeEventListener('keydown', onKey); }
-
-            // Wheel zoom
-            viewport.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const rect = viewport.getBoundingClientRect();
-                zoomAt(e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP, e.clientX - rect.left, e.clientY - rect.top);
-            }, { passive: false });
-
-            // Drag pan
-            viewport.addEventListener('mousedown', (e) => {
-                if (e.button !== 0) return;
-                state.dragging = true;
-                state.startX = e.clientX; state.startY = e.clientY;
-                state.startPanX = state.panX; state.startPanY = state.panY;
-                e.preventDefault();
-            });
-            const onMove = (e) => { if (!state.dragging) return; state.panX = state.startPanX + (e.clientX - state.startX); state.panY = state.startPanY + (e.clientY - state.startY); applyTransform(); };
-            const onUp = () => { state.dragging = false; };
-            overlay.addEventListener('mousemove', onMove);
-            overlay.addEventListener('mouseup', onUp);
-
-            // Double-click to reset
-            viewport.addEventListener('dblclick', (e) => { e.preventDefault(); resetView(); });
-
-            // Toolbar
-            toolbar.addEventListener('click', (e) => {
-                const btn = e.target.closest('[data-action]');
-                if (!btn) return;
-                const rect = viewport.getBoundingClientRect();
-                const cx = rect.width / 2, cy = rect.height / 2;
-                switch (btn.dataset.action) {
-                    case 'zoom-in': zoomAt(ZOOM_STEP, cx, cy); break;
-                    case 'zoom-out': zoomAt(-ZOOM_STEP, cx, cy); break;
-                    case 'reset': resetView(); break;
-                    case 'fit': fitToView(); break;
-                    case 'close': closeFullscreen(); break;
-                }
-            });
-
-            // Esc to close
-            function onKey(e) { if (e.key === 'Escape') closeFullscreen(); }
-            document.addEventListener('keydown', onKey);
-
-            // Click backdrop to close (only if clicking the overlay itself, not viewport)
-            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeFullscreen(); });
-
-            // Fit on open
-            requestAnimationFrame(() => { requestAnimationFrame(() => fitToView()); });
+            const state={scale:1,panX:0,panY:0,dragging:false,startX:0,startY:0,startPanX:0,startPanY:0};
+            const MIN_SCALE=0.05,MAX_SCALE=12,ZOOM_STEP=0.15;
+            function applyTransform(){content.style.transform=`translate(${state.panX}px,${state.panY}px) scale(${state.scale})`;const l=overlay.querySelector('[data-role="zoom-label"]');if(l)l.textContent=Math.round(state.scale*100)+'%';}
+            function zoomAt(d,cx,cy){const o=state.scale;const n=Math.min(MAX_SCALE,Math.max(MIN_SCALE,o*(1+d)));const r=n/o;state.panX=cx-r*(cx-state.panX);state.panY=cy-r*(cy-state.panY);state.scale=n;applyTransform();}
+            function resetView(){state.scale=1;state.panX=0;state.panY=0;applyTransform();}
+            function fitToView(){const svg=content.querySelector('svg');if(!svg)return;const vw=viewport.clientWidth,vh=viewport.clientHeight;const sw=svg.getBoundingClientRect().width/state.scale||svg.scrollWidth;const sh=svg.getBoundingClientRect().height/state.scale||svg.scrollHeight;if(!sw||!sh)return;const f=Math.min(vw/sw,vh/sh,4)*0.92;state.scale=f;state.panX=(vw-sw*f)/2;state.panY=(vh-sh*f)/2;applyTransform();}
+            function closeFs(){overlay.remove();document.removeEventListener('keydown',onKey);}
+            viewport.addEventListener('wheel',(e)=>{e.preventDefault();const r=viewport.getBoundingClientRect();zoomAt(e.deltaY<0?ZOOM_STEP:-ZOOM_STEP,e.clientX-r.left,e.clientY-r.top);},{passive:false});
+            viewport.addEventListener('mousedown',(e)=>{if(e.button!==0)return;state.dragging=true;state.startX=e.clientX;state.startY=e.clientY;state.startPanX=state.panX;state.startPanY=state.panY;e.preventDefault();});
+            overlay.addEventListener('mousemove',(e)=>{if(!state.dragging)return;state.panX=state.startPanX+(e.clientX-state.startX);state.panY=state.startPanY+(e.clientY-state.startY);applyTransform();});
+            overlay.addEventListener('mouseup',()=>{state.dragging=false;});
+            viewport.addEventListener('dblclick',(e)=>{e.preventDefault();resetView();});
+            toolbar.addEventListener('click',(e)=>{const b=e.target.closest('[data-action]');if(!b)return;const r=viewport.getBoundingClientRect();const cx=r.width/2,cy=r.height/2;switch(b.dataset.action){case'zoom-in':zoomAt(ZOOM_STEP,cx,cy);break;case'zoom-out':zoomAt(-ZOOM_STEP,cx,cy);break;case'reset':resetView();break;case'fit':fitToView();break;case'close':closeFs();break;}});
+            function onKey(e){if(e.key==='Escape')closeFs();}
+            document.addEventListener('keydown',onKey);
+            overlay.addEventListener('click',(e)=>{if(e.target===overlay)closeFs();});
+            requestAnimationFrame(()=>{requestAnimationFrame(()=>fitToView());});
         }
-
-        function toggleSteps() { const list = document.getElementById('stepsList'); const arrow = document.getElementById('stepsArrow'); if (!list) return; stepsVisible = !stepsVisible; list.style.display = stepsVisible ? 'flex' : 'none'; arrow.className = `arrow ${stepsVisible ? 'open' : ''}`; }
-        function toggleStepDetails(stepId) { const d = document.getElementById(`${stepId}-details`); const e = document.getElementById(`${stepId}-exp`); if (!d || !d.innerHTML.trim()) return; const o = d.classList.contains('open'); d.classList.toggle('open'); if (e) e.classList.toggle('open', !o); }
-        function toggleRawOutput(rawId, evt) { evt.stopPropagation(); const r = document.getElementById(rawId); const a = document.getElementById(`${rawId}-arrow`); if (!r) return; const v = r.style.display !== 'none'; r.style.display = v ? 'none' : 'block'; if (a) a.classList.toggle('open', !v); }
-
-        function showError(message) {
-            const content = document.getElementById('answerContent');
-            const existing = content.querySelector('.error');
-            if (existing) existing.remove();
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error';
-            errorDiv.innerHTML = `❌ ${escapeHtml(message)}`;
-            content.appendChild(errorDiv);
-        }
-
-        function clearAll() {
-            if (window._elapsedTimer) clearInterval(window._elapsedTimer);
-            document.getElementById('question').value = '';
-            document.getElementById('answerContent').innerHTML = '<div class="empty">Upload source code and enter your question to begin...</div>';
-            document.getElementById('answerMeta').style.display = 'none';
-            const ws = document.getElementById('workflowSection');
-            ws.style.display = 'none';
-            document.getElementById('workflowInner').innerHTML = '';
-            currentSessionId = null;
-            stepCounter = 0;
-        }
-
-        function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
-
-        document.getElementById('question').addEventListener('keydown', function (e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') askQuestion('Developer');
-        });
     </script>
 </body>
 

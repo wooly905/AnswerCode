@@ -86,6 +86,9 @@
             color:var(--danger-color); border-radius:6px; cursor:pointer; font-size:.8rem; transition:background .2s;
         }
         .btn-delete:hover { background:rgba(248,81,73,.15); }
+        .btn-delete:disabled { opacity:.6; cursor:not-allowed; }
+        .btn-spinner { display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:4px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
         .empty-msg { color:var(--text-secondary); text-align:center; padding:32px; font-size:.95rem; }
         .loading { color:var(--text-secondary); text-align:center; padding:24px; }
     </style>
@@ -238,9 +241,11 @@
 
     async function deleteFolder(folderId) {
         if (!confirm(`Delete project "${folderId}"? This cannot be undone.`)) return;
+        const btn = document.querySelector(`#row-${folderId} .btn-delete`);
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span>Deleting\u2026'; }
         try {
             const res = await fetch(`/api/dashboard/folders/${folderId}`, { method: 'DELETE' });
-            if (!res.ok) { alert('Failed to delete folder'); return; }
+            if (!res.ok) { if (btn) { btn.disabled = false; btn.textContent = 'Delete'; } alert('Failed to delete folder'); return; }
             const row = document.getElementById('row-' + folderId);
             if (row) row.remove();
             await loadUsage();
@@ -248,6 +253,7 @@
             const tbody = document.querySelector('tbody');
             if (tbody && tbody.children.length === 0) loadFolders();
         } catch (e) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
             alert('Error: ' + e.message);
         }
     }

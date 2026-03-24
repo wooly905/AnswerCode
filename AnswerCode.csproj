@@ -16,7 +16,8 @@
 
   <ItemGroup>
     <Content Remove="appsettings.Local.json" />
-    <Content Include="appsettings.Local.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('appsettings.Local.json')" />
+    <Content Include="appsettings.Local.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" Condition="Exists('appsettings.Local.json')" />
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
   <!-- exclude project-code and source-code folders -->

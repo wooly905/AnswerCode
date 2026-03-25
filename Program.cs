@@ -1,9 +1,8 @@
 using AnswerCode.Models;
-using AnswerCode.Services.Analysis;
 using AnswerCode.Services;
+using AnswerCode.Services.Analysis;
 using AnswerCode.Services.Providers;
 using AnswerCode.Services.Tools;
-
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -56,6 +55,9 @@ builder.Services.AddSingleton<IRepoMapService, RepoMapService>();
 // Register call graph service
 builder.Services.AddSingleton<ICallGraphService, CallGraphService>();
 
+// Register config lookup service
+builder.Services.AddSingleton<IConfigLookupService, ConfigLookupService>();
+
 // Register tools via DI (add new tools here)
 builder.Services.AddSingleton<ITool, GrepTool>();
 builder.Services.AddSingleton<ITool, ReadFileTool>();
@@ -70,6 +72,7 @@ builder.Services.AddSingleton<ITool, RelatedFilesTool>();
 builder.Services.AddSingleton<ITool, RepoMapTool>();
 builder.Services.AddSingleton<ITool, CallGraphTool>();
 builder.Services.AddSingleton<ITool, WebSearchTool>();
+builder.Services.AddSingleton<ITool, ConfigLookupTool>();
 builder.Services.AddSingleton<ToolRegistry>();
 
 // Register Agent Service (agentic tool-calling loop)
@@ -123,8 +126,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // Add CORS — restrict to configured origins (defaults to same-origin only)
-var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
-                     ?? Array.Empty<string>();
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -170,9 +172,13 @@ app.MapGet("/dashboard", async context =>
     context.Response.ContentType = "text/html";
     var filePath = Path.Combine(app.Environment.WebRootPath, "dashboard.html");
     if (File.Exists(filePath))
+    {
         await context.Response.SendFileAsync(filePath);
+    }
     else
+    {
         context.Response.StatusCode = 404;
+    }
 });
 
 // Fallback to index.html for SPA-like behavior
@@ -187,7 +193,6 @@ Console.WriteLine(@"
 ║     AnswerCode - Source Code Q&A System                       ║
 ║                                                               ║
 ║     Web UI:  http://localhost:5000                            ║
-║              https://localhost:5001                           ║
 ║                                                               ║
 ║     Available LLM Providers:                                  ║");
 
@@ -199,9 +204,6 @@ $"║       - {provider}                                            ║");
 
 Console.WriteLine(
 @"║                                                               ║
-║     Configure LLM in appsettings.json (LLM:Providers:...)     ║
-║     Use appsettings.Local.json for local overrides            ║
-║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 ");
 

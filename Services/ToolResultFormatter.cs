@@ -56,6 +56,8 @@ public static class ToolResultFormatter
                     + (args.TryGetProperty("direction", out var cgd) && !string.IsNullOrWhiteSpace(cgd.GetString()) ? $"  direction={cgd.GetString()}" : "")
                     + (args.TryGetProperty("depth", out var cgdp) && cgdp.ValueKind == JsonValueKind.Number ? $"  depth={cgdp.GetInt32()}" : ""),
 
+                ConfigLookupTool.ToolName => $"key={args.GetProperty("key").GetString()}",
+
                 _ => argsJson.Length > 100 ? argsJson[..100] + "..." : argsJson
             };
         }
@@ -94,6 +96,7 @@ public static class ToolResultFormatter
                 RelatedFilesTool.ToolName => ParseRelatedResultSummary(toolResult),
                 RepoMapTool.ToolName => ParseRepoMapResultSummary(toolResult),
                 CallGraphTool.ToolName => ParseCallGraphResultSummary(toolResult),
+                ConfigLookupTool.ToolName => ParseConfigLookupResultSummary(toolResult),
                 _ => ""
             };
         }
@@ -132,6 +135,7 @@ public static class ToolResultFormatter
                 RelatedFilesTool.ToolName => ExtractRelatedDetailItems(toolResult),
                 RepoMapTool.ToolName => ExtractRepoMapDetailItems(toolResult),
                 CallGraphTool.ToolName => ExtractCallGraphDetailItems(toolResult),
+                ConfigLookupTool.ToolName => ExtractConfigLookupDetailItems(toolResult),
                 _ => (null, null)
             };
         }
@@ -169,7 +173,8 @@ public static class ToolResultFormatter
         }
         else if (toolName == GrepTool.ToolName)
         {
-            var lines = toolResult.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var lines = toolResult.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+
             foreach (var line in lines)
             {
                 var trimmed = line.TrimEnd();
@@ -231,6 +236,26 @@ public static class ToolResultFormatter
                 }
 
                 var relPath = match.Groups[1].Value.Trim();
+                try
+                {
+                    var fullPath = Path.GetFullPath(Path.Combine(rootPath, relPath));
+                    filesAccessed.Add(Path.GetRelativePath(rootPath, fullPath));
+                }
+                catch { /* ignore */ }
+            }
+        }
+        else if (toolName == ConfigLookupTool.ToolName)
+        {
+            var lines = toolResult.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var match = Regex.Match(line, @"^\s+(\S+\.\w+)(?::line \d+)?\s+\[");
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                var relPath = match.Groups[1].Value;
                 try
                 {
                     var fullPath = Path.GetFullPath(Path.Combine(rootPath, relPath));
@@ -307,7 +332,7 @@ public static class ToolResultFormatter
         var fileCount = lines.Count(l =>
         {
             var t = l.TrimEnd();
-            return t.EndsWith(":") && !t.StartsWith("Found ") && !t.StartsWith(" ") && !t.StartsWith("\t");
+            return t.EndsWith(':') && !t.StartsWith("Found ") && !t.StartsWith(' ') && !t.StartsWith('\t');
         });
 
         return $"{matchCount.Groups[1].Value} matches in {fileCount} files";
@@ -338,12 +363,12 @@ public static class ToolResultFormatter
         }
 
         var lines = result.Split('\n');
-        var firstSig = lines
-            .Where(l => l.StartsWith("  ") && !string.IsNullOrWhiteSpace(l.Trim()))
-            .Select(l => l.Trim())
-            .FirstOrDefault();
+        var firstSig = lines.Where(l => l.StartsWith("  ") && !string.IsNullOrWhiteSpace(l.Trim()))
+                            .Select(l => l.Trim())
+                            .FirstOrDefault();
 
         var summary = $"{m.Groups[1].Value} definition(s) for '{m.Groups[2].Value}'";
+
         if (!string.IsNullOrEmpty(firstSig) && firstSig.Length <= 80)
         {
             summary += $": {firstSig}";
@@ -367,6 +392,7 @@ public static class ToolResultFormatter
 
         var symbolMatch = Regex.Match(result, @"Symbol: (.+)");
         var fileMatch = Regex.Match(result, @"File: (.+)");
+
         return symbolMatch.Success && fileMatch.Success
             ? $"{symbolMatch.Groups[1].Value} in {fileMatch.Groups[1].Value}"
             : "";
@@ -375,8 +401,8 @@ public static class ToolResultFormatter
     private static string ParseListDirResultSummary(string result)
     {
         var lines = result.Split('\n')
-            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Directory:"))
-            .ToList();
+                          .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Directory:"))
+                          .ToList();
 
         return lines.Count > 0 ? $"{lines.Count} items" : "";
     }
@@ -385,8 +411,7 @@ public static class ToolResultFormatter
     {
         var fileMatch = Regex.Match(result, @"File: (.+?) \((\d+) lines\)");
         var symbolCount = result.Split('\n')
-            .Count(l => l.TrimStart().Length > 0
-                && Regex.IsMatch(l, @"^\s*\d+:"));
+                                .Count(l => l.TrimStart().Length > 0 && Regex.IsMatch(l, @"^\s*\d+:"));
 
         if (fileMatch.Success)
         {
@@ -441,7 +466,7 @@ public static class ToolResultFormatter
             }
 
             var t = line.Trim();
-            if (string.IsNullOrWhiteSpace(t) || t.StartsWith("("))
+            if (string.IsNullOrWhiteSpace(t) || t.StartsWith('('))
             {
                 continue;
             }
@@ -478,7 +503,7 @@ public static class ToolResultFormatter
         {
             var t = line.TrimEnd();
 
-            if (t.EndsWith(":") && !t.StartsWith("Found ") && !t.StartsWith(" ") && !t.StartsWith("\t"))
+            if (t.EndsWith(':') && !t.StartsWith("Found ") && !t.StartsWith(' ') && !t.StartsWith('\t'))
             {
                 if (currentFile != null)
                 {
@@ -504,9 +529,7 @@ public static class ToolResultFormatter
             return (null, null);
         }
 
-        var items = fileMatchCounts
-            .Select(f => f.Count > 0 ? $"{f.File} ({f.Count} matches)" : f.File)
-            .ToList();
+        var items = fileMatchCounts.ConvertAll(f => f.Count > 0 ? $"{f.File} ({f.Count} matches)" : f.File);
 
         return ("Matched Files", items);
     }
@@ -524,9 +547,9 @@ public static class ToolResultFormatter
             {
                 var t = l.Trim();
                 return !string.IsNullOrWhiteSpace(t)
-                    && !t.StartsWith("Found ")
-                    && !t.StartsWith("(Results truncated")
-                    && !t.StartsWith("Error");
+                       && !t.StartsWith("Found ")
+                       && !t.StartsWith("(Results truncated")
+                       && !t.StartsWith("Error");
             })
             .Select(l => l.Trim())
             .ToList();
@@ -553,7 +576,7 @@ public static class ToolResultFormatter
                 continue;
             }
 
-            if (!t.StartsWith(" ") && t.Contains(':') && !line.StartsWith("  "))
+            if (!t.StartsWith(' ') && t.Contains(':') && !line.StartsWith("  "))
             {
                 pendingLocation = t;
             }
@@ -624,11 +647,10 @@ public static class ToolResultFormatter
     private static (string?, List<string>?) ExtractListDirDetailItems(string result)
     {
         var lines = result.Split('\n');
-        var items = lines
-            .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Directory:"))
-            .Select(l => l.Trim())
-            .Where(l => l.Length > 0)
-            .ToList();
+        var items = lines.Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("Directory:"))
+                         .Select(l => l.Trim())
+                         .Where(l => l.Length > 0)
+                         .ToList();
 
         return items.Count > 0 ? ("Contents", items) : (null, null);
     }
@@ -636,10 +658,9 @@ public static class ToolResultFormatter
     private static (string?, List<string>?) ExtractOutlineDetailItems(string result)
     {
         var lines = result.Split('\n');
-        var items = lines
-            .Where(l => Regex.IsMatch(l, @"^\s*\d+:"))
-            .Select(l => l.Trim())
-            .ToList();
+        var items = lines.Where(l => Regex.IsMatch(l, @"^\s*\d+:"))
+                         .Select(l => l.Trim())
+                         .ToList();
 
         return items.Count > 0 ? ("Symbols", items) : (null, null);
     }
@@ -652,12 +673,9 @@ public static class ToolResultFormatter
         }
 
         var items = result.Split('\n')
-            .Select(line => line.TrimEnd())
-            .Where(line => !string.IsNullOrWhiteSpace(line)
-                && !line.StartsWith("Found ")
-                && !line.StartsWith("Target:")
-                && !line.StartsWith("Declared at:"))
-            .ToList();
+                          .Select(line => line.TrimEnd())
+                          .Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("Found ") && !line.StartsWith("Target:") && !line.StartsWith("Declared at:"))
+                          .ToList();
 
         return items.Count > 0 ? ("References", items) : (null, null);
     }
@@ -670,11 +688,9 @@ public static class ToolResultFormatter
         }
 
         var items = result.Split('\n')
-            .Select(line => line.TrimEnd())
-            .Where(line => !string.IsNullOrWhiteSpace(line)
-                && !line.StartsWith("Found ")
-                && !line.StartsWith("Targets:"))
-            .ToList();
+                          .Select(line => line.TrimEnd())
+                          .Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("Found ") && !line.StartsWith("Targets:"))
+                          .ToList();
 
         return items.Count > 0 ? ("Tests", items) : (null, null);
     }
@@ -723,7 +739,10 @@ public static class ToolResultFormatter
         var moduleMatch = Regex.Match(result, @"Modules \((\d+)\):");
         var depMatch = Regex.Match(result, @"Module Dependencies:");
 
-        if (!moduleMatch.Success) return "";
+        if (!moduleMatch.Success)
+        {
+            return "";
+        }
 
         var summary = $"{moduleMatch.Groups[1].Value} modules";
         if (depMatch.Success)
@@ -821,26 +840,79 @@ public static class ToolResultFormatter
             var t = line.TrimEnd();
 
             // Include tree lines (with ├── └── │ prefixes) and edge lines
-            if (t.Contains("├──") || t.Contains("└──") || t.Contains("│"))
+            if (t.Contains("├──") || t.Contains("└──") || t.Contains('│'))
             {
                 items.Add(t);
                 continue;
             }
 
             // Include edge list lines
-            if (t.TrimStart().StartsWith("→") || (t.Contains(" → ") && t.TrimStart().Length > 0 && !t.StartsWith("Static") && !t.StartsWith("Edges")))
+            if (t.TrimStart().StartsWith('→') || (t.Contains(" → ") && t.TrimStart().Length > 0 && !t.StartsWith("Static") && !t.StartsWith("Edges")))
             {
                 items.Add(t.Trim());
                 continue;
             }
 
             // Include warnings
-            if (t.TrimStart().StartsWith("⚠"))
+            if (t.TrimStart().StartsWith('⚠'))
             {
                 items.Add(t.Trim());
             }
         }
 
         return items.Count > 0 ? ("Call Graph", items) : (null, null);
+    }
+
+    private static string ParseConfigLookupResultSummary(string result)
+    {
+        if (result.Contains("was not found"))
+        {
+            return "key not found";
+        }
+
+        var match = Regex.Match(result, @"Found in (\d+) location\(s\)");
+        if (!match.Success)
+        {
+            return "";
+        }
+
+        var summary = $"found in {match.Groups[1].Value} location(s)";
+        var effectiveMatch = Regex.Match(result, @"Effective value: (.+)");
+        if (effectiveMatch.Success)
+        {
+            var val = effectiveMatch.Groups[1].Value.Trim();
+            if (val.Length > 50)
+            {
+                val = val[..50] + "...";
+            }
+
+            summary += $", effective: {val}";
+        }
+
+        return summary;
+    }
+
+    private static (string?, List<string>?) ExtractConfigLookupDetailItems(string result)
+    {
+        if (result.Contains("was not found"))
+        {
+            return ("Result", new List<string> { result.Split('\n')[0] });
+        }
+
+        var items = new List<string>();
+        foreach (var line in result.Split('\n'))
+        {
+            var t = line.Trim();
+            if (t.Contains(" = ") && !t.StartsWith("(from"))
+            {
+                items.Add(t);
+            }
+            else if (t.StartsWith("Effective value:"))
+            {
+                items.Add($">> {t}");
+            }
+        }
+
+        return items.Count > 0 ? ("Config Values", items) : (null, null);
     }
 }

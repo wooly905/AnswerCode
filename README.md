@@ -9,7 +9,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 - **Source Code Upload**: Upload your project files directly in the browser (drag & drop files or folders) — no server-side path configuration required
 - **Google Login & Persistent Storage**: Sign in with Google to get dedicated persistent storage (default 300 MB quota) — uploaded projects survive across browser sessions and can be managed from the Dashboard
 - **User Dashboard**: Authenticated users get a `/dashboard` page showing all uploaded projects, storage usage with a visual progress bar, and the ability to delete individual projects
-- **Agentic Q&A**: An AI agent uses tools (grep, read file, read symbol, list directory, glob search, file outline, find definition, find references, find tests, related files, repo map, call graph, web search) to explore your codebase and answer questions autonomously
+- **Agentic Q&A**: An AI agent uses tools (grep, read file, read symbol, list directory, glob search, file outline, find definition, find references, find tests, related files, repo map, call graph, web search, config lookup) to explore your codebase and answer questions autonomously
 - **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
 - **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
@@ -40,7 +40,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
    dotnet run
    ```
 
-4. Open a browser to **http://localhost:5000** (or https://localhost:5001).
+4. Open a browser to **http://localhost:5000**.
 
 5. **Upload your source code** using the drag-and-drop area or the Browse Files / Browse Folder buttons. Select a model provider, enter your question, and click **Answer as Developer** or **Answer as PM**.
 
@@ -207,6 +207,7 @@ The agent uses these tools to explore your codebase:
 | `read_symbol` | Read one exact symbol definition with optional body/comments instead of reading a whole file |
 | `list_directory` | List files in a subdirectory (project root structure is auto-injected) |
 | `web_search` | Search the web via Tavily Search API for external information — library docs, API references, best practices, error explanations, or latest updates |
+| `config_lookup` | Look up a configuration key across all config files in the project — finds where a key is defined, its value in each source, and which value wins by precedence. Supports C#, JavaScript, TypeScript, Python, Java, Go, Rust, and C/C++ config patterns |
 
 **Auto-injected context:** The agent automatically receives a project overview (directory structure, language, framework, dependencies) at the start of each conversation, eliminating the need for an initial `list_directory` call and saving one full LLM round-trip.
 

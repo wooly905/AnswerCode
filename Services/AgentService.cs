@@ -6,12 +6,19 @@ using OpenAI.Chat;
 namespace AnswerCode.Services;
 
 /// <summary>
-/// Agent Service — runs an agentic tool-calling loop (like OpenCode) instead of a fixed pipeline.
-/// The LLM autonomously decides which tools to use, when to search, and when to stop.
+/// Agent Service — runs an agentic tool-calling loop where the LLM autonomously decides
+/// which tools to use, when to search, and when to stop.
+///
+/// When conversation history exists, uses a SubAgent architecture to save tokens:
+///   Phase 1: Resolve follow-up question into standalone question (with history, 1 LLM call)
+///   Phase 2: SubAgent tool loop — full agentic research (without history, N LLM calls)
+///   Phase 3: Synthesize final answer (with history + research findings, 1 LLM call)
 /// </summary>
 public class AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry) : IAgentService
 {
     private const int _maxIterations = 50;
+
+    #region System Prompts
 
     private const string _agentSystemPrompt = @"
 You are an expert code analyst and software engineer. Your task is to answer user questions about the codebase using the available tools.
@@ -127,6 +134,56 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
 - Respond in the same language as the user's question.
 ";
 
+    #endregion
+
+    #region SubAgent Prompts
+
+    private const string _contextResolutionPrompt = @"
+You are a context resolver. Given a conversation history and the user's latest question, rewrite the question as a fully self-contained question that can be understood without the conversation history.
+
+Rules:
+- Preserve ALL relevant context from the history that is needed to understand the question.
+- Include specific technical terms, file names, class names, or concepts from the history that the question refers to.
+- Output ONLY the rewritten question — no preamble, no explanation.
+- If the question is already self-contained, output it unchanged.
+- Respond in the same language as the user's question.
+";
+
+    private const string _developerSynthesisPrompt = @"
+You are an expert code analyst synthesizing a final answer for a follow-up question in an ongoing conversation.
+
+Below you will find:
+1. The conversation history (previous Q&A turns)
+2. The user's current question
+3. Research findings from analyzing the codebase
+
+Instructions:
+- Use the research findings as your primary source of truth.
+- Reference the conversation context naturally where it adds clarity.
+- Cite specific file paths and line numbers from the findings.
+- Do not repeat information already well-covered in earlier turns unless it provides new value.
+- Respond in the same language as the user's question.
+";
+
+    private const string _pmSynthesisPrompt = @"
+You are a knowledgeable business analyst synthesizing a final answer for a follow-up question in an ongoing conversation with a Program Manager.
+
+Below you will find:
+1. The conversation history (previous Q&A turns)
+2. The user's current question
+3. Research findings from analyzing the codebase
+
+Instructions:
+- Use the research findings as your primary source of truth.
+- Translate technical findings into plain, non-technical language.
+- Describe things in terms of business workflows and user-facing behavior.
+- Do NOT include code snippets, file paths, or class names.
+- Reference the conversation context naturally where it adds clarity.
+- Respond in the same language as the user's question.
+";
+
+    #endregion
+
     /// <summary>
     /// Run without progress callback (original API)
     /// </summary>
@@ -141,7 +198,8 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
     }
 
     /// <summary>
-    /// Run with progress callback for SSE streaming
+    /// Main orchestrator — uses SubAgent architecture when conversation history exists.
+    /// When no history, runs the tool loop directly with zero overhead.
     /// </summary>
     public async Task<AgentResult> RunAsync(string question,
                                             string rootPath,
@@ -154,16 +212,149 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
         logger.LogInformation("Agent starting for question: {Question}, project: {RootPath}", question, rootPath);
 
         var provider = llmFactory.GetProvider(modelProvider);
-
-        // Emit start event
         await onProgress(new AgentEvent { Type = AgentEventType.Started });
 
+        var projectOverview = ProjectOverviewBuilder.Build(rootPath);
+        bool hasHistory = conversationHistory is { Count: > 0 };
+
+        if (!hasHistory)
+        {
+            // No history — run tool loop directly (zero overhead, same behavior as before)
+            if (!provider.SupportsToolCalling)
+            {
+                logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
+                return await RunReActToolLoopAsync(question, rootPath, provider, onProgress, projectOverview);
+            }
+            return await RunNativeToolLoopAsync(question, rootPath, provider, onProgress, userRole, projectOverview);
+        }
+
+        // === SubAgent architecture: 3 phases ===
+
+        // Phase 1: Resolve follow-up question into standalone question
+        logger.LogInformation("SubAgent Phase 1: Resolving follow-up question with {Turns} history turns", conversationHistory!.Count);
+        string resolvedQuestion;
+        int p1InputTokens = 0, p1OutputTokens = 0;
+        try
+        {
+            (resolvedQuestion, p1InputTokens, p1OutputTokens) = await ResolveQuestionAsync(
+                provider, question, conversationHistory);
+            logger.LogInformation("SubAgent Phase 1 complete. Resolved: {Resolved}", resolvedQuestion);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Phase 1 (context resolution) failed, falling back to original question");
+            resolvedQuestion = question;
+        }
+
+        // Phase 2: SubAgent tool loop (no history — the core token saving)
+        logger.LogInformation("SubAgent Phase 2: Running tool loop with resolved question (no history)");
+        AgentResult result;
         if (!provider.SupportsToolCalling)
         {
             logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
-            return await RunReActLoopAsync(question, rootPath, provider, onProgress, conversationHistory);
+            result = await RunReActToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, projectOverview);
+        }
+        else
+        {
+            result = await RunNativeToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, userRole, projectOverview);
         }
 
+        // Phase 3: Synthesize final answer with conversation context + research findings
+        logger.LogInformation("SubAgent Phase 3: Synthesizing answer with conversation context");
+        int p3InputTokens = 0, p3OutputTokens = 0;
+        try
+        {
+            var (finalAnswer, p3In, p3Out) = await SynthesizeAnswerAsync(
+                provider, question, conversationHistory, result.Answer, userRole);
+            result.Answer = finalAnswer;
+            p3InputTokens = p3In;
+            p3OutputTokens = p3Out;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Phase 3 (synthesis) failed, using SubAgent answer directly");
+        }
+
+        // Track main agent tokens (Phase 1 + Phase 3) separately from subagent (Phase 2)
+        result.MainAgentInputTokens = p1InputTokens + p3InputTokens;
+        result.MainAgentOutputTokens = p1OutputTokens + p3OutputTokens;
+        result.TotalInputTokens += result.MainAgentInputTokens;
+        result.TotalOutputTokens += result.MainAgentOutputTokens;
+
+        return result;
+    }
+
+    #region SubAgent Phases
+
+    /// <summary>
+    /// Phase 1: Resolve a follow-up question into a self-contained question using conversation history.
+    /// This allows the SubAgent (Phase 2) to run without carrying conversation history.
+    /// </summary>
+    private async Task<(string resolvedQuestion, int inputTokens, int outputTokens)> ResolveQuestionAsync(
+        ILLMProvider provider, string question, List<ConversationTurn> history)
+    {
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(_contextResolutionPrompt)
+        };
+
+        foreach (var turn in history)
+        {
+            if (turn.Role == "user")
+                messages.Add(new UserChatMessage(turn.Content));
+            else
+                messages.Add(new AssistantChatMessage(turn.Content));
+        }
+
+        messages.Add(new UserChatMessage($"## Current Question (rewrite this as self-contained)\n{question}"));
+
+        var response = await provider.ChatAsync(messages);
+        var resolved = response.TextContent?.Trim() ?? question;
+        return (resolved, response.InputTokens, response.OutputTokens);
+    }
+
+    /// <summary>
+    /// Phase 3: Synthesize a final answer using conversation history and SubAgent research findings.
+    /// </summary>
+    private async Task<(string answer, int inputTokens, int outputTokens)> SynthesizeAnswerAsync(
+        ILLMProvider provider, string question, List<ConversationTurn> history,
+        string findings, string? userRole)
+    {
+        var systemPrompt = string.Equals(userRole, "PM", StringComparison.OrdinalIgnoreCase)
+            ? _pmSynthesisPrompt
+            : _developerSynthesisPrompt;
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(systemPrompt)
+        };
+
+        foreach (var turn in history)
+        {
+            if (turn.Role == "user")
+                messages.Add(new UserChatMessage(turn.Content));
+            else
+                messages.Add(new AssistantChatMessage(turn.Content));
+        }
+
+        messages.Add(new UserChatMessage($"## Current Question\n{question}\n\n## Research Findings\n{findings}"));
+
+        var response = await provider.ChatAsync(messages);
+        return (response.TextContent ?? findings, response.InputTokens, response.OutputTokens);
+    }
+
+    #endregion
+
+    #region Tool Loops (Phase 2)
+
+    /// <summary>
+    /// Native tool-calling loop — the LLM uses function calling to invoke tools.
+    /// Runs WITHOUT conversation history (SubAgent context).
+    /// </summary>
+    private async Task<AgentResult> RunNativeToolLoopAsync(
+        string question, string rootPath, ILLMProvider provider,
+        Func<AgentEvent, Task> onProgress, string? userRole, string projectOverview)
+    {
         var toolContext = new ToolContext
         {
             RootPath = rootPath,
@@ -175,29 +366,14 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
         var filesAccessed = new HashSet<string>();
         int emptyAssistantResponses = 0;
 
-        var projectOverview = ProjectOverviewBuilder.Build(rootPath);
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(string.Equals(userRole, "PM", StringComparison.OrdinalIgnoreCase)
                 ? _pmSystemPrompt
                 : _agentSystemPrompt),
-            new UserChatMessage($"## Project Overview\n{projectOverview}")
+            new UserChatMessage($"## Project Overview\n{projectOverview}"),
+            new UserChatMessage($"## Question\n{question}")
         };
-
-        // Inject conversation history (previous Q&A turns) so the LLM has context
-        if (conversationHistory is { Count: > 0 })
-        {
-            foreach (var turn in conversationHistory)
-            {
-                if (turn.Role == "user")
-                    messages.Add(new UserChatMessage(turn.Content));
-                else
-                    messages.Add(new AssistantChatMessage(turn.Content));
-            }
-        }
-
-        // Current question
-        messages.Add(new UserChatMessage($"## Question\n{question}"));
 
         for (int iteration = 0; iteration < _maxIterations; iteration++)
         {
@@ -249,10 +425,8 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
 
             foreach (var toolCall in response.ToolCalls)
             {
-                // Parse arguments for a clean display summary
                 var argsSummary = ToolResultFormatter.FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
 
-                // Emit tool start event
                 await onProgress(new AgentEvent
                 {
                     Type = AgentEventType.ToolCallStart,
@@ -295,12 +469,10 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
                 };
                 result.ToolCalls.Add(record);
 
-                // Track files accessed
                 ToolResultFormatter.ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
 
                 messages.Add(new ToolChatMessage(toolCall.CallId, toolResult));
 
-                // Emit tool end event
                 var resultSummary = ToolResultFormatter.FormatToolResultSummary(toolCall.FunctionName, toolResult);
                 var resultDetails = toolResult.Length > 5000
                     ? toolResult[..5000] + "\n... (truncated)"
@@ -338,15 +510,13 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
     }
 
     /// <summary>
-    /// ReAct agent loop — uses text-based tool calling so any LLM can be an agent,
+    /// ReAct tool loop — uses text-based tool calling so any LLM can be an agent,
     /// without requiring native tool calling (function calling) support.
-    /// The LLM outputs &lt;tool_call&gt; XML tags, which are parsed and executed server-side.
+    /// Runs WITHOUT conversation history (SubAgent context).
     /// </summary>
-    private async Task<AgentResult> RunReActLoopAsync(string question,
-                                                      string rootPath,
-                                                      ILLMProvider provider,
-                                                      Func<AgentEvent, Task> onProgress,
-                                                      List<ConversationTurn>? conversationHistory = null)
+    private async Task<AgentResult> RunReActToolLoopAsync(
+        string question, string rootPath, ILLMProvider provider,
+        Func<AgentEvent, Task> onProgress, string projectOverview)
     {
         logger.LogInformation("Starting ReAct agent loop for provider {Provider}", provider.Name);
 
@@ -355,37 +525,21 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
         var filesAccessed = new HashSet<string>();
         int emptyAssistantResponses = 0;
 
-        // Build system prompt with tool descriptions embedded in text
         var toolDescriptions = toolRegistry.GetReActToolDescriptions();
         var systemPrompt = ReActParser.BuildReActSystemPrompt(toolDescriptions);
 
-        var projectOverview = ProjectOverviewBuilder.Build(rootPath);
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(systemPrompt),
-            new UserChatMessage($"## Project Overview\n{projectOverview}")
+            new UserChatMessage($"## Project Overview\n{projectOverview}"),
+            new UserChatMessage($"## Question\n{question}")
         };
-
-        // Inject conversation history for follow-up questions
-        if (conversationHistory is { Count: > 0 })
-        {
-            foreach (var turn in conversationHistory)
-            {
-                if (turn.Role == "user")
-                    messages.Add(new UserChatMessage(turn.Content));
-                else
-                    messages.Add(new AssistantChatMessage(turn.Content));
-            }
-        }
-
-        messages.Add(new UserChatMessage($"## Question\n{question}"));
 
         for (int iteration = 0; iteration < _maxIterations; iteration++)
         {
             result.IterationCount = iteration + 1;
             logger.LogInformation("ReAct iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
 
-            // Call LLM (plain text chat, no tool definitions)
             string llmResponse;
             try
             {
@@ -402,10 +556,8 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
                 return result;
             }
 
-            // Add assistant's response to history
             messages.Add(new AssistantChatMessage(llmResponse));
 
-            // Parse tool calls from the text output
             var toolCalls = ReActParser.ParseToolCalls(llmResponse);
 
             if (toolCalls.Count == 0)
@@ -427,8 +579,6 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
                 }
 
                 emptyAssistantResponses = 0;
-                // No tool calls — LLM is giving the final answer
-                // Strip any residual tool_call tags just in case
                 result.Answer = llmResponse;
                 logger.LogInformation("ReAct agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
                 break;
@@ -436,14 +586,12 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
 
             emptyAssistantResponses = 0;
 
-            // Execute each parsed tool call
             var toolResults = new List<(string ToolName, string Result)>();
 
             foreach (var toolCall in toolCalls)
             {
                 var argsSummary = ToolResultFormatter.FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
 
-                // Emit tool start event
                 await onProgress(new AgentEvent
                 {
                     Type = AgentEventType.ToolCallStart,
@@ -486,12 +634,10 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
                 };
                 result.ToolCalls.Add(record);
 
-                // Track files accessed
                 ToolResultFormatter.ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
 
                 toolResults.Add((toolCall.FunctionName, toolResult));
 
-                // Emit tool end event
                 var resultSummary = ToolResultFormatter.FormatToolResultSummary(toolCall.FunctionName, toolResult);
                 var resultDetails = toolResult.Length > 5000
                     ? toolResult[..5000] + "\n... (truncated)"
@@ -518,7 +664,6 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
                                       toolResult.Length);
             }
 
-            // Feed tool results back to the LLM as a user message
             var formattedResults = ReActParser.FormatToolResults(toolResults);
             messages.Add(new UserChatMessage(formattedResults));
         }
@@ -532,4 +677,6 @@ If a tool result is truncated (for example, shows ""... more matches"" or the ov
         result.RelevantFiles = [.. filesAccessed];
         return result;
     }
+
+    #endregion
 }

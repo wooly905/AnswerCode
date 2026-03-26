@@ -538,7 +538,9 @@ public class CodeQAController : ControllerBase
                 IterationCount = agentResult.IterationCount,
                 ToolCalls = agentResult.ToolCalls,
                 TotalInputTokens = agentResult.TotalInputTokens,
-                TotalOutputTokens = agentResult.TotalOutputTokens
+                TotalOutputTokens = agentResult.TotalOutputTokens,
+                MainAgentInputTokens = agentResult.MainAgentInputTokens,
+                MainAgentOutputTokens = agentResult.MainAgentOutputTokens
             };
 
             _logger.LogInformation("Question answered in {ElapsedMs}ms ({ToolCalls} tool calls, {Iterations} iterations)",
@@ -610,7 +612,9 @@ public class CodeQAController : ControllerBase
                 IterationCount = agentResult.IterationCount,
                 ToolCalls = agentResult.ToolCalls,
                 TotalInputTokens = agentResult.TotalInputTokens,
-                TotalOutputTokens = agentResult.TotalOutputTokens
+                TotalOutputTokens = agentResult.TotalOutputTokens,
+                MainAgentInputTokens = agentResult.MainAgentInputTokens,
+                MainAgentOutputTokens = agentResult.MainAgentOutputTokens
             };
 
             await WriteSSE(new AgentEvent
@@ -702,6 +706,21 @@ public class CodeQAController : ControllerBase
     {
         var providers = _llmFactory.GetProviderDisplayNames();
         return Ok(providers);
+    }
+
+    // ────────────────────────────────────────────
+    //  Conversation history
+    // ────────────────────────────────────────────
+
+    /// <summary>
+    /// Get conversation history for a session (the turns sent to the main agent).
+    /// </summary>
+    [HttpGet("history/{sessionId}")]
+    [ProducesResponseType<List<ConversationTurn>>(StatusCodes.Status200OK)]
+    public ActionResult<List<ConversationTurn>> GetHistory(string sessionId)
+    {
+        var history = _conversationHistory.GetHistory(sessionId);
+        return Ok(history);
     }
 
     // ────────────────────────────────────────────

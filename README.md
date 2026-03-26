@@ -13,8 +13,10 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 - **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
 - **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
+- **SubAgent Architecture**: Follow-up questions use a 3-phase SubAgent design — (1) resolve the follow-up into a standalone question using conversation history, (2) run the agentic tool loop without history to save tokens, (3) synthesize the final answer with history context. This reduces token consumption and supports up to **25 Q&A rounds** per session
+- **Conversation History Inspector**: Click the **Main** token counter in the top bar to view the exact conversation turns the LLM remembers, with a download button to export the history as Markdown
 - **Streaming Progress**: Real-time SSE streaming shows each tool call as it happens, including a result summary, expandable detail items, and duration
-- **Token Usage Tracking**: Input and output token counts are tracked across all LLM calls in an agent run and surfaced in the app experience
+- **Token Usage Tracking**: Main agent (context resolution + synthesis) and SubAgent (tool loop) token counts are tracked separately and displayed in the top bar as **Main / Sub / Total**
 - **Multi-Language Project Support**: Auto-detects and summarizes project metadata for .NET, Node.js, Python, Go, Rust, Java, and C/C++ projects
 - **Hybrid Multi-Language Code Analysis**: `C#` uses Roslyn for precise symbol reads and reference lookup, while JavaScript, TypeScript, Python, Java, Go, Rust, and C/C++ use heuristic symbol, reference, and test discovery
 - **Dark Theme UI**: Web interface with syntax highlighting, Markdown rendering, Mermaid diagram support with interactive zoom/pan and fullscreen view
@@ -228,6 +230,22 @@ When a configured provider reports `SupportsToolCalling = false`, the agent auto
 - Progress events and token tracking work the same as with native tool calling.
 
 This allows any text-generating LLM to act as an agent without requiring OpenAI-style function calling support.
+
+## SubAgent Architecture
+
+When the user asks a follow-up question (i.e., conversation history exists), the system splits the work into three phases to reduce token consumption:
+
+| Phase | Role | History Included | LLM Calls |
+|-------|------|-----------------|-----------|
+| **1. Context Resolution** | Resolve the follow-up into a self-contained question | Yes | 1 |
+| **2. SubAgent Tool Loop** | Run the full agentic research loop | **No** | 5–50 |
+| **3. Answer Synthesis** | Combine research findings with conversation context | Yes | 1 |
+
+The first question in a session (no history) skips directly to the tool loop with zero overhead.
+
+**Why it matters:** In the previous design, conversation history was sent with every LLM call in the tool loop (5–50 calls). With SubAgent, history is only sent twice (Phase 1 + Phase 3), making the token cost nearly independent of history length. This allows supporting **25 Q&A rounds** (50 turns) per session without context overflow.
+
+The top bar shows **Main** (Phase 1 + 3) and **Sub** (Phase 2) token usage separately. Clicking **Main** opens a modal showing the exact conversation turns in the LLM's memory, with a button to download the history as Markdown.
 
 ## User Experience Notes
 

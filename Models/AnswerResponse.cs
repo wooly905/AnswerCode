@@ -49,4 +49,14 @@ public class AnswerResponse
     /// Total output (completion) tokens generated across all LLM calls
     /// </summary>
     public int TotalOutputTokens { get; set; }
+
+    /// <summary>
+    /// Input tokens consumed by main agent only (context resolution + synthesis). Zero when no history.
+    /// </summary>
+    public int MainAgentInputTokens { get; set; }
+
+    /// <summary>
+    /// Output tokens consumed by main agent only (context resolution + synthesis). Zero when no history.
+    /// </summary>
+    public int MainAgentOutputTokens { get; set; }
 }

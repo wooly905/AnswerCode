@@ -43,4 +43,9 @@ public class AgentResult
     public int TotalInputTokens { get; set; }
     /// <summary>Total output (completion) tokens across all LLM calls in the agent run.</summary>
     public int TotalOutputTokens { get; set; }
+
+    /// <summary>Input tokens consumed by the main agent (Phase 1 context resolution + Phase 3 synthesis). Zero when no history.</summary>
+    public int MainAgentInputTokens { get; set; }
+    /// <summary>Output tokens consumed by the main agent (Phase 1 context resolution + Phase 3 synthesis). Zero when no history.</summary>
+    public int MainAgentOutputTokens { get; set; }
 }

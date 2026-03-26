@@ -20,8 +20,10 @@ public interface IConversationHistoryService
 
 public class ConversationHistoryService : IConversationHistoryService
 {
-    /// <summary>Max Q&A pairs to keep per session (oldest are trimmed).</summary>
-    private const int MaxTurnsPerSession = 20; // 10 Q&A rounds
+    /// <summary>Max turns to keep per session (oldest are trimmed).
+    /// With SubAgent architecture, history is only sent in 2 LLM calls (resolve + synthesize),
+    /// not in every tool-loop iteration, so we can afford more turns.</summary>
+    private const int MaxTurnsPerSession = 50; // 25 Q&A rounds
 
     private readonly ConcurrentDictionary<string, List<ConversationTurn>> _store = new();
 

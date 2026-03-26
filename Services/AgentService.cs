@@ -14,9 +14,16 @@ namespace AnswerCode.Services;
 ///   Phase 2: SubAgent tool loop — full agentic research (without history, N LLM calls)
 ///   Phase 3: Synthesize final answer (with history + research findings, 1 LLM call)
 /// </summary>
-public class AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry) : IAgentService
+public class AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry, IConversationHistoryService conversationHistoryService) : IAgentService
 {
     private const int _maxIterations = 50;
+
+    /// <summary>Hard cap: refuse to send history beyond this token estimate.</summary>
+    private const int _maxHistoryTokens = 200_000;
+    /// <summary>Soft cap: trigger compression when estimated tokens reach this level.</summary>
+    private const int _compressAtTokens = 180_000;
+    /// <summary>Fraction of recent turns to keep verbatim during compression (the rest gets summarized).</summary>
+    private const double _keepRecentFraction = 0.2;
 
     #region System Prompts
 
@@ -182,6 +189,19 @@ Instructions:
 - Respond in the same language as the user's question.
 ";
 
+    private const string _compressionPrompt = @"
+You are a conversation compressor. Summarize the following conversation history into a concise but information-rich summary.
+
+Rules:
+- Preserve ALL important facts, conclusions, and decisions from the conversation.
+- Preserve specific technical details: file paths, class/method names, line numbers, configuration keys, and architecture decisions.
+- Preserve the chronological flow of topics discussed.
+- Remove redundant back-and-forth, pleasantries, and verbose explanations — keep only the substance.
+- Structure the summary with clear bullet points or short paragraphs grouped by topic.
+- Respond in the same language as the conversation.
+- Output ONLY the summary — no preamble like 'Here is the summary'.
+";
+
     #endregion
 
     /// <summary>
@@ -230,8 +250,32 @@ Instructions:
 
         // === SubAgent architecture: 3 phases ===
 
+        // Phase 0: Check history token budget and compress if needed
+        int estimatedTokens = EstimateHistoryTokens(conversationHistory!);
+        logger.LogInformation("Estimated history tokens: {Tokens} ({Turns} turns)", estimatedTokens, conversationHistory!.Count);
+
+        if (estimatedTokens >= _compressAtTokens)
+        {
+            logger.LogInformation("History tokens ({Tokens}) exceed compression threshold ({Threshold}), compressing...", estimatedTokens, _compressAtTokens);
+            try
+            {
+                conversationHistory = await CompressHistoryAsync(provider, conversationHistory);
+
+                // Persist compressed history back to the store
+                if (sessionId != null)
+                    conversationHistoryService.ReplaceTurns(sessionId, conversationHistory);
+
+                int newEstimate = EstimateHistoryTokens(conversationHistory);
+                logger.LogInformation("History compressed: {OldTokens} -> {NewTokens} tokens, {Turns} turns", estimatedTokens, newEstimate, conversationHistory.Count);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "History compression failed, proceeding with uncompressed history");
+            }
+        }
+
         // Phase 1: Resolve follow-up question into standalone question
-        logger.LogInformation("SubAgent Phase 1: Resolving follow-up question with {Turns} history turns", conversationHistory!.Count);
+        logger.LogInformation("SubAgent Phase 1: Resolving follow-up question with {Turns} history turns", conversationHistory.Count);
         string resolvedQuestion;
         int p1InputTokens = 0, p1OutputTokens = 0;
         try
@@ -287,6 +331,28 @@ Instructions:
     #region SubAgent Phases
 
     /// <summary>
+    /// Inject conversation history turns into a message list, handling summary turns specially.
+    /// </summary>
+    private static void InjectHistoryMessages(List<ChatMessage> messages, List<ConversationTurn> history)
+    {
+        foreach (var turn in history)
+        {
+            if (turn.IsSummary)
+            {
+                messages.Add(new UserChatMessage($"[Summary of earlier conversation]\n{turn.Content}"));
+            }
+            else if (turn.Role == "user")
+            {
+                messages.Add(new UserChatMessage(turn.Content));
+            }
+            else
+            {
+                messages.Add(new AssistantChatMessage(turn.Content));
+            }
+        }
+    }
+
+    /// <summary>
     /// Phase 1: Resolve a follow-up question into a self-contained question using conversation history.
     /// This allows the SubAgent (Phase 2) to run without carrying conversation history.
     /// </summary>
@@ -298,14 +364,7 @@ Instructions:
             new SystemChatMessage(_contextResolutionPrompt)
         };
 
-        foreach (var turn in history)
-        {
-            if (turn.Role == "user")
-                messages.Add(new UserChatMessage(turn.Content));
-            else
-                messages.Add(new AssistantChatMessage(turn.Content));
-        }
-
+        InjectHistoryMessages(messages, history);
         messages.Add(new UserChatMessage($"## Current Question (rewrite this as self-contained)\n{question}"));
 
         var response = await provider.ChatAsync(messages);
@@ -329,18 +388,83 @@ Instructions:
             new SystemChatMessage(systemPrompt)
         };
 
-        foreach (var turn in history)
-        {
-            if (turn.Role == "user")
-                messages.Add(new UserChatMessage(turn.Content));
-            else
-                messages.Add(new AssistantChatMessage(turn.Content));
-        }
-
+        InjectHistoryMessages(messages, history);
         messages.Add(new UserChatMessage($"## Current Question\n{question}\n\n## Research Findings\n{findings}"));
 
         var response = await provider.ChatAsync(messages);
         return (response.TextContent ?? findings, response.InputTokens, response.OutputTokens);
+    }
+
+    /// <summary>
+    /// Estimate the token count of conversation history using a conservative character-based heuristic.
+    /// Mixed English/CJK content averages roughly 1 token per 3 characters.
+    /// </summary>
+    private static int EstimateHistoryTokens(List<ConversationTurn> history)
+    {
+        long totalChars = 0;
+        foreach (var turn in history)
+            totalChars += turn.Content.Length;
+        return (int)(totalChars / 3);
+    }
+
+    /// <summary>
+    /// Compress conversation history by summarizing older turns via LLM.
+    /// Keeps the most recent turns verbatim and replaces older turns with a condensed summary.
+    /// </summary>
+    private async Task<List<ConversationTurn>> CompressHistoryAsync(
+        ILLMProvider provider, List<ConversationTurn> history)
+    {
+        // Determine split point: keep at least the last 2 turns (1 Q&A pair)
+        int keepCount = Math.Max(2, (int)(history.Count * _keepRecentFraction));
+        // Align to pair boundary (keep even number of turns from the end)
+        if (keepCount % 2 != 0)
+            keepCount++;
+        keepCount = Math.Min(keepCount, history.Count);
+
+        int compressCount = history.Count - keepCount;
+        if (compressCount <= 0)
+        {
+            logger.LogInformation("Not enough turns to compress ({Count} turns, keeping {Keep})", history.Count, keepCount);
+            return history;
+        }
+
+        var turnsToCompress = history.GetRange(0, compressCount);
+        var turnsToKeep = history.GetRange(compressCount, keepCount);
+
+        // Build the conversation text for summarization
+        var conversationText = new System.Text.StringBuilder();
+        foreach (var turn in turnsToCompress)
+        {
+            var label = turn.IsSummary ? "Summary" : (turn.Role == "user" ? "User" : "Assistant");
+            conversationText.AppendLine($"**{label}:** {turn.Content}");
+            conversationText.AppendLine();
+        }
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(_compressionPrompt),
+            new UserChatMessage(conversationText.ToString())
+        };
+
+        var response = await provider.ChatAsync(messages);
+        var summary = response.TextContent?.Trim();
+
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            logger.LogWarning("Compression returned empty summary, keeping original history");
+            return history;
+        }
+
+        logger.LogInformation("Compressed {CompressCount} turns into summary ({SummaryLength} chars), keeping {KeepCount} recent turns",
+            compressCount, summary.Length, keepCount);
+
+        // Build new history: [summary] + [recent turns]
+        var compressed = new List<ConversationTurn>
+        {
+            new() { Role = "assistant", Content = summary, IsSummary = true }
+        };
+        compressed.AddRange(turnsToKeep);
+        return compressed;
     }
 
     #endregion

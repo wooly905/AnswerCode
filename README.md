@@ -13,7 +13,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 - **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
 - **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
-- **SubAgent Architecture**: Follow-up questions use a 3-phase SubAgent design — (1) resolve the follow-up into a standalone question using conversation history, (2) run the agentic tool loop without history to save tokens, (3) synthesize the final answer with history context. This reduces token consumption and supports up to **25 Q&A rounds** per session
+- **SubAgent Architecture**: Follow-up questions use a 3-phase SubAgent design — (1) resolve the follow-up into a standalone question using conversation history, (2) run the agentic tool loop without history to save tokens, (3) synthesize the final answer with history context. History length is controlled by a **200K token budget** instead of a fixed turn limit, with automatic compression when approaching the threshold
 - **Conversation History Inspector**: Click the **Main** token counter in the top bar to view the exact conversation turns the LLM remembers, with a download button to export the history as Markdown
 - **Streaming Progress**: Real-time SSE streaming shows each tool call as it happens, including a result summary, expandable detail items, and duration
 - **Token Usage Tracking**: Main agent (context resolution + synthesis) and SubAgent (tool loop) token counts are tracked separately and displayed in the top bar as **Main / Sub / Total**
@@ -243,9 +243,19 @@ When the user asks a follow-up question (i.e., conversation history exists), the
 
 The first question in a session (no history) skips directly to the tool loop with zero overhead.
 
-**Why it matters:** In the previous design, conversation history was sent with every LLM call in the tool loop (5–50 calls). With SubAgent, history is only sent twice (Phase 1 + Phase 3), making the token cost nearly independent of history length. This allows supporting **25 Q&A rounds** (50 turns) per session without context overflow.
+**Why it matters:** In the previous design, conversation history was sent with every LLM call in the tool loop (5–50 calls). With SubAgent, history is only sent twice (Phase 1 + Phase 3), making the token cost nearly independent of history length.
 
-The top bar shows **Main** (Phase 1 + 3) and **Sub** (Phase 2) token usage separately. Clicking **Main** opens a modal showing the exact conversation turns in the LLM's memory, with a button to download the history as Markdown.
+### Token-Based History with Auto-Compression
+
+Instead of a fixed turn limit, conversation history is managed by a **200K token budget** (estimated via character count / 3). When the estimated token count reaches **180K**, the system automatically compresses older conversation turns:
+
+1. The most recent 20% of turns are kept verbatim (at least 1 Q&A pair).
+2. Older turns are summarized into a single condensed turn via an LLM call.
+3. The compressed history replaces the original in the session store.
+
+Compression is **chain-capable** — when the history grows again after a previous compression, the old summary is included in the next compression cycle. This allows indefinite conversation length within the token budget.
+
+The top bar shows **Main** (Phase 1 + 3) and **Sub** (Phase 2) token usage separately. Clicking **Main** opens a modal showing the exact conversation turns the LLM remembers (including compressed summary turns highlighted in yellow), with a button to download the history as Markdown.
 
 ## User Experience Notes
 

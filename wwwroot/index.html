@@ -959,6 +959,12 @@
         }
         .history-turn.user .history-turn-role { color: var(--accent-color); }
         .history-turn.assistant .history-turn-role { color: var(--success-color); }
+        .history-turn.summary {
+            background: var(--bg-tertiary);
+            border-left: 3px solid var(--warning-color);
+            font-style: italic;
+        }
+        .history-turn.summary .history-turn-role { color: var(--warning-color); }
         .history-turn-content {
             max-height: 200px; overflow-y: auto;
         }
@@ -1758,8 +1764,8 @@
                 bodyHtml = '<div class="history-empty">No conversation history yet.</div>';
             } else {
                 for (const turn of history) {
-                    const cls = turn.role === 'user' ? 'user' : 'assistant';
-                    const label = turn.role === 'user' ? 'User' : 'Assistant';
+                    const cls = turn.isSummary ? 'summary' : (turn.role === 'user' ? 'user' : 'assistant');
+                    const label = turn.isSummary ? 'Compressed Summary' : (turn.role === 'user' ? 'User' : 'Assistant');
                     bodyHtml += `<div class="history-turn ${cls}"><div class="history-turn-role">${label}</div><div class="history-turn-content">${escapeHtml(turn.content)}</div></div>`;
                 }
             }

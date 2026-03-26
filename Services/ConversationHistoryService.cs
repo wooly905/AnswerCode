@@ -5,6 +5,7 @@ namespace AnswerCode.Services;
 /// <summary>
 /// Stores conversation history per session so users can ask follow-up questions.
 /// In-memory implementation — history is lost on app restart.
+/// History length is controlled by token budget (not fixed turn count).
 /// </summary>
 public interface IConversationHistoryService
 {
@@ -14,17 +15,15 @@ public interface IConversationHistoryService
     /// <summary>Append a turn (user question or assistant answer) to the session.</summary>
     void AddTurn(string sessionId, ConversationTurn turn);
 
+    /// <summary>Replace all turns for a session (used after history compression).</summary>
+    void ReplaceTurns(string sessionId, List<ConversationTurn> newTurns);
+
     /// <summary>Clear all history for a session.</summary>
     void Clear(string sessionId);
 }
 
 public class ConversationHistoryService : IConversationHistoryService
 {
-    /// <summary>Max turns to keep per session (oldest are trimmed).
-    /// With SubAgent architecture, history is only sent in 2 LLM calls (resolve + synthesize),
-    /// not in every tool-loop iteration, so we can afford more turns.</summary>
-    private const int MaxTurnsPerSession = 50; // 25 Q&A rounds
-
     private readonly ConcurrentDictionary<string, List<ConversationTurn>> _store = new();
 
     public List<ConversationTurn> GetHistory(string sessionId)
@@ -45,12 +44,16 @@ public class ConversationHistoryService : IConversationHistoryService
         lock (turns)
         {
             turns.Add(turn);
+        }
+    }
 
-            // Trim oldest turns if over limit, keeping pairs intact
-            while (turns.Count > MaxTurnsPerSession)
-            {
-                turns.RemoveAt(0);
-            }
+    public void ReplaceTurns(string sessionId, List<ConversationTurn> newTurns)
+    {
+        var turns = _store.GetOrAdd(sessionId, _ => []);
+        lock (turns)
+        {
+            turns.Clear();
+            turns.AddRange(newTurns);
         }
     }
 
@@ -67,4 +70,9 @@ public class ConversationTurn
 {
     public required string Role { get; init; } // "user" or "assistant"
     public required string Content { get; init; }
+
+    /// <summary>
+    /// True if this turn is a compressed summary of older conversation turns.
+    /// </summary>
+    public bool IsSummary { get; init; }
 }

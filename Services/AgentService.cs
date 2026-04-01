@@ -275,6 +275,7 @@ Rules:
         }
 
         // Phase 1: Resolve follow-up question into standalone question
+        await onProgress(new AgentEvent { Type = AgentEventType.PhaseStart, Phase = 1, PhaseLabel = "Context Resolution" });
         logger.LogInformation("SubAgent Phase 1: Resolving follow-up question with {Turns} history turns", conversationHistory.Count);
         string resolvedQuestion;
         int p1InputTokens = 0, p1OutputTokens = 0;
@@ -289,8 +290,10 @@ Rules:
             logger.LogWarning(ex, "Phase 1 (context resolution) failed, falling back to original question");
             resolvedQuestion = question;
         }
+        await onProgress(new AgentEvent { Type = AgentEventType.PhaseEnd, Phase = 1, PhaseLabel = "Context Resolution", ResolvedQuestion = resolvedQuestion });
 
         // Phase 2: SubAgent tool loop (no history — the core token saving)
+        await onProgress(new AgentEvent { Type = AgentEventType.PhaseStart, Phase = 2, PhaseLabel = "SubAgent Research" });
         logger.LogInformation("SubAgent Phase 2: Running tool loop with resolved question (no history)");
         AgentResult result;
         if (!provider.SupportsToolCalling)
@@ -302,8 +305,10 @@ Rules:
         {
             result = await RunNativeToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, userRole, projectOverview);
         }
+        await onProgress(new AgentEvent { Type = AgentEventType.PhaseEnd, Phase = 2, PhaseLabel = "SubAgent Research", Summary = $"{result.TotalToolCalls} tool calls, {result.IterationCount} iterations" });
 
         // Phase 3: Synthesize final answer with conversation context + research findings
+        await onProgress(new AgentEvent { Type = AgentEventType.PhaseStart, Phase = 3, PhaseLabel = "Answer Synthesis" });
         logger.LogInformation("SubAgent Phase 3: Synthesizing answer with conversation context");
         int p3InputTokens = 0, p3OutputTokens = 0;
         try
@@ -318,6 +323,7 @@ Rules:
         {
             logger.LogWarning(ex, "Phase 3 (synthesis) failed, using SubAgent answer directly");
         }
+        await onProgress(new AgentEvent { Type = AgentEventType.PhaseEnd, Phase = 3, PhaseLabel = "Answer Synthesis" });
 
         // Track main agent tokens (Phase 1 + Phase 3) separately from subagent (Phase 2)
         result.MainAgentInputTokens = p1InputTokens + p3InputTokens;
@@ -504,6 +510,15 @@ Rules:
             result.IterationCount = iteration + 1;
             logger.LogInformation("Agent iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
 
+            await onProgress(new AgentEvent
+            {
+                Type = AgentEventType.SubAgentThinking,
+                Iteration = iteration + 1,
+                Thinking = iteration == 0
+                    ? "Analyzing question and planning approach..."
+                    : $"Analyzing results and deciding next step... (iteration {iteration + 1})"
+            });
+
             LLMChatResponse response;
             try
             {
@@ -663,6 +678,15 @@ Rules:
         {
             result.IterationCount = iteration + 1;
             logger.LogInformation("ReAct iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
+
+            await onProgress(new AgentEvent
+            {
+                Type = AgentEventType.SubAgentThinking,
+                Iteration = iteration + 1,
+                Thinking = iteration == 0
+                    ? "Analyzing question and planning approach..."
+                    : $"Analyzing results and deciding next step... (iteration {iteration + 1})"
+            });
 
             string llmResponse;
             try

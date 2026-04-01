@@ -776,6 +776,98 @@
         .step-raw-toggle .raw-arrow { font-size: 0.5rem; transition: transform 0.2s; }
         .step-raw-toggle .raw-arrow.open { transform: rotate(90deg); }
 
+        /* Phase groups inside steps list */
+        .phase-group {
+            margin-bottom: 4px;
+        }
+
+        .phase-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            padding: 5px 8px;
+            border-radius: 6px;
+            font-size: 0.80rem;
+            color: var(--text-secondary);
+            transition: background 0.15s;
+        }
+
+        .phase-header:hover { background: rgba(255,255,255,0.03); }
+
+        .phase-header .phase-arrow {
+            font-size: 0.55rem;
+            transition: transform 0.2s;
+            width: 10px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .phase-header .phase-arrow.open { transform: rotate(90deg); }
+
+        .phase-header .phase-icon {
+            font-size: 0.85rem;
+            width: 18px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .phase-header .phase-label {
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+
+        .phase-header .phase-status {
+            margin-left: auto;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+        }
+
+        .phase-header .phase-status.running { color: var(--warning-color); }
+        .phase-header .phase-status.done { color: var(--success-color); }
+
+        .phase-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin: 2px 0 2px 18px;
+            padding-left: 10px;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .phase-content.collapsed { display: none; }
+
+        /* Phase 1 resolved question display */
+        .phase-resolved-question {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            margin: 2px 0;
+            font-style: italic;
+            background: rgba(88,166,255,0.05);
+            border-radius: 4px;
+            border-left: 2px solid var(--accent-color);
+        }
+
+        /* SubAgent thinking bubble */
+        .subagent-thinking-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .subagent-thinking-item .thinking-icon {
+            font-size: 0.75rem;
+            opacity: 0.6;
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+
         /* Thinking indicator */
         .thinking-indicator {
             display: flex;
@@ -1578,9 +1670,21 @@
             }
         }
 
+        // Track current phase group per message for grouping tool calls under phases
+        const phaseState = {};
+
         function handleEvent(event, msgId) {
             switch (event.type) {
                 case 'Started': break;
+                case 'PhaseStart':
+                    handlePhaseStart(event, msgId);
+                    break;
+                case 'PhaseEnd':
+                    handlePhaseEnd(event, msgId);
+                    break;
+                case 'SubAgentThinking':
+                    handleSubAgentThinking(event, msgId);
+                    break;
                 case 'ToolCallStart':
                     addStepItem(event, true, msgId);
                     updateThinkingText(msgId, `Running ${formatToolName(event.toolName)}...`);
@@ -1600,8 +1704,118 @@
             }
         }
 
-        function addStepItem(event, running, msgId) {
+        function getPhaseIcon(phase) {
+            return { 0: '\uD83D\uDDDC', 1: '\uD83D\uDD0D', 2: '\u2699\uFE0F', 3: '\u2728' }[phase] || '\u25CB';
+        }
+
+        function handlePhaseStart(event, msgId) {
             const list = document.getElementById(`${msgId}-steps-list`);
+            if (!list) return;
+
+            const phaseId = `${msgId}-phase-${event.phase}`;
+            const group = document.createElement('div');
+            group.className = 'phase-group';
+            group.id = phaseId;
+
+            // Phase 2 starts expanded (it has tool calls); others start collapsed
+            const startExpanded = event.phase === 2;
+
+            group.innerHTML = `
+                <div class="phase-header" onclick="togglePhaseContent('${phaseId}')">
+                    <span class="phase-arrow ${startExpanded ? 'open' : ''}" id="${phaseId}-arrow">&#9654;</span>
+                    <span class="phase-icon">${getPhaseIcon(event.phase)}</span>
+                    <span class="phase-label">Phase ${event.phase}: ${escapeHtml(event.phaseLabel || '')}</span>
+                    <span class="phase-status running" id="${phaseId}-status">running...</span>
+                </div>
+                <div class="phase-content ${startExpanded ? '' : 'collapsed'}" id="${phaseId}-content"></div>
+            `;
+            list.appendChild(group);
+
+            // Track current phase for this message
+            if (!phaseState[msgId]) phaseState[msgId] = {};
+            phaseState[msgId].currentPhase = event.phase;
+            phaseState[msgId].currentPhaseId = phaseId;
+
+            updateThinkingText(msgId, `${event.phaseLabel || 'Phase ' + event.phase}...`);
+            scrollToBottom();
+        }
+
+        function handlePhaseEnd(event, msgId) {
+            const phaseId = `${msgId}-phase-${event.phase}`;
+            const statusEl = document.getElementById(`${phaseId}-status`);
+            if (statusEl) {
+                statusEl.className = 'phase-status done';
+                statusEl.textContent = event.summary ? `\u2713 ${event.summary}` : '\u2713 done';
+            }
+
+            // For Phase 1, show the resolved question
+            if (event.phase === 1 && event.resolvedQuestion) {
+                const content = document.getElementById(`${phaseId}-content`);
+                if (content) {
+                    const rq = document.createElement('div');
+                    rq.className = 'phase-resolved-question';
+                    rq.textContent = event.resolvedQuestion;
+                    content.appendChild(rq);
+                    // Expand to show the resolved question
+                    content.classList.remove('collapsed');
+                    const arrow = document.getElementById(`${phaseId}-arrow`);
+                    if (arrow) arrow.classList.add('open');
+                }
+            }
+
+            // Collapse Phase 0 completely if it had no meaningful content
+            if (event.phase === 0) {
+                const content = document.getElementById(`${phaseId}-content`);
+                if (content && content.children.length === 0) {
+                    const group = document.getElementById(phaseId);
+                    if (group) group.style.display = 'none';
+                }
+            }
+
+            scrollToBottom();
+        }
+
+        function handleSubAgentThinking(event, msgId) {
+            const state = phaseState[msgId];
+            // If we're inside a phase, add thinking to that phase's content
+            let container;
+            if (state && state.currentPhaseId) {
+                container = document.getElementById(`${state.currentPhaseId}-content`);
+            }
+            // Fallback to main steps list
+            if (!container) container = document.getElementById(`${msgId}-steps-list`);
+            if (!container) return;
+
+            // Remove previous thinking item (only show latest)
+            const prev = container.querySelector('.subagent-thinking-item');
+            if (prev) prev.remove();
+
+            const item = document.createElement('div');
+            item.className = 'subagent-thinking-item';
+            item.innerHTML = `<span class="thinking-icon">\uD83D\uDCAD</span><span>${escapeHtml(event.thinking || 'Thinking...')}</span>`;
+            container.appendChild(item);
+            scrollToBottom();
+        }
+
+        function togglePhaseContent(phaseId) {
+            const content = document.getElementById(`${phaseId}-content`);
+            const arrow = document.getElementById(`${phaseId}-arrow`);
+            if (!content) return;
+            const isCollapsed = content.classList.toggle('collapsed');
+            if (arrow) arrow.classList.toggle('open', !isCollapsed);
+        }
+
+        function addStepItem(event, running, msgId) {
+            // If inside a phase, add to the phase's content container
+            const state = phaseState[msgId];
+            let list;
+            if (state && state.currentPhaseId) {
+                list = document.getElementById(`${state.currentPhaseId}-content`);
+                // Remove any thinking item before adding a real step
+                const thinkingItem = list?.querySelector('.subagent-thinking-item');
+                if (thinkingItem) thinkingItem.remove();
+            }
+            if (!list) list = document.getElementById(`${msgId}-steps-list`);
             if (!list) return;
             stepCounter++;
             const id = `${msgId}-step-${stepCounter}`;
@@ -1626,6 +1840,7 @@
         }
 
         function markStepDone(event, msgId) {
+            // Search in the entire steps area (including phase content containers)
             const list = document.getElementById(`${msgId}-steps-list`);
             if (!list) return;
             const items = list.querySelectorAll('.step-item.running');
@@ -1662,7 +1877,15 @@
         }
 
         function updateThinkingText(msgId, text) { const el = document.getElementById(`${msgId}-thinking`); if (el) { const s = el.querySelector(':scope > span'); if (s) s.textContent = text; } }
-        function removeThinking(msgId) { const el = document.getElementById(`${msgId}-thinking`); if (el) el.remove(); }
+        function removeThinking(msgId) {
+            const el = document.getElementById(`${msgId}-thinking`);
+            if (el) el.remove();
+            // Also remove any lingering SubAgent thinking items
+            const list = document.getElementById(`${msgId}-steps-list`);
+            if (list) list.querySelectorAll('.subagent-thinking-item').forEach(t => t.remove());
+            // Clean up phase state
+            delete phaseState[msgId];
+        }
 
         async function showFinalAnswer(data, msgId) {
             if (!data) return;
@@ -1670,7 +1893,10 @@
             const elapsedEl = document.getElementById(`${msgId}-elapsed`);
             if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
             const stepsToggle = document.querySelector(`#${msgId}-steps .steps-toggle span:nth-child(2)`);
-            if (stepsToggle) stepsToggle.textContent = `${data.toolCallCount || 0} tool calls`;
+            const hasPhases = !!document.querySelector(`#${msgId}-steps-list .phase-group`);
+            if (stepsToggle) stepsToggle.textContent = hasPhases
+                ? `SubAgent Flow \u00b7 ${data.toolCallCount || 0} tool calls`
+                : `${data.toolCallCount || 0} tool calls`;
 
             const answerDiv = document.getElementById(`${msgId}-answer`);
             answerDiv.style.display = '';

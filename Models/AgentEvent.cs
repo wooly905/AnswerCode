@@ -14,7 +14,13 @@ public enum AgentEventType
     /// <summary>The final answer is ready</summary>
     Answer,
     /// <summary>An error occurred</summary>
-    Error
+    Error,
+    /// <summary>A SubAgent phase has started (Phase 1/2/3)</summary>
+    PhaseStart,
+    /// <summary>A SubAgent phase has completed</summary>
+    PhaseEnd,
+    /// <summary>SubAgent is thinking / reasoning (emitted each iteration before tool calls)</summary>
+    SubAgentThinking
 }
 
 /// <summary>
@@ -56,4 +62,16 @@ public class AgentEvent
 
     /// <summary>Only set for Answer/Error events</summary>
     public AnswerResponse? Result { get; set; }
+
+    /// <summary>Phase number (1, 2, or 3) for PhaseStart/PhaseEnd events</summary>
+    public int? Phase { get; set; }
+
+    /// <summary>Human-readable phase label (e.g. "Context Resolution", "SubAgent Research", "Answer Synthesis")</summary>
+    public string? PhaseLabel { get; set; }
+
+    /// <summary>The resolved standalone question produced by Phase 1 (set on PhaseEnd for Phase 1)</summary>
+    public string? ResolvedQuestion { get; set; }
+
+    /// <summary>SubAgent thinking/reasoning text for SubAgentThinking events</summary>
+    public string? Thinking { get; set; }
 }

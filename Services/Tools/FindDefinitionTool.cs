@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AnswerCode.Services.Analysis;
 using OpenAI.Chat;
 
 namespace AnswerCode.Services.Tools;
@@ -11,9 +12,22 @@ namespace AnswerCode.Services.Tools;
 /// Find definition tool — locates where a symbol (class, interface, method, function, etc.)
 /// is defined in the codebase. More precise and token-efficient than grep_search because
 /// it uses language-aware patterns to return only definitions, not usages.
+/// For TypeScript/Python, delegates to ILanguageHeuristicService (which may use LSP).
 /// </summary>
 public class FindDefinitionTool : ITool
 {
+    private static readonly HashSet<string> _serviceLanguageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.py", "*.pyw",
+    };
+
+    private readonly ISymbolAnalysisService _symbolAnalysisService;
+
+    public FindDefinitionTool(ISymbolAnalysisService symbolAnalysisService)
+    {
+        _symbolAnalysisService = symbolAnalysisService;
+    }
+
     public const string ToolName = "find_definition";
 
     public string Name => ToolName;
@@ -123,6 +137,14 @@ public class FindDefinitionTool : ITool
 
         try
         {
+            // For TS/Python scoped searches, try the service layer first (uses LSP when available)
+            if (IsServiceLanguageFilter(include))
+            {
+                var serviceResult = await TryFindViaServiceAsync(symbol, include, context);
+                if (serviceResult is not null)
+                    return serviceResult;
+            }
+
             // Build a combined regex pattern for all languages
             var patterns = BuildSearchPatterns(symbol, include);
             var rgPath = FindRipgrep();
@@ -137,6 +159,48 @@ public class FindDefinitionTool : ITool
         catch (Exception ex)
         {
             return $"Error finding definition: {ex.Message}";
+        }
+    }
+
+    private static bool IsServiceLanguageFilter(string? include)
+    {
+        if (string.IsNullOrWhiteSpace(include))
+            return true; // no filter = search all languages including TS/Python
+        return _serviceLanguageExtensions.Contains(include);
+    }
+
+    private async Task<string?> TryFindViaServiceAsync(string symbol, string? include, ToolContext context)
+    {
+        try
+        {
+            var matches = await _symbolAnalysisService.FindDefinitionsAsync(context.RootPath, symbol);
+
+            // If include filter is set, filter by extension
+            if (!string.IsNullOrWhiteSpace(include))
+            {
+                var filterExt = "." + include.TrimStart('*').TrimStart('.');
+                matches = matches.Where(m => m.FilePath.EndsWith(filterExt, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+
+            if (matches.Count == 0)
+                return null; // fall back to ripgrep
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"Found {matches.Count} definition(s) for '{symbol}':");
+            sb.AppendLine();
+
+            foreach (var m in matches.Take(_maxResults))
+            {
+                sb.AppendLine($"{m.RelativePath}:{m.StartLine}");
+                sb.AppendLine($"  {AnalysisFormatting.TruncateSingleLine(m.Signature)}");
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
+        }
+        catch
+        {
+            return null; // fall back to ripgrep
         }
     }
 

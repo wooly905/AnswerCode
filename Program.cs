@@ -1,6 +1,7 @@
 using AnswerCode.Models;
 using AnswerCode.Services;
 using AnswerCode.Services.Analysis;
+using AnswerCode.Services.Lsp;
 using AnswerCode.Services.Providers;
 using AnswerCode.Services.Tools;
 using Microsoft.AspNetCore.Authentication;
@@ -44,7 +45,18 @@ builder.Services.AddScoped<ICodeExplorerService, CodeExplorerService>();
 // Register analysis services for symbol-aware tools
 builder.Services.AddSingleton<IWorkspaceFileService, WorkspaceFileService>();
 builder.Services.AddSingleton<ICSharpCompilationService, CSharpCompilationService>();
-builder.Services.AddSingleton<ILanguageHeuristicService, LanguageHeuristicService>();
+
+// LSP-enhanced language analysis (Decorator pattern: LSP → fallback to regex)
+builder.Services.Configure<LspSettings>(builder.Configuration.GetSection(LspSettings.SectionName));
+builder.Services.AddSingleton<LanguageHeuristicService>();
+builder.Services.AddSingleton<ILspServerManager, LspServerManager>();
+builder.Services.AddSingleton<ILanguageHeuristicService>(sp =>
+    new LspLanguageAnalysisService(
+        sp.GetRequiredService<LanguageHeuristicService>(),
+        sp.GetRequiredService<ILspServerManager>(),
+        sp.GetRequiredService<IWorkspaceFileService>(),
+        sp.GetRequiredService<ILogger<LspLanguageAnalysisService>>()));
+
 builder.Services.AddSingleton<ISymbolAnalysisService, SymbolAnalysisService>();
 builder.Services.AddSingleton<IReferenceAnalysisService, ReferenceAnalysisService>();
 builder.Services.AddSingleton<ITestDiscoveryService, TestDiscoveryService>();

@@ -1,0 +1,11 @@
+{
+  "name": "answercode-lsp-servers",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LSP server binaries for AnswerCode semantic analysis",
+  "dependencies": {
+    "typescript-language-server": "^4.3.3",
+    "typescript": "^5.7.0",
+    "pyright": "^1.1.400"
+  }
+}

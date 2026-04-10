@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AnswerCode.Services.Analysis;
 using OpenAI.Chat;
 
 namespace AnswerCode.Services.Tools;
@@ -9,10 +10,25 @@ namespace AnswerCode.Services.Tools;
 /// File outline tool — extracts structural outline (classes, methods, properties, etc.)
 /// with line numbers but WITHOUT implementation bodies. Much more token-efficient than
 /// reading the full file when you just need to understand the file's structure.
+/// For TypeScript/Python, delegates to ILanguageHeuristicService (which may use LSP).
 /// </summary>
 public class FileOutlineTool : ITool
 {
     public const string ToolName = "get_file_outline";
+
+    private static readonly HashSet<string> _serviceLanguageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".pyw",
+    };
+
+    private readonly ILanguageHeuristicService _heuristicService;
+    private readonly IWorkspaceFileService _workspaceFileService;
+
+    public FileOutlineTool(ILanguageHeuristicService heuristicService, IWorkspaceFileService workspaceFileService)
+    {
+        _heuristicService = heuristicService;
+        _workspaceFileService = workspaceFileService;
+    }
 
     public string Name => ToolName;
 
@@ -71,6 +87,14 @@ public class FileOutlineTool : ITool
         var relPath = Path.GetRelativePath(context.RootPath, filePath);
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
+        // For TS/Python: delegate to ILanguageHeuristicService (which uses LSP when available)
+        if (_serviceLanguageExtensions.Contains(ext))
+        {
+            var serviceResult = await TryGetOutlineViaServiceAsync(context.RootPath, filePath, relPath, lines);
+            if (serviceResult is not null)
+                return serviceResult;
+        }
+
         var symbols = ext switch
         {
             ".cs" => ParseCSharp(lines),
@@ -81,8 +105,38 @@ public class FileOutlineTool : ITool
             _ => ParseGeneric(lines)
         };
 
+        return FormatOutline(relPath, lines.Length, symbols);
+    }
+
+    private async Task<string?> TryGetOutlineViaServiceAsync(string rootPath, string filePath, string relPath, string[] lines)
+    {
+        try
+        {
+            var declared = await _heuristicService.GetDeclaredSymbolsInFileAsync(rootPath, filePath);
+            if (declared.Count == 0)
+                return null;
+
+            var outlineSymbols = declared.Select(d =>
+            {
+                var depth = string.IsNullOrEmpty(d.ContainingSymbol) ? 0 : d.ContainingSymbol.Count(c => c == '.') + 1;
+                var sig = d.StartLine <= lines.Length
+                    ? CleanSignature(lines[d.StartLine - 1])
+                    : d.Signature;
+                return new OutlineSymbol(d.StartLine, depth, sig);
+            }).ToList();
+
+            return FormatOutline(relPath, lines.Length, outlineSymbols);
+        }
+        catch
+        {
+            return null; // fall back to built-in parser
+        }
+    }
+
+    private static string FormatOutline(string relPath, int lineCount, List<OutlineSymbol> symbols)
+    {
         var sb = new StringBuilder();
-        sb.AppendLine($"File: {relPath} ({lines.Length} lines)");
+        sb.AppendLine($"File: {relPath} ({lineCount} lines)");
 
         if (symbols.Count == 0)
         {

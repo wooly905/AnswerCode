@@ -20,6 +20,23 @@
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
+  <!-- LSP servers: npm install before publish so node_modules are included in deploy -->
+  <Target Name="NpmInstallLspServers" BeforeTargets="BeforePublish">
+    <Exec Command="npm install --omit=dev" WorkingDirectory="$(MSBuildProjectDirectory)\lsp-servers" />
+  </Target>
+
+  <!-- Include lsp-servers (package.json + node_modules) in publish output -->
+  <ItemGroup>
+    <Content Update="lsp-servers\package.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="lsp-servers\node_modules\**\*" CopyToPublishDirectory="PreserveNewest" Link="lsp-servers\node_modules\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- exclude lsp-servers from compile/embed (not C# code) -->
+  <ItemGroup>
+    <Compile Remove="lsp-servers\**\*" />
+    <EmbeddedResource Remove="lsp-servers\**\*" />
+  </ItemGroup>
+
   <!-- exclude project-code and source-code folders -->
   <ItemGroup>
     <Compile Remove="project-code\**\*" />

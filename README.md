@@ -18,7 +18,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 - **Streaming Progress**: Real-time SSE streaming shows each tool call as it happens, including a result summary, expandable detail items, and duration
 - **Token Usage Tracking**: Main agent (context resolution + synthesis) and SubAgent (tool loop) token counts are tracked separately and displayed in the top bar as **Main / Sub / Total**
 - **Multi-Language Project Support**: Auto-detects and summarizes project metadata for .NET, Node.js, Python, Go, Rust, Java, and C/C++ projects
-- **Hybrid Multi-Language Code Analysis**: `C#` uses Roslyn for precise symbol reads and reference lookup, while JavaScript, TypeScript, Python, Java, Go, Rust, and C/C++ use heuristic symbol, reference, and test discovery
+- **Hybrid Multi-Language Code Analysis**: `C#` uses Roslyn for precise symbol reads and reference lookup; TypeScript, JavaScript, Python, Go, and Rust use LSP servers (typescript-language-server, Pyright, gopls, rust-analyzer) for semantic definition, reference, and symbol analysis with heuristic fallback; Java and C/C++ use heuristic symbol, reference, and test discovery
 - **Dark Theme UI**: Web interface with syntax highlighting, Markdown rendering, Mermaid diagram support with interactive zoom/pan and fullscreen view
 - **Automatic Upload Cleanup**: Anonymous uploads are automatically deleted when the user leaves the page (`beforeunload` + `sendBeacon`), with a background service as a safety net that removes expired uploads based on a configurable TTL
 - **Structured Logging**: Request/response logging via Serilog with console and rolling file sinks
@@ -218,7 +218,9 @@ The agent uses these tools to explore your codebase:
 **Symbol-aware analysis:**
 
 - `C#` paths use Roslyn-backed analysis for `read_symbol`, `find_references`, `find_tests`, and `call_graph`.
-- JavaScript, TypeScript, Python, Java, Go, Rust, and C/C++ use heuristic parsing and matching for those same tools.
+- TypeScript, JavaScript, and Python use LSP servers (`typescript-language-server`, `Pyright`) for `find_definition`, `find_references`, and `get_file_outline`, with heuristic fallback.
+- Go and Rust use LSP servers (`gopls`, `rust-analyzer`) for the same operations, with heuristic fallback. The LSP binaries are bundled under `lsp-servers/bin/` for deployment to environments (e.g., Azure App Service) where these tools are not pre-installed.
+- Java and C/C++ use heuristic parsing and matching for those same tools.
 
 ## ReAct Fallback Loop
 
@@ -275,10 +277,14 @@ AnswerCode/
 ├── Models/                       # DTOs and configuration models
 ├── Services/
 │   ├── Analysis/                 # Roslyn + heuristic multi-language analysis services
+│   ├── Lsp/                      # LSP client infrastructure (JSON-RPC, server manager)
 │   ├── Providers/                # LLM provider implementations (OpenAI, AzureOpenAI)
 │   ├── Tools/                    # Agent tools + ReActParser
 │   ├── UploadCleanupService.cs   # Background service for expired upload cleanup
 │   └── UserStorageService.cs     # Per-user storage management and quota enforcement
+├── lsp-servers/
+│   ├── bin/                      # Bundled LSP binaries (gopls.exe, rust-analyzer.exe)
+│   └── node_modules/             # Node-based LSP servers (typescript-language-server, pyright)
 ├── wwwroot/
 │   ├── index.html                # Main Q&A interface
 │   ├── dashboard.html            # User dashboard (storage, project management)

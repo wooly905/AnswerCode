@@ -4,7 +4,7 @@ namespace AnswerCode.Services.Lsp;
 
 /// <summary>
 /// Decorator over <see cref="ILanguageHeuristicService"/>.
-/// For TypeScript/Python: delegates to LSP servers for semantic analysis.
+/// For TypeScript/Python/Go/Rust: delegates to LSP servers for semantic analysis.
 /// For other languages or on LSP failure: falls back to the wrapped regex-based service.
 /// </summary>
 public sealed class LspLanguageAnalysisService(ILanguageHeuristicService fallback,
@@ -19,6 +19,8 @@ public sealed class LspLanguageAnalysisService(ILanguageHeuristicService fallbac
         "javascript",
         "javascriptreact",
         "python",
+        "go",
+        "rust",
     };
 
     // ── FindDefinitionsAsync ─────────────────────────────────────────────────
@@ -419,6 +421,8 @@ public sealed class LspLanguageAnalysisService(ILanguageHeuristicService fallbac
         "javascriptreact" => "javascriptreact",
         "javascript" => "javascript",
         "python" => "python",
+        "go" => "go",
+        "rust" => "rust",
         _ => "typescript", // default for typescript
     };
 

@@ -10,9 +10,9 @@ namespace AnswerCode.Services.Providers;
 public interface ILLMProviderCreator
 {
     /// <summary>
-    /// Whether this creator can handle the given provider key.
+    /// Whether this creator can handle the given provider key and settings.
     /// </summary>
-    bool CanCreate(string providerKey);
+    bool CanCreate(string providerKey, LLMProviderSettings settings);
 
     /// <summary>
     /// Create a provider instance for the given key and settings.

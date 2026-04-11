@@ -60,7 +60,7 @@ When analyzing code:
 
             try
             {
-                var creator = providerCreators.FirstOrDefault(c => c.CanCreate(providerKey));
+                var creator = providerCreators.FirstOrDefault(c => c.CanCreate(providerKey, providerSettings));
                 if (creator == null)
                 {
                     _logger.LogWarning("No provider creator registered for '{Key}', skipping", providerKey);
@@ -110,7 +110,7 @@ When analyzing code:
         }
         else
         {
-            _logger.LogDebug("Using provider: {Provider}", provider.Name);
+            _logger.LogInformation("Using provider: {Provider}", provider.Name);
         }
 
         return provider;
@@ -163,7 +163,7 @@ When analyzing code:
         {
             return _providers.ContainsKey(_settings.DefaultProvider)
                 ? _settings.DefaultProvider
-                : _providers.Keys.FirstOrDefault() ?? ProviderKeys.OpenAI;
+                : _providers.Keys.FirstOrDefault() ?? _settings.DefaultProvider;
         }
 
         var normalized = ProviderKeys.Normalize(providerName);

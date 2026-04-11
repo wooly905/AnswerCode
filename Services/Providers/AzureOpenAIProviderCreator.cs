@@ -7,7 +7,7 @@ namespace AnswerCode.Services.Providers;
 /// </summary>
 public class AzureOpenAIProviderCreator(ILoggerFactory loggerFactory) : ILLMProviderCreator
 {
-    public bool CanCreate(string providerKey) => providerKey.Equals(ProviderKeys.AzureOpenAI, StringComparison.OrdinalIgnoreCase);
+    public bool CanCreate(string providerKey, LLMProviderSettings settings) => !string.IsNullOrEmpty(settings.DeploymentName);
 
-    public ILLMProvider Create(string providerKey, LLMProviderSettings settings, string systemPromptBase) => new AzureOpenAIProvider(settings, systemPromptBase, loggerFactory.CreateLogger<AzureOpenAIProvider>());
+    public ILLMProvider Create(string providerKey, LLMProviderSettings settings, string systemPromptBase) => new AzureOpenAIProvider(settings, systemPromptBase, loggerFactory.CreateLogger<AzureOpenAIProvider>(), providerKey);
 }

@@ -18,7 +18,7 @@ public class OpenAIProviderCreator : ILLMProviderCreator
     /// <summary>
     /// Returns true for any provider key that is NOT AzureOpenAI (OpenAI-compatible fallback).
     /// </summary>
-    public bool CanCreate(string providerKey) => !providerKey.Equals(ProviderKeys.AzureOpenAI, StringComparison.OrdinalIgnoreCase);
+    public bool CanCreate(string providerKey, LLMProviderSettings settings) => string.IsNullOrEmpty(settings.DeploymentName);
 
     public ILLMProvider Create(string providerKey,
                                LLMProviderSettings settings,

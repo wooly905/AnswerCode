@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace AnswerCode.Services;
 
 public class LLMRequestLoggingHandler : DelegatingHandler
@@ -12,17 +14,24 @@ public class LLMRequestLoggingHandler : DelegatingHandler
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        // Log Request
+        // Read, log, and rewrite request payload if needed
         if (request.Content != null)
         {
             try
             {
                 var requestContent = await request.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogInformation("LLM HTTP Request Payload: {Payload}", requestContent);
+
+                // GPT-5 series models require max_completion_tokens instead of max_tokens
+                if (requestContent.Contains("\"max_tokens\"") && RequiresMaxCompletionTokens(requestContent))
+                {
+                    requestContent = requestContent.Replace("\"max_tokens\"", "\"max_completion_tokens\"");
+                    request.Content = new StringContent(requestContent, Encoding.UTF8, "application/json");
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to log request payload");
+                _logger.LogError(ex, "Failed to process request payload");
             }
         }
 
@@ -44,5 +53,12 @@ public class LLMRequestLoggingHandler : DelegatingHandler
         }
 
         return response;
+    }
+
+    private static bool RequiresMaxCompletionTokens(string requestBody)
+    {
+        // GPT-5.4-mini rejects max_tokens, requires max_completion_tokens
+        return requestBody.Contains("\"model\":\"gpt-5.4-mini\"")
+            || requestBody.Contains("\"model\": \"gpt-5.4-mini\"");
     }
 }

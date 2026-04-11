@@ -12,9 +12,10 @@ namespace AnswerCode.Services.Providers;
 /// </summary>
 public class AzureOpenAIProvider(LLMProviderSettings settings,
                                  string systemPromptBase,
-                                 ILogger<AzureOpenAIProvider> logger) : BaseLLMProvider(CreateChatClient(settings, logger), systemPromptBase)
+                                 ILogger<AzureOpenAIProvider> logger,
+                                 string providerKey = ProviderKeys.AzureOpenAI) : BaseLLMProvider(CreateChatClient(settings, logger), systemPromptBase)
 {
-    public override string Name => ProviderKeys.AzureOpenAI;
+    public override string Name => providerKey;
 
     private static ChatClient CreateChatClient(LLMProviderSettings settings, ILogger<AzureOpenAIProvider> logger)
     {

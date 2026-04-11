@@ -1211,9 +1211,9 @@
             <!-- Input bar -->
             <div class="input-bar">
                 <div class="input-bar-inner">
-                    <textarea id="question" rows="1" placeholder="Ask a question about your code... (Ctrl+Enter to send)"
+                    <textarea id="question" rows="1" placeholder="Ask a question about your code... (Enter to send)"
                         oninput="autoResize(this)"></textarea>
-                    <button class="send-btn" id="sendBtn" onclick="askQuestion()" disabled title="Ctrl+Enter">Send <kbd>Ctrl+Enter</kbd></button>
+                    <button class="send-btn" id="sendBtn" onclick="askQuestion()" disabled title="Enter">Send <kbd>Enter</kbd></button>
                 </div>
             </div>
         </div><!-- /right-panel -->
@@ -2067,7 +2067,7 @@
 
         // ── Keyboard ──
         document.getElementById('question').addEventListener('keydown', function (e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); askQuestion(); }
+            if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); askQuestion(); }
         });
 
         // ── Mermaid ──

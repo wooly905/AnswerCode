@@ -35,6 +35,8 @@ public interface IAgentService
 public class AgentResult
 {
     public string Answer { get; set; } = string.Empty;
+    /// <summary>Thinking/reasoning content from the final answer (null when not a thinking model).</summary>
+    public string? ThinkingContent { get; set; }
     public List<string> RelevantFiles { get; set; } = [];
     public List<ToolCallRecord> ToolCalls { get; set; } = [];
     public int TotalToolCalls { get; set; }

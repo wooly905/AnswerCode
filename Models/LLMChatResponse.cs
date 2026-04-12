@@ -18,6 +18,12 @@ public class LLMChatResponse
     public string? TextContent { get; init; }
 
     /// <summary>
+    /// Thinking/reasoning content extracted from thinking model tags (e.g. &lt;thought&gt;, &lt;think&gt;).
+    /// Null when the model does not produce thinking content.
+    /// </summary>
+    public string? ThinkingContent { get; init; }
+
+    /// <summary>
     /// Tool calls requested by the model
     /// </summary>
     public IReadOnlyList<LLMToolCallInfo> ToolCalls { get; init; } = [];

@@ -11,6 +11,12 @@ public class AnswerResponse
     public string Answer { get; set; } = string.Empty;
 
     /// <summary>
+    /// Thinking/reasoning content from the final answer (from thinking models like Gemma 4, DeepSeek R1).
+    /// Null when the model does not produce thinking content.
+    /// </summary>
+    public string? ThinkingContent { get; set; }
+
+    /// <summary>
     /// Relevant files found during search
     /// </summary>
     public List<string> RelevantFiles { get; set; } = new();

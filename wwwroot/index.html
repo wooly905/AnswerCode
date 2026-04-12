@@ -892,6 +892,40 @@
 
         @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-5px); } }
 
+        /* Thinking content inside tool call steps */
+        .step-thinking {
+            margin: 2px 0 2px 28px;
+            border-left: 2px solid var(--accent-color);
+            background: var(--bg-secondary);
+            border-radius: 0 6px 6px 0;
+            overflow: hidden;
+        }
+        .step-thinking-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            user-select: none;
+        }
+        .step-thinking-toggle:hover { background: var(--bg-hover); }
+        .step-thinking-toggle .arrow { font-size: 0.6rem; transition: transform 0.2s; display: inline-block; }
+        .step-thinking-toggle .arrow.open { transform: rotate(90deg); }
+        .step-thinking-content {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            border-top: 1px solid var(--border-color);
+            white-space: pre-wrap;
+            max-height: 250px;
+            overflow-y: auto;
+            display: none;
+        }
+        .step-thinking-content.open { display: block; }
+
         /* Markdown */
         .markdown-body { color: var(--text-primary); }
         .markdown-body h1, .markdown-body h2, .markdown-body h3 { border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-top: 20px; margin-bottom: 12px; }
@@ -1790,9 +1824,13 @@
             const prev = container.querySelector('.subagent-thinking-item');
             if (prev) prev.remove();
 
+            const thinking = event.thinking || 'Thinking...';
+            const maxLen = 120;
+            const summary = thinking.length > maxLen ? thinking.substring(0, maxLen) + '...' : thinking;
             const item = document.createElement('div');
             item.className = 'subagent-thinking-item';
-            item.innerHTML = `<span class="thinking-icon">\uD83D\uDCAD</span><span>${escapeHtml(event.thinking || 'Thinking...')}</span>`;
+            item.innerHTML = `<span class="thinking-icon">\uD83D\uDCAD</span><span>${escapeHtml(summary)}</span>`;
+            item.title = thinking;
             container.appendChild(item);
             scrollToBottom();
         }
@@ -1823,6 +1861,15 @@
             item.className = `step-item ${running ? 'running' : 'done'}`;
             item.id = id;
             item.dataset.toolName = event.toolName;
+            const thinkingHtml = event.thinking
+                ? `<div class="step-thinking">
+                    <div class="step-thinking-toggle" onclick="event.stopPropagation(); toggleStepThinking('${id}')">
+                        <span class="arrow" id="${id}-think-arrow">&#9654;</span>
+                        <span>\uD83D\uDCAD Thinking</span>
+                    </div>
+                    <div class="step-thinking-content" id="${id}-thinking">${escapeHtml(event.thinking)}</div>
+                </div>`
+                : '';
             item.innerHTML = `
                 <div class="step-header" onclick="toggleStepDetails('${id}')">
                     <span class="step-expander" id="${id}-exp">&#9654;</span>
@@ -1833,6 +1880,7 @@
                     <span class="step-result" id="${id}-result"></span>
                     <span class="step-duration" id="${id}-dur">${running ? '...' : ''}</span>
                 </div>
+                ${thinkingHtml}
                 <div class="step-details" id="${id}-details"></div>
             `;
             list.appendChild(item);
@@ -2041,6 +2089,15 @@
             const isOpen = content.classList.contains('open');
             content.classList.toggle('open');
             const arrow = toggleEl.querySelector('.arrow');
+            if (arrow) arrow.classList.toggle('open', !isOpen);
+        }
+
+        function toggleStepThinking(stepId) {
+            const content = document.getElementById(`${stepId}-thinking`);
+            const arrow = document.getElementById(`${stepId}-think-arrow`);
+            if (!content) return;
+            const isOpen = content.classList.contains('open');
+            content.classList.toggle('open');
             if (arrow) arrow.classList.toggle('open', !isOpen);
         }
 

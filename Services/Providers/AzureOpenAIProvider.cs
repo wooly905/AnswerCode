@@ -17,6 +17,8 @@ public class AzureOpenAIProvider(LLMProviderSettings settings,
 {
     public override string Name => providerKey;
 
+    public override bool SupportsToolCalling => settings.SupportsToolCalling ?? true;
+
     private static ChatClient CreateChatClient(LLMProviderSettings settings, ILogger<AzureOpenAIProvider> logger)
     {
         ArgumentNullException.ThrowIfNull(settings);

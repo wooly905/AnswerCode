@@ -313,9 +313,10 @@ Rules:
         int p3InputTokens = 0, p3OutputTokens = 0;
         try
         {
+            var cleanedFindings = ReActParser.CleanNativeTokens(result.Answer);
             var (finalAnswer, p3In, p3Out) = await SynthesizeAnswerAsync(
-                provider, question, conversationHistory, result.Answer, userRole);
-            result.Answer = finalAnswer;
+                provider, question, conversationHistory, cleanedFindings, userRole);
+            result.Answer = ReActParser.CleanNativeTokens(finalAnswer);
             p3InputTokens = p3In;
             p3OutputTokens = p3Out;
         }
@@ -374,7 +375,9 @@ Rules:
         messages.Add(new UserChatMessage($"## Current Question (rewrite this as self-contained)\n{question}"));
 
         var response = await provider.ChatAsync(messages);
-        var resolved = response.TextContent?.Trim() ?? question;
+        var resolved = ReActParser.CleanNativeTokens(response.TextContent?.Trim() ?? question);
+        if (string.IsNullOrWhiteSpace(resolved))
+            resolved = question; // fallback if cleaning removed everything
         return (resolved, response.InputTokens, response.OutputTokens);
     }
 
@@ -734,7 +737,7 @@ Rules:
                 }
 
                 emptyAssistantResponses = 0;
-                result.Answer = llmResponse;
+                result.Answer = ReActParser.CleanNativeTokens(llmResponse);
                 logger.LogInformation("ReAct agent finished after {Iterations} iterations, {ToolCalls} tool calls", iteration + 1, result.TotalToolCalls);
                 break;
             }

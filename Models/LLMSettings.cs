@@ -49,4 +49,11 @@ public class LLMProviderSettings
     /// Optional display name for UI purposes.
     /// </summary>
     public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// Whether this provider supports native tool calling (function calling).
+    /// When false, the agent uses the ReAct text-based tool loop instead.
+    /// Defaults to null (provider decides).
+    /// </summary>
+    public bool? SupportsToolCalling { get; set; }
 }

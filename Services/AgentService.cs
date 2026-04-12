@@ -562,6 +562,9 @@ Rules:
 
             emptyAssistantResponses = 0;
 
+            // Attach thinking content to the first tool call of this iteration
+            var iterationThinking = response.ThinkingContent;
+
             foreach (var toolCall in response.ToolCalls)
             {
                 var argsSummary = ToolResultFormatter.FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
@@ -572,8 +575,12 @@ Rules:
                     ToolName = toolCall.FunctionName,
                     ToolArgs = toolCall.Arguments,
                     Summary = argsSummary,
-                    Iteration = iteration + 1
+                    Iteration = iteration + 1,
+                    Thinking = iterationThinking
                 });
+
+                // Only attach thinking to the first tool call
+                iterationThinking = null;
 
                 DateTime startTime = DateTime.Now;
                 string toolResult;

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AnswerCode.Models;
 using OpenAI.Chat;
 
@@ -63,12 +64,14 @@ public abstract class BaseLLMProvider(ChatClient chatClient, string systemPrompt
 
         var completion = await ChatClient.CompleteChatAsync(messages, options);
         var value = completion.Value;
-        var text = value.Content.Count > 0 ? value.Content[0].Text ?? "" : "";
+        var rawText = value.Content.Count > 0 ? value.Content[0].Text ?? "" : "";
+        var (cleanedText, thinking) = ExtractThinking(rawText);
         return new LLMChatResponse
         {
             IsToolCall = false,
-            TextContent = text,
-            AssistantMessage = new AssistantChatMessage(text),
+            TextContent = cleanedText,
+            ThinkingContent = thinking,
+            AssistantMessage = new AssistantChatMessage(rawText),
             InputTokens = value.Usage?.InputTokenCount ?? 0,
             OutputTokens = value.Usage?.OutputTokenCount ?? 0
         };
@@ -94,9 +97,13 @@ public abstract class BaseLLMProvider(ChatClient chatClient, string systemPrompt
         // Only treat as tool call if there are actual tool calls
         if (value.FinishReason == ChatFinishReason.ToolCalls && value.ToolCalls.Count > 0)
         {
+            var toolCallThinkingRaw = value.Content.Count > 0 ? value.Content[0].Text : null;
+            var (_, toolCallThinking) = ExtractThinking(toolCallThinkingRaw);
+
             return new LLMChatResponse
             {
                 IsToolCall = true,
+                ThinkingContent = toolCallThinking,
                 ToolCalls = value.ToolCalls.Select(tc => new LLMToolCallInfo
                 {
                     CallId = tc.Id,
@@ -109,12 +116,14 @@ public abstract class BaseLLMProvider(ChatClient chatClient, string systemPrompt
             };
         }
 
-        var text = value.Content.Count > 0 ? value.Content[0].Text : "";
+        var rawText = value.Content.Count > 0 ? value.Content[0].Text : "";
+        var (cleanedText, thinking) = ExtractThinking(rawText);
         return new LLMChatResponse
         {
             IsToolCall = false,
-            TextContent = text ?? "",
-            AssistantMessage = new AssistantChatMessage(text ?? ""),
+            TextContent = cleanedText,
+            ThinkingContent = thinking,
+            AssistantMessage = new AssistantChatMessage(rawText ?? ""),
             InputTokens = value.Usage?.InputTokenCount ?? 0,
             OutputTokens = value.Usage?.OutputTokenCount ?? 0
         };
@@ -144,6 +153,39 @@ public abstract class BaseLLMProvider(ChatClient chatClient, string systemPrompt
 
         messages.Add(new UserChatMessage(userContent.ToString()));
         return messages;
+    }
+
+    /// <summary>
+    /// Regex that matches thinking tags produced by various models:
+    /// Gemma 4 uses &lt;thought&gt;, DeepSeek R1 / Qwen QwQ use &lt;think&gt;.
+    /// </summary>
+    private static readonly Regex ThinkingTagRegex = new(
+        @"<(thought|think)>([\s\S]*?)</\1>",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Extract thinking content from the text and return (cleanedText, thinkingContent).
+    /// Returns null for thinkingContent when no thinking tags are found.
+    /// </summary>
+    protected static (string cleanedText, string? thinkingContent) ExtractThinking(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return (text ?? "", null);
+
+        var matches = ThinkingTagRegex.Matches(text);
+        if (matches.Count == 0)
+            return (text, null);
+
+        var thinkingParts = new StringBuilder();
+        foreach (Match match in matches)
+        {
+            if (thinkingParts.Length > 0)
+                thinkingParts.AppendLine();
+            thinkingParts.Append(match.Groups[2].Value.Trim());
+        }
+
+        var cleaned = ThinkingTagRegex.Replace(text, "").Trim();
+        return (cleaned, thinkingParts.ToString());
     }
 
     /// <summary>

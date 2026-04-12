@@ -531,6 +531,7 @@ public class CodeQAController : ControllerBase
             var response = new AnswerResponse
             {
                 Answer = agentResult.Answer,
+                ThinkingContent = agentResult.ThinkingContent,
                 RelevantFiles = agentResult.RelevantFiles,
                 ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
                 SessionId = sessionId,
@@ -605,6 +606,7 @@ public class CodeQAController : ControllerBase
             var answerResponse = new AnswerResponse
             {
                 Answer = agentResult.Answer,
+                ThinkingContent = agentResult.ThinkingContent,
                 RelevantFiles = agentResult.RelevantFiles,
                 ProcessingTimeMs = (DateTime.Now - startTime).Milliseconds,
                 SessionId = sessionId,

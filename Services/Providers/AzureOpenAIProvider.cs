@@ -13,7 +13,9 @@ namespace AnswerCode.Services.Providers;
 public class AzureOpenAIProvider(LLMProviderSettings settings,
                                  string systemPromptBase,
                                  ILogger<AzureOpenAIProvider> logger,
-                                 string providerKey = ProviderKeys.AzureOpenAI) : BaseLLMProvider(CreateChatClient(settings, logger), systemPromptBase)
+                                 string providerKey = ProviderKeys.AzureOpenAI) : BaseLLMProvider(CreateChatClient(settings, logger),
+                                                                                                  systemPromptBase,
+                                                                                                  ShouldUseReasoningModelParameters(settings))
 {
     public override string Name => providerKey;
 
@@ -35,5 +37,16 @@ public class AzureOpenAIProvider(LLMProviderSettings settings,
 
         var azureClient = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey), options);
         return azureClient.GetChatClient(deploymentName);
+    }
+
+    private static bool ShouldUseReasoningModelParameters(LLMProviderSettings settings)
+    {
+        if (settings.UseReasoningModelParameters.HasValue)
+        {
+            return settings.UseReasoningModelParameters.Value;
+        }
+
+        return IsKnownReasoningChatModel(settings.Model)
+            || IsKnownReasoningChatModel(settings.DeploymentName);
     }
 }

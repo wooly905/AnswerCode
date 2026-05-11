@@ -56,4 +56,10 @@ public class LLMProviderSettings
     /// Defaults to null (provider decides).
     /// </summary>
     public bool? SupportsToolCalling { get; set; }
+
+    /// <summary>
+    /// Whether to rewrite Chat Completions parameters for reasoning models.
+    /// Set this when an Azure deployment name does not expose the underlying model name.
+    /// </summary>
+    public bool? UseReasoningModelParameters { get; set; }
 }

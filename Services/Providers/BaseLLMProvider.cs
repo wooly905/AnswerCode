@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AnswerCode.Models;
+using Azure.AI.OpenAI.Chat;
 using OpenAI.Chat;
 
 namespace AnswerCode.Services.Providers;
@@ -11,10 +12,13 @@ namespace AnswerCode.Services.Providers;
 /// Subclasses only need to supply the <see cref="OpenAI.Chat.ChatClient"/> via a static factory method
 /// called from the constructor, and set the <see cref="Name"/> property.
 /// </summary>
-public abstract class BaseLLMProvider(ChatClient chatClient, string systemPromptBase) : ILLMProvider
+public abstract class BaseLLMProvider(ChatClient chatClient,
+                                      string systemPromptBase,
+                                      bool useReasoningModelParameters = false) : ILLMProvider
 {
     protected readonly ChatClient ChatClient = chatClient;
     protected readonly string SystemPromptBase = systemPromptBase;
+    private readonly bool _useReasoningModelParameters = useReasoningModelParameters;
 
     /// <inheritdoc/>
     public abstract string Name { get; }
@@ -26,11 +30,7 @@ public abstract class BaseLLMProvider(ChatClient chatClient, string systemPrompt
     public virtual async Task<string> AskAsync(string systemPrompt, string userQuestion, string codeContext)
     {
         var messages = BuildMessages(systemPrompt, userQuestion, codeContext);
-        var completion = await ChatClient.CompleteChatAsync(messages, new ChatCompletionOptions
-        {
-            MaxOutputTokenCount = 8000,
-            Temperature = 0.3f
-        });
+        var completion = await ChatClient.CompleteChatAsync(messages, CreateChatCompletionOptions(8000));
         return completion.Value.Content[0].Text;
     }
 
@@ -45,22 +45,14 @@ public abstract class BaseLLMProvider(ChatClient chatClient, string systemPrompt
             new UserChatMessage(question)
         };
 
-        var completion = await ChatClient.CompleteChatAsync(messages, new ChatCompletionOptions
-        {
-            MaxOutputTokenCount = 300,
-            Temperature = 0.3f
-        });
+        var completion = await ChatClient.CompleteChatAsync(messages, CreateChatCompletionOptions(300));
         return ParseKeywords(completion.Value.Content[0].Text.Trim());
     }
 
     /// <inheritdoc/>
     public virtual async Task<LLMChatResponse> ChatAsync(IList<ChatMessage> messages)
     {
-        var options = new ChatCompletionOptions
-        {
-            MaxOutputTokenCount = 8000,
-            Temperature = 0.3f
-        };
+        var options = CreateChatCompletionOptions(8000);
 
         var completion = await ChatClient.CompleteChatAsync(messages, options);
         var value = completion.Value;
@@ -80,11 +72,7 @@ public abstract class BaseLLMProvider(ChatClient chatClient, string systemPrompt
     /// <inheritdoc/>
     public virtual async Task<LLMChatResponse> ChatWithToolsAsync(IList<ChatMessage> messages, IReadOnlyList<ChatTool> tools)
     {
-        var options = new ChatCompletionOptions
-        {
-            MaxOutputTokenCount = 8000,
-            Temperature = 0.3f
-        };
+        var options = CreateChatCompletionOptions(8000);
 
         foreach (var tool in tools)
         {
@@ -153,6 +141,43 @@ public abstract class BaseLLMProvider(ChatClient chatClient, string systemPrompt
 
         messages.Add(new UserChatMessage(userContent.ToString()));
         return messages;
+    }
+
+    private ChatCompletionOptions CreateChatCompletionOptions(int maxOutputTokenCount)
+    {
+        var options = new ChatCompletionOptions
+        {
+            MaxOutputTokenCount = maxOutputTokenCount
+        };
+
+        if (_useReasoningModelParameters)
+        {
+#pragma warning disable AOAI001
+            options.SetNewMaxCompletionTokensPropertyEnabled(true);
+#pragma warning restore AOAI001
+        }
+        else
+        {
+            options.Temperature = 0.3f;
+        }
+
+        return options;
+    }
+
+    protected static bool IsKnownReasoningChatModel(string? modelName)
+    {
+        if (string.IsNullOrWhiteSpace(modelName))
+        {
+            return false;
+        }
+
+        var normalized = modelName.Trim().ToLowerInvariant();
+        return normalized == "gpt-5.5"
+            || normalized.StartsWith("gpt-5.5-", StringComparison.Ordinal)
+            || normalized == "gpt-5.4"
+            || normalized.StartsWith("gpt-5.4-", StringComparison.Ordinal)
+            || normalized == "gpt-5.2"
+            || normalized.StartsWith("gpt-5.2-", StringComparison.Ordinal);
     }
 
     /// <summary>

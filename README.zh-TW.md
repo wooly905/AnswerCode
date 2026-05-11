@@ -110,8 +110,10 @@ LLM 供應商設定在 `LLM` 區段下。您可以加入任意數量的供應商
       "AzureOpenAI": {
         "Endpoint": "https://your-resource.cognitiveservices.azure.com/",
         "ApiKey": "your-api-key",
-        "Model": "gpt-4o",
-        "DisplayName": "Azure GPT-4o"
+        "DeploymentName": "your-azure-deployment",
+        "Model": "gpt-5.5",
+        "DisplayName": "Azure GPT-5.5",
+        "UseReasoningModelParameters": true
       },
       "Ollama": {
         "Endpoint": "http://localhost:11434/v1/",
@@ -126,8 +128,15 @@ LLM 供應商設定在 `LLM` 區段下。您可以加入任意數量的供應商
 
 ### 供應商類型
 
-- **AzureOpenAI**：使用 `Endpoint`、`ApiKey`、`Model`，以及選填的 `DisplayName`。金鑰必須包含 `azure`（不區分大小寫）。
+- **AzureOpenAI**：使用 `Endpoint`、`ApiKey`、`DeploymentName`，以及選填的 `Model`、`DisplayName`、`UseReasoningModelParameters`。若 GPT-5.2/GPT-5.4/GPT-5.5 的 Azure deployment 名稱不包含模型名稱，請將 `UseReasoningModelParameters` 設為 `true`。
 - **OpenAI / OpenAI 相容**（其他任何金鑰，包括 Ollama）：使用 `Endpoint`、`ApiKey`、`Model`，以及選填的 `DisplayName`。工廠將所有非 AzureOpenAI 金鑰視為 OpenAI 相容供應商 — Ollama 可直接透過其 `/v1/` 端點使用。
+
+### 模型設定指南
+
+- **Azure GPT-5.2 / GPT-5.4 / GPT-5.5 reasoning models**：使用 `AzureOpenAI` provider，`Endpoint` 填 Azure resource root，例如 `https://your-resource.cognitiveservices.azure.com/`。`DeploymentName` 填 Azure deployment 名稱；若 deployment 名稱無法清楚辨識模型，請將 `UseReasoningModelParameters` 設為 `true`。這些模型會透過 Azure SDK opt-in 使用 `max_completion_tokens`，並略過不支援的 sampling 參數，例如 `temperature`。
+- **Azure GPT-5 Chat models**：使用 `AzureOpenAI` provider 與同樣的 Azure resource root endpoint。`DeploymentName` 和 `Model` 可填 `gpt-5-chat` 這類值，並省略 `UseReasoningModelParameters` 或設為 `false`，讓一般 chat 參數如 `Temperature` 可以送出。
+- **Azure AI Foundry OpenAI 相容模型，例如 `gpt-oss-120b`**：使用 `OpenAI` provider，不要使用 `AzureOpenAI`。`Endpoint` 必須是 OpenAI-compatible base URL，例如 `https://your-foundry-resource.services.ai.azure.com/openai/v1/`，不要填完整 REST path，例如 `/models/chat/completions?...`。
+- **其他 OpenAI-compatible providers**：使用 `OpenAI` provider 與該 provider 的 `/v1/` base URL。只有在模型拒絕 `max_tokens` 並要求 `max_completion_tokens` 時，才設定 `UseReasoningModelParameters`。
 
 ### Google 認證
 

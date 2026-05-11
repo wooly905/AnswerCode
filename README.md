@@ -110,8 +110,10 @@ LLM providers are configured under the `LLM` section. You can add as many provid
       "AzureOpenAI": {
         "Endpoint": "https://your-resource.cognitiveservices.azure.com/",
         "ApiKey": "your-api-key",
-        "Model": "gpt-4o",
-        "DisplayName": "Azure GPT-4o"
+        "DeploymentName": "your-azure-deployment",
+        "Model": "gpt-5.5",
+        "DisplayName": "Azure GPT-5.5",
+        "UseReasoningModelParameters": true
       },
       "Ollama": {
         "Endpoint": "http://localhost:11434/v1/",
@@ -126,8 +128,15 @@ LLM providers are configured under the `LLM` section. You can add as many provid
 
 ### Provider Types
 
-- **AzureOpenAI**: Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The key must contain `azure` (case-insensitive).
+- **AzureOpenAI**: Use `Endpoint`, `ApiKey`, `DeploymentName`, and optionally `Model`, `DisplayName`, and `UseReasoningModelParameters`. Set `UseReasoningModelParameters` to `true` for GPT-5.2/GPT-5.4/GPT-5.5 deployments whose Azure deployment name does not include the model name.
 - **OpenAI / OpenAI-compatible** (any other key, including Ollama): Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The factory treats every non-AzureOpenAI key as an OpenAI-compatible provider — Ollama works out of the box via its `/v1/` endpoint.
+
+### Model Configuration Guide
+
+- **Azure GPT-5.2 / GPT-5.4 / GPT-5.5 reasoning models**: Use the `AzureOpenAI` provider with the Azure resource root endpoint, for example `https://your-resource.cognitiveservices.azure.com/`. Set `DeploymentName` to the Azure deployment name and set `UseReasoningModelParameters` to `true` when the deployment name does not clearly identify the model. These models use the Azure SDK opt-in for `max_completion_tokens` and omit unsupported sampling parameters such as `temperature`.
+- **Azure GPT-5 Chat models**: Use the `AzureOpenAI` provider with the same Azure resource root endpoint. Set `DeploymentName` and `Model` to values such as `gpt-5-chat`, and leave `UseReasoningModelParameters` unset or `false` so regular chat parameters like `Temperature` can be sent.
+- **Azure AI Foundry OpenAI-compatible models such as `gpt-oss-120b`**: Use the `OpenAI` provider, not `AzureOpenAI`. The endpoint must be the OpenAI-compatible base URL, for example `https://your-foundry-resource.services.ai.azure.com/openai/v1/`, not a full REST path like `/models/chat/completions?...`.
+- **Other OpenAI-compatible providers**: Use the `OpenAI` provider with the provider's `/v1/` base URL. Set `UseReasoningModelParameters` only if that model rejects `max_tokens` and requires `max_completion_tokens`.
 
 ### Google Authentication
 

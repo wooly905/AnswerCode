@@ -29,6 +29,8 @@ wwwroot/source-code/
 .claude*
 .copilot*
 .github/*
+!.github/workflows/
+!.github/workflows/**
 
 # Mono auto generated files
 mono_crash.*

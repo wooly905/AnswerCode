@@ -1,0 +1,68 @@
+name: Deploy to Azure Web App
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required for Azure OIDC login
+
+env:
+  AZURE_WEBAPP_NAME: AnswerCode123
+  AZURE_RESOURCE_GROUP: appservice
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "20.x"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # dotnet publish triggers the NpmInstallLspServers target (BeforePublish),
+      # which runs `npm install` under lsp-servers — Node.js must be available.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore
+        run: dotnet restore AnswerCode.Tests/AnswerCode.Tests.csproj
+
+      - name: Build
+        run: dotnet build AnswerCode.Tests/AnswerCode.Tests.csproj --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test AnswerCode.Tests/AnswerCode.Tests.csproj --no-build --configuration Release --verbosity normal
+
+      - name: Publish
+        run: dotnet publish AnswerCode.csproj --configuration Release --output ./publish
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
+          package: ./publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./publish

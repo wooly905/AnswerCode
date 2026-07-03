@@ -49,4 +49,12 @@
     <EmbeddedResource Remove="wwwroot\source-code\**\*" />
   </ItemGroup>
 
+  <!-- exclude the test project (separate .csproj) from this project's default globbing -->
+  <ItemGroup>
+    <Compile Remove="AnswerCode.Tests\**\*" />
+    <Content Remove="AnswerCode.Tests\**\*" />
+    <None Remove="AnswerCode.Tests\**\*" />
+    <EmbeddedResource Remove="AnswerCode.Tests\**\*" />
+  </ItemGroup>
+
 </Project>

@@ -85,7 +85,11 @@ builder.Services.AddSingleton<ITool, RepoMapTool>();
 builder.Services.AddSingleton<ITool, CallGraphTool>();
 builder.Services.AddSingleton<ITool, WebSearchTool>();
 builder.Services.AddSingleton<ITool, ConfigLookupTool>();
+builder.Services.AddSingleton<ITool, AskUserTool>();
 builder.Services.AddSingleton<ToolRegistry>();
+
+// Register user input service (bridges the ask_user tool with the answer submitted by the client)
+builder.Services.AddSingleton<IUserInputService, UserInputService>();
 
 // Register Agent Service (agentic tool-calling loop)
 builder.Services.AddScoped<IAgentService, AgentService>();

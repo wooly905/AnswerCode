@@ -20,7 +20,9 @@ public enum AgentEventType
     /// <summary>A SubAgent phase has completed</summary>
     PhaseEnd,
     /// <summary>SubAgent is thinking / reasoning (emitted each iteration before tool calls)</summary>
-    SubAgentThinking
+    SubAgentThinking,
+    /// <summary>Agent is asking the user a clarifying question and is waiting for a reply</summary>
+    UserQuestion
 }
 
 /// <summary>
@@ -74,4 +76,13 @@ public class AgentEvent
 
     /// <summary>SubAgent thinking/reasoning text for SubAgentThinking events</summary>
     public string? Thinking { get; set; }
+
+    /// <summary>Correlation id for a UserQuestion event, used to submit the answer back</summary>
+    public string? QuestionId { get; set; }
+
+    /// <summary>The clarifying question text, for UserQuestion events</summary>
+    public string? Question { get; set; }
+
+    /// <summary>Optional suggested answer choices, for UserQuestion events</summary>
+    public List<string>? QuestionOptions { get; set; }
 }

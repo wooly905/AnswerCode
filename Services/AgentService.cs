@@ -14,7 +14,7 @@ namespace AnswerCode.Services;
 ///   Phase 2: SubAgent tool loop — full agentic research (without history, N LLM calls)
 ///   Phase 3: Synthesize final answer (with history + research findings, 1 LLM call)
 /// </summary>
-public class AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry, IConversationHistoryService conversationHistoryService) : IAgentService
+public class AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry, IConversationHistoryService conversationHistoryService, IUserInputService userInputService) : IAgentService
 {
     private const int _maxIterations = 50;
 
@@ -33,8 +33,9 @@ You are an expert code analyst and software engineer. Your task is to answer use
 ## MANDATORY RULES — NEVER VIOLATE
 1. **You MUST call at least one tool before writing any final answer.** No exceptions.
 2. **Never answer from your training data or general knowledge.** Every claim must be backed by actual code you have read from this codebase.
-3. **Never ask the user clarifying questions.** Start using tools immediately to explore the codebase.
+3. **Do not ask the user clarifying questions just to avoid exploring.** Start using tools immediately to explore the codebase.
 4. **Never say ""Would you like me to search..."" or similar.** Just search.
+5. **Use the `ask_user` tool only for genuine ambiguity that the codebase cannot resolve** — e.g. conflicting requirements or a decision materially affecting the answer. Exhaust code exploration first.
 
 ## Core Philosophy
 1. **Read First**: Never analyze or modify code you haven't read. If you need to understand logic, find the file and read it.
@@ -91,8 +92,9 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
 ## MANDATORY RULES — NEVER VIOLATE
 1. **You MUST call at least one tool before writing any final answer.** No exceptions.
 2. **Never answer from your training data or general knowledge.** Every claim must be backed by actual code you have explored in this codebase using tools.
-3. **Never ask the user clarifying questions.** Start using tools immediately to explore the codebase.
+3. **Do not ask the user clarifying questions just to avoid exploring.** Start using tools immediately to explore the codebase.
 4. **Never say ""Would you like me to search..."" or similar.** Just search.
+5. **Use the `ask_user` tool only for genuine ambiguity that the codebase cannot resolve** — e.g. conflicting requirements or a decision materially affecting the answer. Exhaust code exploration first.
 
 ## Core Philosophy
 1. **Business First**: Focus on what the system does for users and the business, not how it is implemented technically.
@@ -243,9 +245,9 @@ Rules:
             if (!provider.SupportsToolCalling)
             {
                 logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
-                return await RunReActToolLoopAsync(question, rootPath, provider, onProgress, projectOverview);
+                return await RunReActToolLoopAsync(question, rootPath, provider, onProgress, projectOverview, sessionId);
             }
-            return await RunNativeToolLoopAsync(question, rootPath, provider, onProgress, userRole, projectOverview);
+            return await RunNativeToolLoopAsync(question, rootPath, provider, onProgress, userRole, projectOverview, sessionId);
         }
 
         // === SubAgent architecture: 3 phases ===
@@ -299,11 +301,11 @@ Rules:
         if (!provider.SupportsToolCalling)
         {
             logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
-            result = await RunReActToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, projectOverview);
+            result = await RunReActToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, projectOverview, sessionId);
         }
         else
         {
-            result = await RunNativeToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, userRole, projectOverview);
+            result = await RunNativeToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, userRole, projectOverview, sessionId);
         }
         await onProgress(new AgentEvent { Type = AgentEventType.PhaseEnd, Phase = 2, PhaseLabel = "SubAgent Research", Summary = $"{result.TotalToolCalls} tool calls, {result.IterationCount} iterations" });
 
@@ -484,14 +486,21 @@ Rules:
     /// Native tool-calling loop — the LLM uses function calling to invoke tools.
     /// Runs WITHOUT conversation history (SubAgent context).
     /// </summary>
-    private async Task<AgentResult> RunNativeToolLoopAsync(
-        string question, string rootPath, ILLMProvider provider,
-        Func<AgentEvent, Task> onProgress, string? userRole, string projectOverview)
+    private async Task<AgentResult> RunNativeToolLoopAsync(string question,
+                                                           string rootPath,
+                                                           ILLMProvider provider,
+                                                           Func<AgentEvent, Task> onProgress,
+                                                           string? userRole,
+                                                           string projectOverview,
+                                                           string? sessionId = null)
     {
         var toolContext = new ToolContext
         {
             RootPath = rootPath,
-            Logger = logger
+            Logger = logger,
+            OnProgress = onProgress,
+            SessionId = sessionId,
+            UserInputService = userInputService
         };
 
         var result = new AgentResult();
@@ -663,13 +672,16 @@ Rules:
     /// without requiring native tool calling (function calling) support.
     /// Runs WITHOUT conversation history (SubAgent context).
     /// </summary>
-    private async Task<AgentResult> RunReActToolLoopAsync(
-        string question, string rootPath, ILLMProvider provider,
-        Func<AgentEvent, Task> onProgress, string projectOverview)
+    private async Task<AgentResult> RunReActToolLoopAsync(string question,
+                                                          string rootPath,
+                                                          ILLMProvider provider,
+                                                          Func<AgentEvent, Task> onProgress,
+                                                          string projectOverview,
+                                                          string? sessionId = null)
     {
         logger.LogInformation("Starting ReAct agent loop for provider {Provider}", provider.Name);
 
-        var toolContext = new ToolContext { RootPath = rootPath, Logger = logger };
+        var toolContext = new ToolContext { RootPath = rootPath, Logger = logger, OnProgress = onProgress, SessionId = sessionId, UserInputService = userInputService };
         var result = new AgentResult();
         var filesAccessed = new HashSet<string>();
         int emptyAssistantResponses = 0;

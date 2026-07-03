@@ -338,6 +338,36 @@
             flex-shrink: 0;
         }
 
+        .project-item .project-expand {
+            font-size: 0.55rem;
+            color: var(--text-secondary);
+            transition: transform 0.2s;
+            flex-shrink: 0;
+            width: 10px;
+            text-align: center;
+        }
+        .project-item .project-expand.open { transform: rotate(90deg); }
+
+        .project-files {
+            display: none;
+            margin: 0 0 6px 30px;
+            padding: 6px 10px;
+            background: rgba(13,17,23,0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .project-files.open { display: block; }
+        .project-files pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+            font-size: 0.72rem;
+            color: var(--text-primary);
+        }
+
 
         .project-list-empty {
             font-size: 0.8rem;
@@ -948,6 +978,52 @@
 
         .error { background: rgba(248,81,73,0.1); border: 1px solid var(--danger-color); border-radius: 8px; padding: 12px; color: var(--danger-color); font-size: 0.88rem; }
 
+        /* Agent asking the user a clarifying question */
+        .user-question-card {
+            margin: 6px 0;
+            padding: 10px 12px;
+            background: rgba(210,153,34,0.08);
+            border: 1px solid var(--warning-color);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+        .user-question-card .uq-text { color: var(--text-primary); font-weight: 600; margin-bottom: 8px; }
+        .user-question-card .uq-options { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+        .user-question-card .uq-option-btn {
+            padding: 5px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 100px;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .user-question-card .uq-option-btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+        .user-question-card .uq-input-row { display: flex; gap: 6px; }
+        .user-question-card .uq-input-row input {
+            flex: 1;
+            padding: 6px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            outline: none;
+        }
+        .user-question-card .uq-input-row button {
+            padding: 6px 14px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .user-question-card .uq-input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .user-question-card.answered { opacity: 0.7; border-color: var(--border-color); background: transparent; }
+        .user-question-card .uq-answered-text { color: var(--success-color); font-style: italic; }
+
         /* ── Input Bar (bottom of right panel) ── */
         .input-bar {
             flex-shrink: 0;
@@ -1159,8 +1235,13 @@
                 </div>
                 <div class="drop-zone" id="dropZone">
                     <div style="font-size:1.8rem;margin-bottom:4px;">&#128194;</div>
-                    Drop files/folders here
+                    Drop files/folders here, or click to browse files
                 </div>
+                <div style="text-align:center;margin:-4px 0 10px;">
+                    <span id="folderBrowseLink" style="font-size:.78rem;color:var(--accent-color);cursor:pointer;text-decoration:underline;">or select an entire folder</span>
+                </div>
+                <input type="file" id="fileInput" multiple style="display:none">
+                <input type="file" id="folderInput" webkitdirectory multiple style="display:none">
                 <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:10px;">
                     <input type="text" id="projectNameInput" placeholder="Project name (optional)"
                         style="flex:3;padding:8px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:.82rem;outline:none;"
@@ -1342,7 +1423,10 @@
         async function loadUserFolders() {
             try {
                 const res = await fetch('/api/codeqa/user-folders');
-                if (!res.ok) return;
+                if (!res.ok) {
+                    console.error('Failed to load user folders:', res.status, await res.text().catch(() => ''));
+                    return;
+                }
                 const folders = await res.json();
                 const list = document.getElementById('projectList');
                 if (folders.length === 0) {
@@ -1352,14 +1436,52 @@
                 list.innerHTML = '';
                 folders.forEach(f => {
                     const name = f.displayName || f.folderId;
-                    const item = document.createElement('div');
-                    item.className = 'project-item' + (currentFolderId === f.folderId ? ' active' : '');
-                    item.dataset.folderId = f.folderId;
-                    item.onclick = () => selectUserFolder(f.folderId, name);
-                    item.innerHTML = `<span class="project-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span><span class="project-meta">${f.fileCount} files &middot; ${f.sizeMB} MB</span>`;
-                    list.appendChild(item);
+                    list.appendChild(buildProjectItem(f.folderId, name, f.fileCount, f.sizeMB, currentFolderId === f.folderId));
                 });
-            } catch (e) { }
+            } catch (e) {
+                console.error('loadUserFolders failed:', e);
+                const list = document.getElementById('projectList');
+                if (list) list.innerHTML = '<div class="project-list-empty">Failed to load projects — see console for details.</div>';
+            }
+        }
+
+        // Build a project list entry with an expand arrow that lazily loads the file/folder structure.
+        function buildProjectItem(folderId, name, fileCount, sizeMB, active) {
+            const wrap = document.createElement('div');
+            const filesId = `project-files-${folderId}`;
+            const item = document.createElement('div');
+            item.className = 'project-item' + (active ? ' active' : '');
+            item.dataset.folderId = folderId;
+            item.innerHTML = `<span class="project-expand" id="${filesId}-arrow">&#9654;</span><span class="project-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span><span class="project-meta">${fileCount} files &middot; ${sizeMB} MB</span>`;
+            item.onclick = () => selectUserFolder(folderId, name);
+            item.querySelector('.project-expand').onclick = (ev) => { ev.stopPropagation(); toggleProjectFiles(folderId, filesId); };
+            wrap.appendChild(item);
+            const filesDiv = document.createElement('div');
+            filesDiv.className = 'project-files';
+            filesDiv.id = filesId;
+            wrap.appendChild(filesDiv);
+            return wrap;
+        }
+
+        // Toggle (and lazily load) the file/folder structure for a project.
+        async function toggleProjectFiles(folderId, filesId) {
+            const filesDiv = document.getElementById(filesId);
+            const arrow = document.getElementById(`${filesId}-arrow`);
+            if (!filesDiv) return;
+            const opening = !filesDiv.classList.contains('open');
+            filesDiv.classList.toggle('open', opening);
+            if (arrow) arrow.classList.toggle('open', opening);
+            if (opening && !filesDiv.dataset.loaded) {
+                filesDiv.innerHTML = '<pre>Loading…</pre>';
+                try {
+                    const res = await fetch(`/api/CodeQA/structure?projectPath=${encodeURIComponent(folderId)}`);
+                    const data = await res.json();
+                    filesDiv.innerHTML = `<pre>${escapeHtml(data.structure || 'No files found.')}</pre>`;
+                    filesDiv.dataset.loaded = '1';
+                } catch (e) {
+                    filesDiv.innerHTML = '<pre>Failed to load file list.</pre>';
+                }
+            }
         }
 
         function selectUserFolder(folderId, displayName) {
@@ -1393,6 +1515,21 @@
 
         // ── Drag & drop ──
         const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const folderInput = document.getElementById('folderInput');
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => {
+            handleFileSelect(fileInput.files);
+            fileInput.value = ''; // allow re-selecting the same file(s) later
+        });
+        document.getElementById('folderBrowseLink').addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            folderInput.click();
+        });
+        folderInput.addEventListener('change', () => {
+            handleFileSelect(folderInput.files);
+            folderInput.value = '';
+        });
         ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.style.borderColor = 'var(--accent-color)'; dropZone.style.background = 'rgba(88,166,255,.06)'; }));
         ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.style.borderColor = ''; dropZone.style.background = ''; }));
         dropZone.addEventListener('drop', async (ev) => {
@@ -1527,21 +1664,22 @@
                 btn.disabled = true;
                 btn.textContent = btnOrigText;
                 setTimeout(() => { progressWrap.style.display = 'none'; }, 2000);
-                setTimeout(() => { document.getElementById('currentUploadInfo').style.display = 'none'; }, 10000);
                 // Refresh project list
-                if (isAuthenticated) {
-                    loadUserFolders();
-                } else {
-                    // Show the anonymous project in My Projects
-                    document.getElementById('myProjectsSection').style.display = 'block';
-                    const list = document.getElementById('projectList');
-                    list.innerHTML = '';
-                    const item = document.createElement('div');
-                    item.className = 'project-item active';
-                    item.innerHTML = `<span class="project-name" title="${escapeHtml(dispName)}">${escapeHtml(dispName)}</span><span class="project-meta">${result.fileCount} files &middot; ${result.totalSizeMB} MB</span>`;
-                    list.appendChild(item);
+                try {
+                    if (isAuthenticated) {
+                        loadUserFolders();
+                    } else {
+                        // Show the anonymous project in My Projects
+                        document.getElementById('myProjectsSection').style.display = 'block';
+                        const list = document.getElementById('projectList');
+                        list.innerHTML = '';
+                        list.appendChild(buildProjectItem(result.folderId, dispName, result.fileCount, result.totalSizeMB, true));
+                    }
+                } catch (listErr) {
+                    console.error('Failed to render project list after upload:', listErr);
                 }
             } catch (err) {
+                console.error('Upload failed:', err);
                 progressLabel.textContent = err;
                 progressBar.style.background = 'var(--danger-color)';
                 btn.disabled = false;
@@ -1727,6 +1865,9 @@
                     markStepDone(event, msgId);
                     updateThinkingText(msgId, 'Agent is thinking...');
                     break;
+                case 'UserQuestion':
+                    handleUserQuestion(event, msgId);
+                    break;
                 case 'Answer':
                     removeThinking(msgId);
                     try { showFinalAnswer(event.result, msgId); } catch (e) { showMsgError(msgId, 'Failed to render: ' + e.message); }
@@ -1885,6 +2026,76 @@
             `;
             list.appendChild(item);
             scrollToBottom();
+        }
+
+        // Agent (ask_user tool) is asking the user a clarifying question — render an inline reply card
+        function handleUserQuestion(event, msgId) {
+            const state = phaseState[msgId];
+            let list;
+            if (state && state.currentPhaseId) list = document.getElementById(`${state.currentPhaseId}-content`);
+            if (!list) list = document.getElementById(`${msgId}-steps-list`);
+            if (!list) return;
+
+            const cardId = `${msgId}-uq-${event.questionId}`;
+            const card = document.createElement('div');
+            card.className = 'user-question-card';
+            card.id = cardId;
+
+            const optionsHtml = (event.questionOptions && event.questionOptions.length > 0)
+                ? `<div class="uq-options">${event.questionOptions.map((o, i) => `<button type="button" class="uq-option-btn" data-option-index="${i}">${escapeHtml(o)}</button>`).join('')}</div>`
+                : '';
+
+            card.innerHTML = `
+                <div class="uq-text">\u2753 ${escapeHtml(event.question || '')}</div>
+                ${optionsHtml}
+                <div class="uq-input-row">
+                    <input type="text" id="${cardId}-input" placeholder="Type your answer..." />
+                    <button type="button" class="uq-send-btn">Send</button>
+                </div>
+            `;
+            list.appendChild(card);
+
+            card.querySelectorAll('.uq-option-btn').forEach(btn => {
+                btn.addEventListener('click', () => submitUserAnswer(event.questionId, cardId, event.questionOptions[Number(btn.dataset.optionIndex)]));
+            });
+            const sendBtnEl = card.querySelector('.uq-send-btn');
+            if (sendBtnEl) sendBtnEl.addEventListener('click', () => submitUserAnswer(event.questionId, cardId));
+
+            const input = document.getElementById(`${cardId}-input`);
+            if (input) {
+                input.addEventListener('keydown', e => {
+                    if (e.key === 'Enter') { e.preventDefault(); submitUserAnswer(event.questionId, cardId); }
+                });
+                input.focus();
+            }
+
+            updateThinkingText(msgId, 'Waiting for your answer...');
+            scrollToBottom();
+        }
+
+        async function submitUserAnswer(questionId, cardId, presetAnswer) {
+            const card = document.getElementById(cardId);
+            if (!card || card.classList.contains('answered')) return;
+
+            const input = document.getElementById(`${cardId}-input`);
+            const answer = presetAnswer !== undefined ? presetAnswer : (input ? input.value.trim() : '');
+            if (!answer) return;
+
+            card.querySelectorAll('button, input').forEach(el => el.disabled = true);
+
+            try {
+                const res = await fetch('/api/CodeQA/ask/answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ questionId, answer })
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                card.classList.add('answered');
+                card.innerHTML = `<div class="uq-answered-text">You answered: ${escapeHtml(answer)}</div>`;
+            } catch (e) {
+                card.querySelectorAll('button, input').forEach(el => el.disabled = false);
+                console.warn('Failed to submit answer:', e);
+            }
         }
 
         function markStepDone(event, msgId) {

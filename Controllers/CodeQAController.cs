@@ -25,6 +25,7 @@ public class CodeQAController : ControllerBase
     private readonly IWebHostEnvironment _env;
     private readonly IUserStorageService _userStorage;
     private readonly IConversationHistoryService _conversationHistory;
+    private readonly IUserInputService _userInputService;
 
     /// <summary>
     /// Max upload size: 20 MB (anonymous), 300 MB (authenticated - enforced via quota)
@@ -38,7 +39,8 @@ public class CodeQAController : ControllerBase
                             IWebHostEnvironment env,
                             ILogger<CodeQAController> logger,
                             IUserStorageService userStorage,
-                            IConversationHistoryService conversationHistory)
+                            IConversationHistoryService conversationHistory,
+                            IUserInputService userInputService)
     {
         _agentService = agentService;
         _codeExplorer = codeExplorer;
@@ -47,6 +49,7 @@ public class CodeQAController : ControllerBase
         _logger = logger;
         _userStorage = userStorage;
         _conversationHistory = conversationHistory;
+        _userInputService = userInputService;
     }
 
     private bool IsAuthenticated => User.Identity?.IsAuthenticated == true;
@@ -646,6 +649,33 @@ public class CodeQAController : ControllerBase
     }
 
     /// <summary>
+    /// Submit the user's answer to a pending clarifying question raised by the `ask_user` tool
+    /// during an in-progress `ask/stream` request (matched via the questionId from the UserQuestion event).
+    /// </summary>
+    [HttpPost("ask/answer")]
+    public IActionResult SubmitUserAnswer([FromBody] UserAnswerRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.QuestionId))
+        {
+            return BadRequest(new { error = "questionId is required" });
+        }
+
+        var submitted = _userInputService.SubmitAnswer(request.QuestionId, request.Answer ?? "");
+        if (!submitted)
+        {
+            return NotFound(new { error = "No pending question with that id — it may have already timed out or been answered." });
+        }
+
+        return Ok();
+    }
+
+    public class UserAnswerRequest
+    {
+        public string QuestionId { get; set; } = "";
+        public string? Answer { get; set; }
+    }
+
+    /// <summary>
     /// Get project structure
     /// </summary>
     [HttpGet("structure")]
@@ -657,17 +687,14 @@ public class CodeQAController : ControllerBase
             return BadRequest(new { error = "ProjectPath is required" });
         }
 
-        if (!Directory.Exists(projectPath))
+        string resolvedPath = ResolveProjectPath(projectPath);
+
+        if (string.IsNullOrEmpty(resolvedPath) || !Directory.Exists(resolvedPath))
         {
             return BadRequest(new { error = $"Project path does not exist: {projectPath}" });
         }
 
-        if (!IsPathWithinAllowedStorage(projectPath))
-        {
-            return Forbid();
-        }
-
-        var structure = await _codeExplorer.GetProjectStructureAsync(projectPath, 4);
+        var structure = await _codeExplorer.GetProjectStructureAsync(resolvedPath, 4);
         return Ok(new { structure });
     }
 

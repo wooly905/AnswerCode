@@ -10,6 +10,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 - **Google Login & Persistent Storage**: Sign in with Google to get dedicated persistent storage (default 300 MB quota) — uploaded projects survive across browser sessions and can be managed from the Dashboard
 - **User Dashboard**: Authenticated users get a `/dashboard` page showing all uploaded projects, storage usage with a visual progress bar, and the ability to delete individual projects
 - **Agentic Q&A**: An AI agent uses tools (grep, read file, read symbol, list directory, glob search, file outline, find definition, find references, find tests, related files, repo map, call graph, web search, config lookup) to explore your codebase and answer questions autonomously
+- **Clarifying Questions**: The agent can pause mid-run and ask the user a direct question via the `ask_user` tool when it hits a genuinely ambiguous or high-impact decision, then resume once the answer is submitted
 - **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
 - **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
@@ -219,6 +220,7 @@ The agent uses these tools to explore your codebase:
 | `list_directory` | List files in a subdirectory (project root structure is auto-injected) |
 | `web_search` | Search the web via Tavily Search API for external information — library docs, API references, best practices, error explanations, or latest updates |
 | `config_lookup` | Look up a configuration key across all config files in the project — finds where a key is defined, its value in each source, and which value wins by precedence. Supports C#, JavaScript, TypeScript, Python, Java, Go, Rust, and C/C++ config patterns |
+| `ask_user` | Pause the run and ask the human user a clarifying question (with optional suggested answer choices) when facing an ambiguous or high-impact decision that can't be safely resolved by reading the code |
 
 **Auto-injected context:** The agent automatically receives a project overview (directory structure, language, framework, dependencies) at the start of each conversation, eliminating the need for an initial `list_directory` call and saving one full LLM round-trip.
 
@@ -241,6 +243,17 @@ When a configured provider reports `SupportsToolCalling = false`, the agent auto
 - Progress events and token tracking work the same as with native tool calling.
 
 This allows any text-generating LLM to act as an agent without requiring OpenAI-style function calling support.
+
+## Clarifying Questions
+
+During the tool loop, the agent can call `ask_user` to pause and ask the human a direct question instead of guessing:
+
+1. The tool emits a `UserQuestion` SSE event (with a unique `questionId`, the question text, and optional suggested answer choices) and blocks, waiting for a response.
+2. The UI displays the question and lets the user type or pick an answer.
+3. The client submits the answer via `POST /api/codeqa/ask/answer` with the matching `questionId`.
+4. The waiting tool call resolves with the answer and the agent continues the run.
+
+If the user does not respond within 5 minutes, the tool returns a timeout message and the agent proceeds using its best judgment, stating the assumption it made in the final answer.
 
 ## SubAgent Architecture
 

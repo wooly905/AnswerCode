@@ -74,6 +74,8 @@ You are an expert code analyst and software engineer. Your task is to answer use
   - Use `web_search` when the question requires knowledge beyond the codebase — e.g., library docs, API references, best practices, error explanations, or latest updates.
   - Do NOT use `web_search` for questions answerable by reading the code. Always search the codebase first.
 
+- **Batch Independent Lookups**: If you need multiple independent pieces of evidence (e.g., checking two unrelated files, or grep + find_references for unrelated symbols), call all of them in the SAME turn instead of one at a time. Only call tools sequentially across turns when a later call genuinely depends on an earlier result.
+
 ## Exploration Strategy (When you don't know where to start)
 1. **Check the Overview**: Look for high-level folders (Controllers, Services, Src) that match the domain of the question.
 2. **Search Concepts**: If no obvious file exists, `grep_search` for the *concept* (e.g., ""tax"", ""auth"", ""retry"").
@@ -133,6 +135,8 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
 - **External Information**:
     - Use `web_search` when the question needs context beyond the codebase — e.g., what a library does, industry best practices, or competitive landscape.
     - Always search the codebase first before reaching for external information.
+
+- **Batch Independent Lookups**: If you need multiple independent pieces of evidence, call all of them in the SAME turn instead of one at a time. Only call tools sequentially across turns when a later call genuinely depends on an earlier result.
 
 ## Exploration Strategy
 1. Identify the high-level feature areas related to the question (e.g., user login, order processing).
@@ -628,87 +632,12 @@ Rules:
 
             emptyAssistantResponses = 0;
 
-            // Attach thinking content to the first tool call of this iteration
-            var iterationThinking = response.ThinkingContent;
+            var callRequests = response.ToolCalls.Select(tc => (tc.FunctionName, tc.Arguments)).ToList();
+            var toolResults = await ExecuteToolCallBatchAsync(callRequests, toolContext, rootPath, iteration + 1, response.ThinkingContent, result, filesAccessed, onProgress);
 
-            foreach (var toolCall in response.ToolCalls)
+            for (int i = 0; i < response.ToolCalls.Count; i++)
             {
-                var argsSummary = ToolResultFormatter.FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
-
-                await onProgress(new AgentEvent
-                {
-                    Type = AgentEventType.ToolCallStart,
-                    ToolName = toolCall.FunctionName,
-                    ToolArgs = toolCall.Arguments,
-                    Summary = argsSummary,
-                    Iteration = iteration + 1,
-                    Thinking = iterationThinking
-                });
-
-                // Only attach thinking to the first tool call
-                iterationThinking = null;
-
-                DateTime startTime = DateTime.Now;
-                string toolResult;
-
-                var tool = toolRegistry.GetTool(toolCall.FunctionName);
-                if (tool == null)
-                {
-                    toolResult = $"Error: Unknown tool '{toolCall.FunctionName}'.";
-                }
-                else
-                {
-                    try
-                    {
-                        toolResult = await tool.ExecuteAsync(toolCall.Arguments, toolContext);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Tool {Tool} execution failed", toolCall.FunctionName);
-                        toolResult = $"Error executing {toolCall.FunctionName}: {ex.Message}";
-                    }
-                }
-
-                result.TotalToolCalls++;
-                var record = new ToolCallRecord
-                {
-                    ToolName = toolCall.FunctionName,
-                    Arguments = toolCall.Arguments,
-                    ResultSummary = toolResult.Length > 500
-                        ? toolResult[..500] + $"... ({toolResult.Length} chars total)"
-                        : toolResult,
-                    DurationMs = (DateTime.Now - startTime).Milliseconds,
-                };
-                result.ToolCalls.Add(record);
-
-                ToolResultFormatter.ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
-
-                messages.Add(new ToolChatMessage(toolCall.CallId, toolResult));
-
-                var resultSummary = ToolResultFormatter.FormatToolResultSummary(toolCall.FunctionName, toolResult);
-                var resultDetails = toolResult.Length > 5000
-                    ? toolResult[..5000] + "\n... (truncated)"
-                    : toolResult;
-                var (detailLabel, detailItems) = ToolResultFormatter.ExtractToolDetailItems(toolCall.FunctionName, toolResult);
-
-                await onProgress(new AgentEvent
-                {
-                    Type = AgentEventType.ToolCallEnd,
-                    ToolName = toolCall.FunctionName,
-                    ToolArgs = toolCall.Arguments,
-                    Summary = argsSummary,
-                    DurationMs = (DateTime.Now - startTime).Milliseconds,
-                    TotalToolCalls = result.TotalToolCalls,
-                    ResultSummary = resultSummary,
-                    ResultDetails = resultDetails,
-                    DetailLabel = detailLabel,
-                    DetailItems = detailItems
-                });
-
-                logger.LogInformation("Tool {Tool} completed in {Ms}ms, result: {Length} chars",
-                                       toolCall.FunctionName,
-                                       (DateTime.Now - startTime).Milliseconds,
-                                       toolResult.Length);
+                messages.Add(new ToolChatMessage(response.ToolCalls[i].CallId, toolResults[i]));
             }
         }
 
@@ -816,82 +745,13 @@ Rules:
 
             emptyAssistantResponses = 0;
 
+            var callRequests = toolCalls.Select(tc => (tc.FunctionName, tc.Arguments)).ToList();
+            var executedResults = await ExecuteToolCallBatchAsync(callRequests, toolContext, rootPath, iteration + 1, null, result, filesAccessed, onProgress);
+
             var toolResults = new List<(string ToolName, string Result)>();
-
-            foreach (var toolCall in toolCalls)
+            for (int i = 0; i < toolCalls.Count; i++)
             {
-                var argsSummary = ToolResultFormatter.FormatToolCallSummary(toolCall.FunctionName, toolCall.Arguments, rootPath);
-
-                await onProgress(new AgentEvent
-                {
-                    Type = AgentEventType.ToolCallStart,
-                    ToolName = toolCall.FunctionName,
-                    ToolArgs = toolCall.Arguments,
-                    Summary = argsSummary,
-                    Iteration = iteration + 1
-                });
-
-                DateTime startTime = DateTime.Now;
-                string toolResult;
-
-                var tool = toolRegistry.GetTool(toolCall.FunctionName);
-                if (tool == null)
-                {
-                    toolResult = $"Error: Unknown tool '{toolCall.FunctionName}'. Available tools: {string.Join(", ", toolRegistry.GetAllTools().Select(t => t.Name))}";
-                }
-                else
-                {
-                    try
-                    {
-                        toolResult = await tool.ExecuteAsync(toolCall.Arguments, toolContext);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Tool {Tool} execution failed in ReAct loop", toolCall.FunctionName);
-                        toolResult = $"Error executing {toolCall.FunctionName}: {ex.Message}";
-                    }
-                }
-
-                result.TotalToolCalls++;
-                var record = new ToolCallRecord
-                {
-                    ToolName = toolCall.FunctionName,
-                    Arguments = toolCall.Arguments,
-                    ResultSummary = toolResult.Length > 500
-                        ? toolResult[..500] + $"... ({toolResult.Length} chars total)"
-                        : toolResult,
-                    DurationMs = (DateTime.Now - startTime).Milliseconds,
-                };
-                result.ToolCalls.Add(record);
-
-                ToolResultFormatter.ExtractRelevantFiles(toolCall.FunctionName, toolCall.Arguments, toolResult, rootPath, filesAccessed);
-
-                toolResults.Add((toolCall.FunctionName, toolResult));
-
-                var resultSummary = ToolResultFormatter.FormatToolResultSummary(toolCall.FunctionName, toolResult);
-                var resultDetails = toolResult.Length > 5000
-                    ? toolResult[..5000] + "\n... (truncated)"
-                    : toolResult;
-                var (detailLabel, detailItems) = ToolResultFormatter.ExtractToolDetailItems(toolCall.FunctionName, toolResult);
-
-                await onProgress(new AgentEvent
-                {
-                    Type = AgentEventType.ToolCallEnd,
-                    ToolName = toolCall.FunctionName,
-                    ToolArgs = toolCall.Arguments,
-                    Summary = argsSummary,
-                    DurationMs = (DateTime.Now - startTime).Milliseconds,
-                    TotalToolCalls = result.TotalToolCalls,
-                    ResultSummary = resultSummary,
-                    ResultDetails = resultDetails,
-                    DetailLabel = detailLabel,
-                    DetailItems = detailItems
-                });
-
-                logger.LogInformation("ReAct tool {Tool} completed in {Ms}ms, result: {Length} chars",
-                                      toolCall.FunctionName,
-                                      (DateTime.Now - startTime).Milliseconds,
-                                      toolResult.Length);
+                toolResults.Add((toolCalls[i].FunctionName, executedResults[i]));
             }
 
             var formattedResults = ReActParser.FormatToolResults(toolResults);
@@ -906,6 +766,146 @@ Rules:
 
         result.RelevantFiles = [.. filesAccessed];
         return result;
+    }
+
+    /// <summary>
+    /// Execute a batch of tool calls from a single LLM turn. Independent tools run concurrently
+    /// (subject to <see cref="AgentSettings.EnableParallelToolExecution"/>) to cut wall-clock
+    /// latency; <c>ask_user</c> always runs alone afterward since it pauses the run waiting for
+    /// a human reply. Emits ToolCallStart/End progress events and updates <paramref name="result"/>
+    /// and <paramref name="filesAccessed"/> in a thread-safe manner.
+    /// </summary>
+    /// <returns>Tool result strings in the same order as <paramref name="calls"/>.</returns>
+    private async Task<string[]> ExecuteToolCallBatchAsync(
+        IReadOnlyList<(string FunctionName, string Arguments)> calls,
+        ToolContext toolContext,
+        string rootPath,
+        int iteration,
+        string? firstCallThinking,
+        AgentResult result,
+        HashSet<string> filesAccessed,
+        Func<AgentEvent, Task> onProgress)
+    {
+        var results = new string[calls.Count];
+        var argsSummaries = new string[calls.Count];
+        var syncLock = new object();
+
+        // Emit all ToolCallStart events up front, in original order, so the UI reflects a concurrent batch.
+        for (int i = 0; i < calls.Count; i++)
+        {
+            argsSummaries[i] = ToolResultFormatter.FormatToolCallSummary(calls[i].FunctionName, calls[i].Arguments, rootPath);
+            await onProgress(new AgentEvent
+            {
+                Type = AgentEventType.ToolCallStart,
+                ToolName = calls[i].FunctionName,
+                ToolArgs = calls[i].Arguments,
+                Summary = argsSummaries[i],
+                Iteration = iteration,
+                Thinking = i == 0 ? firstCallThinking : null
+            });
+        }
+
+        async Task RunOneAsync(int index)
+        {
+            var call = calls[index];
+            DateTime startTime = DateTime.Now;
+            string toolResult;
+
+            var tool = toolRegistry.GetTool(call.FunctionName);
+            if (tool == null)
+            {
+                toolResult = $"Error: Unknown tool '{call.FunctionName}'. Available tools: {string.Join(", ", toolRegistry.GetAllTools().Select(t => t.Name))}";
+            }
+            else
+            {
+                try
+                {
+                    toolResult = await tool.ExecuteAsync(call.Arguments, toolContext);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Tool {Tool} execution failed", call.FunctionName);
+                    toolResult = $"Error executing {call.FunctionName}: {ex.Message}";
+                }
+            }
+
+            var durationMs = (DateTime.Now - startTime).Milliseconds;
+            var record = new ToolCallRecord
+            {
+                ToolName = call.FunctionName,
+                Arguments = call.Arguments,
+                ResultSummary = toolResult.Length > 500
+                    ? toolResult[..500] + $"... ({toolResult.Length} chars total)"
+                    : toolResult,
+                DurationMs = durationMs,
+            };
+
+            int totalSoFar;
+            lock (syncLock)
+            {
+                result.TotalToolCalls++;
+                totalSoFar = result.TotalToolCalls;
+                result.ToolCalls.Add(record);
+                ToolResultFormatter.ExtractRelevantFiles(call.FunctionName, call.Arguments, toolResult, rootPath, filesAccessed);
+            }
+
+            var resultSummary = ToolResultFormatter.FormatToolResultSummary(call.FunctionName, toolResult);
+            var resultDetails = toolResult.Length > 5000
+                ? toolResult[..5000] + "\n... (truncated)"
+                : toolResult;
+            var (detailLabel, detailItems) = ToolResultFormatter.ExtractToolDetailItems(call.FunctionName, toolResult);
+
+            await onProgress(new AgentEvent
+            {
+                Type = AgentEventType.ToolCallEnd,
+                ToolName = call.FunctionName,
+                ToolArgs = call.Arguments,
+                Summary = argsSummaries[index],
+                DurationMs = durationMs,
+                TotalToolCalls = totalSoFar,
+                ResultSummary = resultSummary,
+                ResultDetails = resultDetails,
+                DetailLabel = detailLabel,
+                DetailItems = detailItems
+            });
+
+            logger.LogInformation("Tool {Tool} completed in {Ms}ms, result: {Length} chars", call.FunctionName, durationMs, toolResult.Length);
+            results[index] = toolResult;
+        }
+
+        // ask_user pauses the run waiting for a human reply — never run it concurrently with other tools.
+        var parallelIndices = new List<int>();
+        var sequentialIndices = new List<int>();
+        for (int i = 0; i < calls.Count; i++)
+        {
+            if (string.Equals(calls[i].FunctionName, AskUserTool.ToolName, StringComparison.OrdinalIgnoreCase))
+            {
+                sequentialIndices.Add(i);
+            }
+            else
+            {
+                parallelIndices.Add(i);
+            }
+        }
+
+        if (_settings.EnableParallelToolExecution && parallelIndices.Count > 1)
+        {
+            await Task.WhenAll(parallelIndices.Select(RunOneAsync));
+        }
+        else
+        {
+            foreach (var idx in parallelIndices)
+            {
+                await RunOneAsync(idx);
+            }
+        }
+
+        foreach (var idx in sequentialIndices)
+        {
+            await RunOneAsync(idx);
+        }
+
+        return results;
     }
 
     #endregion

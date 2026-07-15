@@ -21,6 +21,14 @@ public class AgentSettings
     /// </summary>
     public bool EnableComplexityRouting { get; set; } = true;
 
+    /// <summary>
+    /// Enable running the tool calls returned in a single LLM turn concurrently instead of
+    /// sequentially. Cuts wall-clock latency and encourages fewer round trips when the model
+    /// batches independent lookups. The <c>ask_user</c> tool is always excluded and run alone,
+    /// since it pauses the run to wait for a human reply.
+    /// </summary>
+    public bool EnableParallelToolExecution { get; set; } = true;
+
     /// <summary>Max tool-loop iterations for questions classified as Simple (e.g. "where is X defined").</summary>
     public int SimpleQuestionMaxIterations { get; set; } = 8;
 

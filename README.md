@@ -15,7 +15,11 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 - **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
 - **SubAgent Architecture**: Follow-up questions use a 3-phase SubAgent design — (1) resolve the follow-up into a standalone question using conversation history, (2) run the agentic tool loop without history to save tokens, (3) synthesize the final answer with history context. History length is controlled by a **200K token budget** instead of a fixed turn limit, with automatic compression when approaching the threshold
+- **Adaptive Iteration Budgets**: A rule-based question-complexity classifier (no extra LLM call) sizes the tool-loop iteration cap per question — simple lookups get a small budget, complex multi-hop questions keep the full budget
+- **Pre-fetched Symbol Context**: When a question names a real symbol in the codebase, the agent verifies it and pre-fetches its definition, call graph, and references before the tool loop starts, cutting down on discovery round-trips
+- **Concurrent Tool Execution**: Tool calls returned in the same LLM turn run concurrently (except `ask_user`, which always runs alone) to cut wall-clock latency
 - **Conversation History Inspector**: Click the **Main** token counter in the top bar to view the exact conversation turns the LLM remembers, with a download button to export the history as Markdown
+- **Download Chat**: Export the entire visible conversation — every question, tool call input/output, and final answer — as a single Markdown file with one click
 - **Streaming Progress**: Real-time SSE streaming shows each tool call as it happens, including a result summary, expandable detail items, and duration
 - **Token Usage Tracking**: Main agent (context resolution + synthesis) and SubAgent (tool loop) token counts are tracked separately and displayed in the top bar as **Main / Sub / Total**
 - **Multi-Language Project Support**: Auto-detects and summarizes project metadata for .NET, Node.js, Python, Go, Rust, Java, and C/C++ projects
@@ -200,6 +204,28 @@ Automatic cleanup of expired anonymous uploads is configured under the `UploadCl
 - `ScanIntervalMinutes`: How often the background service scans for expired folders (default: 10).
 - `MaxAgeMinutes`: Folders with no file activity beyond this age are deleted (default: 120).
 
+### Agent Behavior Tuning
+
+Symbol context pre-fetching, question-complexity iteration budgets, and concurrent tool execution are configured under the `AgentSettings` section:
+
+```json
+{
+  "AgentSettings": {
+    "EnableSymbolContextExpansion": true,
+    "EnableComplexityRouting": true,
+    "EnableParallelToolExecution": true,
+    "SimpleQuestionMaxIterations": 8,
+    "StandardQuestionMaxIterations": 25,
+    "ComplexQuestionMaxIterations": 50
+  }
+}
+```
+
+- `EnableSymbolContextExpansion`: Pre-fetch verified symbol definitions, call graphs, and references for symbols detected in the question (default: `true`).
+- `EnableComplexityRouting`: Size the tool-loop iteration budget based on a rule-based question complexity classification (default: `true`). When disabled, every question uses `ComplexQuestionMaxIterations`.
+- `EnableParallelToolExecution`: Run tool calls returned in the same LLM turn concurrently instead of sequentially (default: `true`). The `ask_user` tool is always excluded and runs alone.
+- `SimpleQuestionMaxIterations` / `StandardQuestionMaxIterations` / `ComplexQuestionMaxIterations`: Max tool-loop iterations per complexity tier (defaults: 8 / 25 / 50).
+
 ## Agent Tools
 
 The agent uses these tools to explore your codebase:
@@ -262,7 +288,7 @@ When the user asks a follow-up question (i.e., conversation history exists), the
 | Phase | Role | History Included | LLM Calls |
 |-------|------|-----------------|-----------|
 | **1. Context Resolution** | Resolve the follow-up into a self-contained question | Yes | 1 |
-| **2. SubAgent Tool Loop** | Run the full agentic research loop | **No** | 5–50 |
+| **2. SubAgent Tool Loop** | Run the full agentic research loop | **No** | 8–50 (complexity-based, see below) |
 | **3. Answer Synthesis** | Combine research findings with conversation context | Yes | 1 |
 
 The first question in a session (no history) skips directly to the tool loop with zero overhead.
@@ -281,12 +307,37 @@ Compression is **chain-capable** — when the history grows again after a previo
 
 The top bar shows **Main** (Phase 1 + 3) and **Sub** (Phase 2) token usage separately. Clicking **Main** opens a modal showing the exact conversation turns the LLM remembers (including compressed summary turns highlighted in yellow), with a button to download the history as Markdown.
 
+## Agent Performance Optimizations
+
+Beyond the SubAgent architecture, three additional optimizations reduce round trips and latency in the tool-calling loop. All are configurable under `AgentSettings` (see [Configuration](#configuration)).
+
+### Question Complexity Routing
+
+A rule-based classifier (no extra LLM call) estimates how much exploration a question likely needs and sizes the iteration budget accordingly:
+
+| Complexity | Example | Default Iteration Budget |
+|------------|---------|---------------------------|
+| Simple | "Where is `AgentService` defined?" | 8 |
+| Standard | Default / ambiguous questions | 25 |
+| Complex | "How does the SubAgent flow work end-to-end?" | 50 |
+
+Ambiguous questions never classify as Simple, so misclassification can only use more iterations than necessary — never truncate a hard question prematurely.
+
+### Pre-fetched Symbol Context
+
+Before the tool loop starts, the agent scans the question for symbol-like identifiers (e.g. `AgentService`, `resolveSymbol`) and verifies each candidate against the codebase via symbol analysis. Verified symbols get their definition, one-hop call graph (callers + callees), and references pre-fetched and injected into the first message — so the agent can start with evidence already in hand instead of spending iterations on `find_definition` → `read_symbol` → `find_references`. Unverified candidates (ordinary words that happen to look like identifiers) are silently discarded, so fabricated context is never injected.
+
+### Concurrent Tool Execution
+
+When the model returns multiple tool calls in a single turn, they now execute concurrently instead of one at a time, cutting wall-clock latency. The `ask_user` tool is always excluded from concurrent batches and runs alone, since it pauses the run waiting for a human reply. System prompts also encourage the model to batch independent lookups (e.g. checking two unrelated files) into the same turn instead of spreading them across turns.
+
 ## User Experience Notes
 
 - Uploading code creates an isolated workspace under `wwwroot/source-code/{folderId}/`.
 - The selected upload is automatically reused for follow-up questions in the UI.
 - Long-running answers stream progress live, including tool activity, summaries, and timing.
 - The final answer highlights relevant files and overall tool usage so users can inspect how the agent reached its conclusion.
+- Click **Download Chat** in the top bar at any time to export the full visible conversation — including every tool call's input and output — as a Markdown file for offline reading.
 
 ## Project Structure
 

@@ -1,6 +1,7 @@
 using AnswerCode.Models;
 using AnswerCode.Services.Providers;
 using AnswerCode.Services.Tools;
+using Microsoft.Extensions.Options;
 using OpenAI.Chat;
 
 namespace AnswerCode.Services;
@@ -14,9 +15,16 @@ namespace AnswerCode.Services;
 ///   Phase 2: SubAgent tool loop — full agentic research (without history, N LLM calls)
 ///   Phase 3: Synthesize final answer (with history + research findings, 1 LLM call)
 /// </summary>
-public class AgentService(ILogger<AgentService> logger, ILLMServiceFactory llmFactory, ToolRegistry toolRegistry, IConversationHistoryService conversationHistoryService, IUserInputService userInputService) : IAgentService
+public class AgentService(ILogger<AgentService> logger,
+                          ILLMServiceFactory llmFactory,
+                          ToolRegistry toolRegistry,
+                          IConversationHistoryService conversationHistoryService,
+                          IUserInputService userInputService,
+                          IContextExpansionService contextExpansionService,
+                          IOptions<AgentSettings> agentSettingsOptions) : IAgentService
 {
     private const int _maxIterations = 50;
+    private readonly AgentSettings _settings = agentSettingsOptions.Value;
 
     /// <summary>Hard cap: refuse to send history beyond this token estimate.</summary>
     private const int _maxHistoryTokens = 200_000;
@@ -42,6 +50,7 @@ You are an expert code analyst and software engineer. Your task is to answer use
 2. **Precision**: Cite specific file paths and line numbers in your answers.
 3. **Thoroughness**: If a search fails, do not give up. Try broader keywords, synonyms, or related concepts.
 4. **Context**: A project overview is provided. Use it to orient yourself, but don't rely on it for deep exploration.
+5. **Pre-fetched Context**: If a `## Pre-fetched Symbol Context` section is present, it contains call-graph and reference data already verified against the codebase for symbols detected in the question. Use it as a starting point, but still verify with tools before relying on it in your final answer.
 
 ## Tool Usage Guidelines
 - **Finding Files**:
@@ -102,6 +111,7 @@ You are a knowledgeable business analyst helping a Program Manager (PM) or Proje
 3. **Workflow Oriented**: Describe processes as step-by-step workflows (e.g., ""When a user submits an order, the system validates payment, then notifies the warehouse..."").
 4. **Module Interaction**: Explain how major functional areas (e.g., Authentication, Payment, Notifications) connect and depend on each other in plain language.
 5. **Thoroughness**: Use the available tools to fully explore the codebase before answering. Don't guess.
+6. **Pre-fetched Context**: If a `## Pre-fetched Symbol Context` section is present, it contains call-graph and reference data already verified against the codebase. Use it to orient yourself, but still verify with tools before relying on it.
 
 ## Tool Usage Guidelines
 - **Finding Files**:
@@ -242,12 +252,28 @@ Rules:
         if (!hasHistory)
         {
             // No history — run tool loop directly (zero overhead, same behavior as before)
+            var noHistoryComplexity = _settings.EnableComplexityRouting
+                ? QuestionComplexityClassifier.Classify(question)
+                : QuestionComplexity.Complex;
+            int noHistoryMaxIterations = GetIterationBudget(noHistoryComplexity);
+            string? noHistorySymbolContext = _settings.EnableSymbolContextExpansion
+                ? await contextExpansionService.BuildSymbolContextAsync(rootPath, question)
+                : null;
+
+            AgentResult noHistoryResult;
             if (!provider.SupportsToolCalling)
             {
                 logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
-                return await RunReActToolLoopAsync(question, rootPath, provider, onProgress, projectOverview, sessionId);
+                noHistoryResult = await RunReActToolLoopAsync(question, rootPath, provider, onProgress, projectOverview, sessionId, noHistoryMaxIterations, noHistorySymbolContext);
             }
-            return await RunNativeToolLoopAsync(question, rootPath, provider, onProgress, userRole, projectOverview, sessionId);
+            else
+            {
+                noHistoryResult = await RunNativeToolLoopAsync(question, rootPath, provider, onProgress, userRole, projectOverview, sessionId, noHistoryMaxIterations, noHistorySymbolContext);
+            }
+
+            noHistoryResult.ComplexityLabel = noHistoryComplexity.ToString();
+            noHistoryResult.UsedPrefetchedContext = !string.IsNullOrWhiteSpace(noHistorySymbolContext);
+            return noHistoryResult;
         }
 
         // === SubAgent architecture: 3 phases ===
@@ -297,16 +323,27 @@ Rules:
         // Phase 2: SubAgent tool loop (no history — the core token saving)
         await onProgress(new AgentEvent { Type = AgentEventType.PhaseStart, Phase = 2, PhaseLabel = "SubAgent Research" });
         logger.LogInformation("SubAgent Phase 2: Running tool loop with resolved question (no history)");
+
+        var phase2Complexity = _settings.EnableComplexityRouting
+            ? QuestionComplexityClassifier.Classify(resolvedQuestion)
+            : QuestionComplexity.Complex;
+        int phase2MaxIterations = GetIterationBudget(phase2Complexity);
+        string? phase2SymbolContext = _settings.EnableSymbolContextExpansion
+            ? await contextExpansionService.BuildSymbolContextAsync(rootPath, resolvedQuestion)
+            : null;
+
         AgentResult result;
         if (!provider.SupportsToolCalling)
         {
             logger.LogInformation("Provider {Provider} does not support native tool calling, using ReAct agent loop", provider.Name);
-            result = await RunReActToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, projectOverview, sessionId);
+            result = await RunReActToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, projectOverview, sessionId, phase2MaxIterations, phase2SymbolContext);
         }
         else
         {
-            result = await RunNativeToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, userRole, projectOverview, sessionId);
+            result = await RunNativeToolLoopAsync(resolvedQuestion, rootPath, provider, onProgress, userRole, projectOverview, sessionId, phase2MaxIterations, phase2SymbolContext);
         }
+        result.ComplexityLabel = phase2Complexity.ToString();
+        result.UsedPrefetchedContext = !string.IsNullOrWhiteSpace(phase2SymbolContext);
         await onProgress(new AgentEvent { Type = AgentEventType.PhaseEnd, Phase = 2, PhaseLabel = "SubAgent Research", Summary = $"{result.TotalToolCalls} tool calls, {result.IterationCount} iterations" });
 
         // Phase 3: Synthesize final answer with conversation context + research findings
@@ -478,6 +515,17 @@ Rules:
         return compressed;
     }
 
+    /// <summary>
+    /// Resolve the tool-loop iteration budget for a given complexity classification,
+    /// based on configured limits in <see cref="AgentSettings"/>.
+    /// </summary>
+    private int GetIterationBudget(QuestionComplexity complexity) => complexity switch
+    {
+        QuestionComplexity.Simple => _settings.SimpleQuestionMaxIterations,
+        QuestionComplexity.Complex => _settings.ComplexQuestionMaxIterations,
+        _ => _settings.StandardQuestionMaxIterations
+    };
+
     #endregion
 
     #region Tool Loops (Phase 2)
@@ -492,7 +540,9 @@ Rules:
                                                            Func<AgentEvent, Task> onProgress,
                                                            string? userRole,
                                                            string projectOverview,
-                                                           string? sessionId = null)
+                                                           string? sessionId = null,
+                                                           int maxIterations = _maxIterations,
+                                                           string? prefetchedContext = null)
     {
         var toolContext = new ToolContext
         {
@@ -513,14 +563,18 @@ Rules:
             new SystemChatMessage(string.Equals(userRole, "PM", StringComparison.OrdinalIgnoreCase)
                 ? _pmSystemPrompt
                 : _agentSystemPrompt),
-            new UserChatMessage($"## Project Overview\n{projectOverview}"),
-            new UserChatMessage($"## Question\n{question}")
+            new UserChatMessage($"## Project Overview\n{projectOverview}")
         };
+        if (!string.IsNullOrWhiteSpace(prefetchedContext))
+        {
+            messages.Add(new UserChatMessage($"## Pre-fetched Symbol Context (verified against the codebase; still confirm with tools before relying on it)\n{prefetchedContext}"));
+        }
+        messages.Add(new UserChatMessage($"## Question\n{question}"));
 
-        for (int iteration = 0; iteration < _maxIterations; iteration++)
+        for (int iteration = 0; iteration < maxIterations; iteration++)
         {
             result.IterationCount = iteration + 1;
-            logger.LogInformation("Agent iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
+            logger.LogInformation("Agent iteration {Iteration}/{Max}", iteration + 1, maxIterations);
 
             await onProgress(new AgentEvent
             {
@@ -677,7 +731,9 @@ Rules:
                                                           ILLMProvider provider,
                                                           Func<AgentEvent, Task> onProgress,
                                                           string projectOverview,
-                                                          string? sessionId = null)
+                                                          string? sessionId = null,
+                                                          int maxIterations = _maxIterations,
+                                                          string? prefetchedContext = null)
     {
         logger.LogInformation("Starting ReAct agent loop for provider {Provider}", provider.Name);
 
@@ -692,14 +748,18 @@ Rules:
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(systemPrompt),
-            new UserChatMessage($"## Project Overview\n{projectOverview}"),
-            new UserChatMessage($"## Question\n{question}")
+            new UserChatMessage($"## Project Overview\n{projectOverview}")
         };
+        if (!string.IsNullOrWhiteSpace(prefetchedContext))
+        {
+            messages.Add(new UserChatMessage($"## Pre-fetched Symbol Context (verified against the codebase; still confirm with tools before relying on it)\n{prefetchedContext}"));
+        }
+        messages.Add(new UserChatMessage($"## Question\n{question}"));
 
-        for (int iteration = 0; iteration < _maxIterations; iteration++)
+        for (int iteration = 0; iteration < maxIterations; iteration++)
         {
             result.IterationCount = iteration + 1;
-            logger.LogInformation("ReAct iteration {Iteration}/{Max}", iteration + 1, _maxIterations);
+            logger.LogInformation("ReAct iteration {Iteration}/{Max}", iteration + 1, maxIterations);
 
             await onProgress(new AgentEvent
             {

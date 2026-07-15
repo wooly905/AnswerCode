@@ -70,6 +70,10 @@ builder.Services.AddSingleton<ICallGraphService, CallGraphService>();
 // Register config lookup service
 builder.Services.AddSingleton<IConfigLookupService, ConfigLookupService>();
 
+// Agent tuning: deterministic symbol context pre-fetch + question-complexity iteration budgets
+builder.Services.Configure<AgentSettings>(builder.Configuration.GetSection(AgentSettings.SectionName));
+builder.Services.AddSingleton<IContextExpansionService, ContextExpansionService>();
+
 // Register tools via DI (add new tools here)
 builder.Services.AddSingleton<ITool, GrepTool>();
 builder.Services.AddSingleton<ITool, ReadFileTool>();

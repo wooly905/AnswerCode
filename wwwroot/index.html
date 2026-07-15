@@ -1298,6 +1298,7 @@
                 </div>
                 <span class="spacer"></span>
                 <button class="new-chat-btn" onclick="newChat()" title="Start a new conversation">New Chat</button>
+                <button class="new-chat-btn" onclick="downloadChat()" title="Download the full chat history, including tool call inputs/outputs, as a Markdown file">Download Chat</button>
                 <div class="top-bar-auth" id="authArea">
                     <a href="/api/auth/login" class="login-btn" id="loginBtn">
                         <svg width="14" height="14" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8.5h11.3C33.8 33.2 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c2.9 0 5.5 1 7.6 2.8l6.3-6.3C34.1 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 19.6-7.6 20.8-18 .1-.7.2-1.3.2-2 0-1.7-.2-3.3-.4-5z"/></svg>
@@ -1385,6 +1386,12 @@
         let cumulativeInputTokens = 0;
         let cumulativeOutputTokens = 0;
         let cumulativeMainAgentTokens = 0;
+
+        // Full chat transcript for "Download Chat" — captures each Q&A turn including every
+        // tool call's input (arguments) and output (result), independent of what's currently
+        // expanded/collapsed in the DOM.
+        let chatLog = [];
+        let currentTurn = null;
 
         // ── Utils ──
         function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
@@ -1803,6 +1810,8 @@
             startTime = Date.now();
 
             addUserMessage(question);
+            currentTurn = { question, timestamp: new Date().toISOString(), steps: [], answer: null, error: null, meta: null };
+            chatLog.push(currentTurn);
             const msgId = addAIMessagePlaceholder();
 
             const elapsedTimer = setInterval(() => {
@@ -1859,10 +1868,12 @@
                     break;
                 case 'ToolCallStart':
                     addStepItem(event, true, msgId);
+                    logToolCallStart(event);
                     updateThinkingText(msgId, `Running ${formatToolName(event.toolName)}...`);
                     break;
                 case 'ToolCallEnd':
                     markStepDone(event, msgId);
+                    logToolCallEnd(event);
                     updateThinkingText(msgId, 'Agent is thinking...');
                     break;
                 case 'UserQuestion':
@@ -1870,10 +1881,12 @@
                     break;
                 case 'Answer':
                     removeThinking(msgId);
+                    logAnswer(event.result);
                     try { showFinalAnswer(event.result, msgId); } catch (e) { showMsgError(msgId, 'Failed to render: ' + e.message); }
                     break;
                 case 'Error':
                     removeThinking(msgId);
+                    logError(event.summary);
                     showMsgError(msgId, event.summary);
                     break;
             }
@@ -2329,8 +2342,133 @@
             cumulativeInputTokens = 0;
             cumulativeOutputTokens = 0;
             cumulativeMainAgentTokens = 0;
+            chatLog = [];
+            currentTurn = null;
             updateTokenStats();
             document.getElementById('chatMessages').innerHTML = '<div class="empty-state" id="emptyState">Upload source code and ask a question to begin...</div>';
+        }
+
+        // ── Download Chat ──
+        function logToolCallStart(event) {
+            if (!currentTurn) return;
+            currentTurn.steps.push({
+                toolName: event.toolName,
+                arguments: event.toolArgs || '',
+                resultSummary: null,
+                resultDetails: null,
+                durationMs: null
+            });
+        }
+
+        function logToolCallEnd(event) {
+            if (!currentTurn) return;
+            // Match the same way the UI does: the most recent step for this tool that hasn't
+            // been completed yet (mirrors markStepDone's matching logic).
+            for (let i = currentTurn.steps.length - 1; i >= 0; i--) {
+                const step = currentTurn.steps[i];
+                if (step.toolName === event.toolName && step.durationMs === null) {
+                    step.resultSummary = event.resultSummary || '';
+                    step.resultDetails = event.resultDetails || event.resultSummary || '';
+                    step.durationMs = event.durationMs != null ? event.durationMs : 0;
+                    break;
+                }
+            }
+        }
+
+        function logAnswer(data) {
+            if (!currentTurn) return;
+            currentTurn.answer = (data && data.answer) || '';
+            currentTurn.meta = {
+                toolCallCount: (data && data.toolCallCount) || 0,
+                iterationCount: (data && data.iterationCount) || 0,
+                totalInputTokens: (data && data.totalInputTokens) || 0,
+                totalOutputTokens: (data && data.totalOutputTokens) || 0,
+                processingTimeMs: (data && data.processingTimeMs) || 0,
+                relevantFiles: (data && data.relevantFiles) || []
+            };
+        }
+
+        function logError(message) {
+            if (!currentTurn) return;
+            currentTurn.error = message || 'Unknown error';
+        }
+
+        function downloadChat() {
+            if (chatLog.length === 0) {
+                alert('No chat history to download yet.');
+                return;
+            }
+
+            const lines = [];
+            lines.push('# AnswerCode Chat Export');
+            lines.push(`Exported: ${new Date().toISOString()}`);
+            if (currentFolderId) lines.push(`Project: ${currentFolderId}`);
+            lines.push('');
+
+            chatLog.forEach((turn, idx) => {
+                lines.push('---');
+                lines.push('');
+                lines.push(`## Q${idx + 1}: ${turn.question}`);
+                lines.push(`_${turn.timestamp}_`);
+                lines.push('');
+
+                if (turn.steps.length > 0) {
+                    lines.push('### Agent Workflow');
+                    turn.steps.forEach((step, stepIdx) => {
+                        lines.push('');
+                        lines.push(`**Step ${stepIdx + 1}: ${step.toolName}**${step.durationMs != null ? ` (${step.durationMs}ms)` : ''}`);
+                        if (step.arguments) {
+                            let formattedArgs = step.arguments;
+                            try { formattedArgs = JSON.stringify(JSON.parse(step.arguments), null, 2); } catch { }
+                            lines.push('');
+                            lines.push('Input:');
+                            lines.push('```json');
+                            lines.push(formattedArgs);
+                            lines.push('```');
+                        }
+                        lines.push('');
+                        lines.push('Output:');
+                        lines.push('```');
+                        lines.push(step.resultDetails || step.resultSummary || '(no output recorded)');
+                        lines.push('```');
+                    });
+                    lines.push('');
+                }
+
+                if (turn.answer) {
+                    lines.push('### Answer');
+                    lines.push('');
+                    lines.push(turn.answer);
+                    lines.push('');
+                }
+
+                if (turn.error) {
+                    lines.push('### Error');
+                    lines.push('');
+                    lines.push(turn.error);
+                    lines.push('');
+                }
+
+                if (turn.meta) {
+                    lines.push(`_${turn.meta.toolCallCount} tool calls, ${turn.meta.iterationCount} iterations, ${turn.meta.totalInputTokens + turn.meta.totalOutputTokens} tokens, ${turn.meta.processingTimeMs}ms_`);
+                    if (turn.meta.relevantFiles.length > 0) {
+                        lines.push('');
+                        lines.push(`Analyzed files: ${turn.meta.relevantFiles.join(', ')}`);
+                    }
+                    lines.push('');
+                }
+            });
+
+            const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const ts = new Date().toISOString().replace(/[:.]/g, '-');
+            a.href = url;
+            a.download = `answercode-chat-${ts}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
 
         // ── Keyboard ──

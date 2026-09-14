@@ -29,14 +29,8 @@ public interface ILLMProvider
     Task<List<string>> ExtractKeywordsAsync(string question);
 
     /// <summary>
-    /// Send messages with tool definitions and get back either tool calls or a text response.
-    /// Only available when SupportsToolCalling is true.
-    /// </summary>
-    Task<LLMChatResponse> ChatWithToolsAsync(IList<ChatMessage> messages, IReadOnlyList<ChatTool> tools);
-
-    /// <summary>
     /// Multi-turn chat without tool definitions. Used by ReAct agent loop.
-    /// Returns a LLMChatResponse with IsToolCall=false and token usage populated.
+    /// Returns text content with token usage populated.
     /// </summary>
     Task<LLMChatResponse> ChatAsync(IList<ChatMessage> messages);
 }

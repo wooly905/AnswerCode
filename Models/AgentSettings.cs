@@ -22,10 +22,8 @@ public class AgentSettings
     public bool EnableComplexityRouting { get; set; } = true;
 
     /// <summary>
-    /// Enable running the tool calls returned in a single LLM turn concurrently instead of
-    /// sequentially. Cuts wall-clock latency and encourages fewer round trips when the model
-    /// batches independent lookups. The <c>ask_user</c> tool is always excluded and run alone,
-    /// since it pauses the run to wait for a human reply.
+    /// Enable concurrent tool execution in the ReAct fallback. Harness tool scheduling is
+    /// managed by Agent Framework. The <c>ask_user</c> tool is always excluded and run alone.
     /// </summary>
     public bool EnableParallelToolExecution { get; set; } = true;
 

@@ -2,22 +2,22 @@
 
 > 🌐 [English](README.md) | **繁體中文**
 
-AI 驅動的程式碼問答系統。透過大型語言模型（LLM）結合主動式工具呼叫迴圈，對您的程式庫提問並獲得智慧解答。
+以 Microsoft Agent Framework 建構的 AI 程式碼問答系統。透過 Harness 驅動的主動式工具呼叫迴圈，探索程式庫並產生有程式碼證據的回答。
 
 ## 功能特色
 
-- **程式碼上傳**：直接在瀏覽器中上傳專案檔案（支援拖放檔案或資料夾）— 無需在伺服器端設定路徑
+- **安全的程式碼上傳**：直接在瀏覽器中上傳專案檔案；來源檔案 allowlist、執行檔 signature 檢查、rooted path 拒絕與目的地 confinement 會將檔案限制在指定 workspace 內
 - **Google 登入與持久化儲存**：使用 Google 帳號登入即可獲得專屬的持久化儲存空間（預設 300 MB 配額）— 上傳的專案可跨瀏覽器工作階段保留，並可透過 Dashboard 管理
 - **使用者 Dashboard**：已登入使用者可在 `/dashboard` 頁面檢視所有上傳的專案、儲存用量進度條，並可刪除個別專案
-- **主動式問答**：AI 代理使用工具（grep、讀取檔案、讀取符號、列出目錄、glob 搜尋、檔案大綱、定義查找、參考查找、測試查找、相關檔案、儲存庫地圖、呼叫圖、網路搜尋、設定查找）自主探索程式庫並回答問題
+- **Microsoft Agent Framework 主動式問答**：支援原生 function calling 的 provider 透過 `HarnessAgent` 執行；既有 AnswerCode 工具以 `AIFunction` 暴露，同時維持目前 SSE event contract
 - **澄清提問**：代理在執行過程中若遇到真正模稜兩可或影響重大的決策，可透過 `ask_user` 工具暫停並直接向使用者提問，待收到回答後再繼續執行
 - **雙模式回答**：每個問題可選擇 **開發者** 模式（技術性，附帶檔案路徑與行號）或 **PM** 模式（白話文、以業務為導向、不含程式碼片段）
-- **多 LLM 供應商**：可動態設定 — 透過 `appsettings.json` 加入任意數量的 OpenAI 相容、Azure OpenAI 或 Ollama 供應商
+- **多 LLM 供應商**：可動態設定 — 透過 `appsettings.json` 加入 OpenAI 相容、Azure OpenAI、Microsoft Foundry 或 Ollama 供應商
 - **ReAct 備用迴圈**：不支援原生函式呼叫的供應商會自動切換為基於 `<tool_call>` XML 標籤的文字式 ReAct 迴圈，任何 LLM 皆可作為代理使用
 - **SubAgent 架構**：後續問題採用三階段 SubAgent 設計 —（1）結合對話歷史將後續問題解析為獨立問題，（2）在不帶歷史的情況下執行主動式工具呼叫迴圈以節省 Token，（3）結合歷史上下文合成最終回答。對話歷史長度以 **200K token 預算** 控制（取代固定 turn 數量限制），接近門檻時自動壓縮舊對話
 - **自適應迭代預算**：以規則為基礎的問題複雜度分類器（不額外呼叫 LLM）依問題調整工具迴圈的迭代次數上限 — 簡單查詢給予較小的預算，複雜的多步驟問題則保留完整預算
 - **預先擷取符號上下文**：當問題提到程式庫中真實存在的符號時，代理會先驗證該符號，並在工具迴圈開始前預先擷取其定義、呼叫圖與參考位置，減少探索所需的來回次數
-- **並行工具執行**：同一輪 LLM 回傳的多個工具呼叫會並行執行（`ask_user` 除外，該工具一律單獨執行），縮短實際等待時間
+- **依 runtime 調整工具排程**：原生 function invocation 由 Agent Framework 管理；ReAct fallback 可並行執行獨立工具，且一律隔離 `ask_user`
 - **對話歷史檢視器**：點擊頂部欄的 **Main** Token 計數器，即可檢視 LLM 實際記憶中的對話內容，並可透過下載按鈕將歷史記錄匯出為 Markdown
 - **下載對話紀錄**：一鍵將目前畫面上的完整對話 — 包含每個問題、每次工具呼叫的輸入/輸出，以及最終答案 — 匯出為單一 Markdown 檔案
 - **串流進度顯示**：即時 SSE 串流，顯示每次工具呼叫的過程，包含結果摘要、可展開的詳細項目與執行時長
@@ -25,13 +25,14 @@ AI 驅動的程式碼問答系統。透過大型語言模型（LLM）結合主�
 - **多語言專案支援**：自動偵測並摘要 .NET、Node.js、Python、Go、Rust、Java 以及 C/C++ 專案的中繼資料
 - **混合式多語言程式碼分析**：`C#` 使用 Roslyn 進行精準的符號讀取與參考查找；TypeScript、JavaScript、Python、Go、Rust 使用 LSP 伺服器（typescript-language-server、Pyright、gopls、rust-analyzer）進行語意定義、參考與符號分析，並在 LSP 失敗時自動降級至 heuristic；Java、C/C++ 則使用 heuristic 方式進行符號、參考與測試分析
 - **深色主題介面**：網頁介面包含語法上色、Markdown 渲染，以及支援互動式縮放、拖移與全螢幕檢視的 Mermaid 圖表
-- **自動清理上傳檔案**：匿名使用者離開頁面時，已上傳的程式碼會透過 `beforeunload` + `sendBeacon` 自動刪除；背景服務作為安全網，根據可設定的 TTL 定期清除過期的上傳資料夾
+- **受保護的上傳生命週期**：匿名清理使用 ASP.NET Core Data Protection 簽章的刪除 token；瀏覽器會盡可能在離開時刪除上傳內容，TTL 背景服務則作為安全網
 - **結構化日誌**：透過 Serilog 記錄請求與回應，支援主控台與滾動檔案輸出
 
 ## 系統需求
 
 - [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- LLM API 存取（OpenAI、Azure OpenAI 或 Ollama）
+- LLM API 存取（OpenAI、Azure OpenAI、Microsoft Foundry 或 Ollama）
+- 本機使用 Microsoft Foundry 時，需要安裝 [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) 並執行 `az login`
 
 ## 快速開始
 
@@ -40,7 +41,7 @@ AI 驅動的程式碼問答系統。透過大型語言模型（LLM）結合主�
    cd AnswerCode
    ```
 
-2. 在 `appsettings.json` 中設定 LLM 供應商（見下方[設定](#設定)）。
+2. 在 `appsettings.json` 設定 provider metadata；API keys 與本機覆寫請放在已加入 gitignore 的 `appsettings.Local.json`（見下方[設定](#設定)）。
 
 3. 執行應用程式：
    ```bash
@@ -82,6 +83,8 @@ AI 驅動的程式碼問答系統。透過大型語言模型（LLM）結合主�
 
 上傳的資料夾 ID 將自動作為所有問答請求的 `projectPath`。
 
+所有上傳路徑皆視為不可信輸入。系統會拒絕 rooted path、路徑穿越片段、忽略的 build／dependency 目錄、不支援的檔案類型，以及常見的可執行 binary signatures。匿名刪除 token 由 ASP.NET Core Data Protection 簽章，不再依賴 controller 內的 process-local state。
+
 ## 認證與 Dashboard
 
 AnswerCode 支援選擇性的 Google OAuth 登入。使用問答功能**不需要**認證 — 匿名使用者可如往常般上傳程式碼並提問。
@@ -95,7 +98,7 @@ Development 模式下提供 **dev-login** 捷徑（`/api/auth/dev-login`），�
 
 ## 設定
 
-所有設定皆透過 `appsettings.json` 進行設定。
+非敏感預設值透過 `appsettings.json` 設定。API keys 與特定機器的覆寫請放在已加入 gitignore 的 `appsettings.Local.json`，切勿提交有效憑證。
 
 ### LLM 供應商
 
@@ -120,6 +123,11 @@ LLM 供應商設定在 `LLM` 區段下。您可以加入任意數量的供應商
         "DisplayName": "Azure GPT-5.5",
         "UseReasoningModelParameters": true
       },
+      "Foundry": {
+        "Endpoint": "https://your-resource.services.ai.azure.com/api/projects/your-project",
+        "Model": "your-model-deployment",
+        "DisplayName": "Microsoft Foundry"
+      },
       "Ollama": {
         "Endpoint": "http://localhost:11434/v1/",
         "ApiKey": "ollama",
@@ -134,7 +142,8 @@ LLM 供應商設定在 `LLM` 區段下。您可以加入任意數量的供應商
 ### 供應商類型
 
 - **AzureOpenAI**：使用 `Endpoint`、`ApiKey`、`DeploymentName`，以及選填的 `Model`、`DisplayName`、`UseReasoningModelParameters`。若 GPT-5.2/GPT-5.4/GPT-5.5 的 Azure deployment 名稱不包含模型名稱，請將 `UseReasoningModelParameters` 設為 `true`。
-- **OpenAI / OpenAI 相容**（其他任何金鑰，包括 Ollama）：使用 `Endpoint`、`ApiKey`、`Model`，以及選填的 `DisplayName`。工廠將所有非 AzureOpenAI 金鑰視為 OpenAI 相容供應商 — Ollama 可直接透過其 `/v1/` 端點使用。
+- **Foundry**：使用 `Foundry` 金鑰，設定 project `Endpoint`、`Model` 與選填的 `DisplayName`。驗證使用 `DefaultAzureCredential`；本機請先執行 `az login`，正式環境則設定 Managed Identity。原生工具呼叫固定透過 Microsoft Agent Framework `HarnessAgent` 執行。
+- **OpenAI / OpenAI 相容**（其他任何金鑰，包括 Ollama）：使用 `Endpoint`、`ApiKey`、`Model`，以及選填的 `DisplayName`。工廠將 AzureOpenAI 與 Foundry 以外的金鑰視為 OpenAI 相容供應商 — Ollama 可直接透過其 `/v1/` 端點使用。
 
 ### 模型設定指南
 
@@ -206,7 +215,7 @@ Google OAuth 設定在 `Authentication` 區段下。請從 [Google Cloud Console
 
 ### 代理行為調校
 
-符號上下文預先擷取、問題複雜度迭代預算，以及並行工具執行皆設定在 `AgentSettings` 區段下：
+符號上下文預先擷取、問題複雜度迭代預算，以及 ReAct fallback 並行設定皆位於 `AgentSettings` 區段：
 
 ```json
 {
@@ -221,10 +230,24 @@ Google OAuth 設定在 `Authentication` 區段下。請從 [Google Cloud Console
 }
 ```
 
+- 支援原生工具呼叫的 provider 固定使用 Microsoft Agent Framework `HarnessAgent`；不支援原生工具呼叫的 provider 則使用 ReAct fallback。目前 Harness 工具依序執行，確保 `ask_user` 不會和其他工具重疊。
 - `EnableSymbolContextExpansion`：針對問題中偵測到的符號，預先擷取已驗證的定義、呼叫圖與參考位置（預設：`true`）。
 - `EnableComplexityRouting`：依規則為基礎的問題複雜度分類調整工具迴圈的迭代預算（預設：`true`）。停用時，所有問題皆使用 `ComplexQuestionMaxIterations`。
-- `EnableParallelToolExecution`：讓同一輪 LLM 回傳的工具呼叫並行執行，而非依序執行（預設：`true`）。`ask_user` 工具一律排除在外並單獨執行。
+- `EnableParallelToolExecution`：讓 ReAct fallback 同一輪回傳的工具呼叫並行執行，而非依序執行（預設：`true`）。`ask_user` 工具一律排除在外並單獨執行；Harness 的工具排程由 Agent Framework 管理。
 - `SimpleQuestionMaxIterations` / `StandardQuestionMaxIterations` / `ComplexQuestionMaxIterations`：各複雜度層級的最大工具迴圈迭代次數（預設：8 / 25 / 50）。
+
+### Microsoft Agent Framework Runtime
+
+支援原生 function calling 的 provider 固定使用 Microsoft Agent Framework：
+
+- `AnswerCodeOpenAIClient` 與 `AnswerCodeFoundryClient` 依設定建立 `IChatClient`。
+- `AnswerCodeAgentHarness` 使用 AnswerCode instructions、迭代限制與適配後工具建立 `HarnessAgent`。
+- `AnswerCodeToolFunction` 保留既有工具 JSON schema，並將執行轉交原本的 `ITool` 實作。
+- `AgentFrameworkEventAdapter` 將文字、reasoning、function call/result、usage 與 error 投影到既有 SSE event model。
+- Provider 若只回傳 reasoning、沒有工具呼叫或最終回答，Harness 會在同一個 `AgentSession` 內以針對性提醒重試，最多三次。
+- 明確不支援原生工具呼叫的 provider 則使用 `ReActAgentRunner`。
+
+與 AnswerCode 既有功能重疊的 Harness defaults（file memory、hosted web search、todo/mode/skills providers 與內建 OpenTelemetry wrapper）均停用。Prompts、程式碼分析工具、對話階段與 UI protocol 仍由 AnswerCode 管理。
 
 ## 代理工具
 
@@ -285,13 +308,15 @@ Google OAuth 設定在 `Authentication` 區段下。請從 [Google Cloud Console
 
 當使用者提出後續問題（即存在對話歷史）時，系統會將工作拆分為三個階段以降低 Token 消耗：
 
-| 階段 | 角色 | 是否包含歷史 | LLM 呼叫次數 |
-|------|------|-------------|-------------|
+| 階段 | 角色 | 是否包含歷史 | Request 模式 |
+|------|------|-------------|--------------|
 | **1. 上下文解析** | 將後續問題解析為獨立問題 | 是 | 1 |
-| **2. SubAgent 工具迴圈** | 執行完整的主動式研究迴圈 | **否** | 8–50（依複雜度而定） |
+| **2. SubAgent 工具迴圈** | 執行完整的主動式研究迴圈 | **否** | 依複雜度設定 function-loop 上限 |
 | **3. 回答合成** | 結合研究結果與對話上下文 | 是 | 1 |
 
 工作階段中的第一個問題（無歷史）會直接進入工具迴圈，零額外開銷。
+
+階段 2 的 8 / 25 / 50 是每次 request 的 function-loop 最大迭代數，不是個別工具呼叫總數的 hard limit；同一輪模型回應可能要求多個工具。若 Harness 沒有得到可見的最終回答，會在同一個 `AgentSession` 內最多再送出兩次 request。
 
 **為何重要：** 在先前的設計中，對話歷史會隨著工具迴圈中的每次 LLM 呼叫一同傳送（5–50 次）。使用 SubAgent 後，歷史僅傳送兩次（階段 1 + 3），使得 Token 成本幾乎與歷史長度無關。
 
@@ -303,7 +328,9 @@ Google OAuth 設定在 `Authentication` 區段下。請從 [Google Cloud Console
 2. 較舊的 turns 透過 LLM 呼叫摘要為一個精簡的摘要 turn。
 3. 壓縮後的歷史會寫回工作階段儲存區。
 
-壓縮支援**鏈式運作** — 當歷史在上次壓縮後再次增長，舊的摘要會被納入下一次壓縮循環。這使得對話可以在 token 預算內無限延續。
+壓縮支援**鏈式運作** — 當 history 在上次壓縮後再次增長，舊摘要會被納入下一次壓縮循環。只要壓縮結果仍低於 hard limit，即可支援長期對話。
+
+200K 是實際 hard guard：若 history 已超限且壓縮失敗，或壓縮後仍超限，request 會停止，不會把過大的 prompt 送往模型。
 
 頂部欄分別顯示 **Main**（階段 1 + 3）與 **Sub**（階段 2）的 Token 用量。點擊 **Main** 會開啟彈窗顯示 LLM 記憶中的確切對話內容（包含以黃色標示的壓縮摘要 turn），並提供按鈕可將歷史記錄下載為 Markdown。
 
@@ -327,9 +354,38 @@ Google OAuth 設定在 `Authentication` 區段下。請從 [Google Cloud Console
 
 在工具迴圈開始前，代理會先掃描問題中類似符號的識別字（例如 `AgentService`、`resolveSymbol`），並透過符號分析逐一驗證每個候選字是否存在於程式庫中。已驗證的符號會預先擷取其定義、單層呼叫圖（呼叫者與被呼叫者）與參考位置，並注入第一則訊息 — 讓代理一開始就握有證據，不必再花費迭代去執行 `find_definition` → `read_symbol` → `find_references`。未驗證的候選字（恰好長得像識別字的普通單字）會被靜默捨棄，因此不會注入捏造的上下文。
 
-### 並行工具執行
+### 工具排程
 
-當模型在同一輪回傳多個工具呼叫時，現在會並行執行而非逐一執行，藉此縮短實際等待時間。`ask_user` 工具一律排除在並行批次之外並單獨執行，因為它會暫停等待使用者回覆。系統提示詞也鼓勵模型將彼此獨立的查詢（例如檢查兩個不相關的檔案）合併在同一輪呼叫，而不是分散到多輪。
+原生 function calls 由 Microsoft Agent Framework 管理排程。文字式 ReAct fallback 在啟用 `EnableParallelToolExecution` 時，可並行執行同一輪的獨立工具。兩種 runtime 都會隔離 `ask_user`，因為它會暫停執行並等待使用者輸入。
+
+## 應用程式架構
+
+- Controllers 聚焦 transport，並共用既有 `/api/CodeQA/*` route surface：`UploadController`、`AskController`、`FileController`、`HistoryController`。
+- `QuestionExecutionService` 統一同步與 SSE request 的 session lookup、history persistence、result mapping 與 elapsed-time tracking。
+- `AgentService` 是精簡的 orchestration facade，只負責無 history 路徑與三階段 follow-up 流程。
+- `ConversationContextService` 負責 history estimate、compression、hard-cap enforcement、context resolution 與 answer synthesis。
+- `AgentResearchService` 選擇 Harness 或 ReAct；`ReActAgentRunner` 只負責相容迴圈與 tool batching。
+- Upload 責任拆分為 `SourceUploadService`、`SourceFilePolicy`、`ProjectPathResolver`、`DeleteTokenService`。
+
+Controller 拆分後仍保留既有 API paths：
+
+| Controller | Routes |
+|------------|--------|
+| `UploadController` | `POST /api/CodeQA/upload`、刪除／清理、匿名與使用者專案清單 |
+| `AskController` | 同步／SSE 問答、使用者回答、provider discovery |
+| `FileController` | 專案結構與檔案讀取 |
+| `HistoryController` | 依 session 取得對話歷史 |
+
+## 驗證
+
+部署前請執行完整測試與 Release build：
+
+```bash
+dotnet test AnswerCode.Tests/AnswerCode.Tests.csproj
+dotnet build AnswerCode.csproj --configuration Release
+```
+
+測試涵蓋 Agent Framework 工具呼叫與空回應恢復、controller route 相容性、問答執行、history hard cap、upload path confinement、簽章刪除 token、分析服務，以及既有 storage/tool 行為。
 
 ## 使用體驗補充
 
@@ -345,14 +401,21 @@ Google OAuth 設定在 `Authentication` 區段下。請從 [Google Cloud Console
 AnswerCode/
 ├── Controllers/
 │   ├── AuthController.cs         # Google OAuth 登入/登出 + dev-login
-│   ├── CodeQAController.cs       # 上傳、問答與專案管理端點
-│   └── DashboardController.cs    # 已認證的 Dashboard API（用量、資料夾）
+│   ├── AskController.cs          # 問答、SSE、使用者回答與 provider 端點
+│   ├── DashboardController.cs    # 已認證的 Dashboard API（用量、資料夾）
+│   ├── FileController.cs         # 專案結構與檔案讀取端點
+│   ├── HistoryController.cs      # 對話歷史端點
+│   └── UploadController.cs       # 上傳、刪除、清理與專案清單端點
 ├── Models/                       # DTO 與設定模型
 ├── Services/
+│   ├── Agents/                   # Agent 協調 policy、prompts 與 runners
+│   ├── AgentFramework/           # Harness、IChatClient、AIFunction 與 SSE adapters
 │   ├── Analysis/                 # Roslyn + 多語言 heuristic 分析服務
 │   ├── Lsp/                      # LSP 客戶端基礎設施（JSON-RPC、伺服器管理）
-│   ├── Providers/                # LLM 供應商實作（OpenAI、AzureOpenAI）
+│   ├── Providers/                # OpenAI、Azure OpenAI、相容端點與 Foundry bridges
+│   ├── Questions/                # 同步／串流共用的問答執行流程
 │   ├── Tools/                    # 代理工具 + ReActParser
+│   ├── Uploads/                  # 上傳 policy、路徑限制、token 與儲存
 │   ├── UploadCleanupService.cs   # 過期上傳自動清理背景服務
 │   └── UserStorageService.cs     # 使用者儲存管理與配額控管
 ├── lsp-servers/

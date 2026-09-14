@@ -57,61 +57,10 @@ public abstract class BaseLLMProvider(ChatClient chatClient,
         var completion = await ChatClient.CompleteChatAsync(messages, options);
         var value = completion.Value;
         var rawText = value.Content.Count > 0 ? value.Content[0].Text ?? "" : "";
-        var (cleanedText, thinking) = ExtractThinking(rawText);
+        var (cleanedText, _) = ExtractThinking(rawText);
         return new LLMChatResponse
         {
-            IsToolCall = false,
             TextContent = cleanedText,
-            ThinkingContent = thinking,
-            AssistantMessage = new AssistantChatMessage(rawText),
-            InputTokens = value.Usage?.InputTokenCount ?? 0,
-            OutputTokens = value.Usage?.OutputTokenCount ?? 0
-        };
-    }
-
-    /// <inheritdoc/>
-    public virtual async Task<LLMChatResponse> ChatWithToolsAsync(IList<ChatMessage> messages, IReadOnlyList<ChatTool> tools)
-    {
-        var options = CreateChatCompletionOptions(8000);
-
-        foreach (var tool in tools)
-        {
-            options.Tools.Add(tool);
-        }
-
-        var completion = await ChatClient.CompleteChatAsync(messages, options);
-        var value = completion.Value;
-
-        // Only treat as tool call if there are actual tool calls
-        if (value.FinishReason == ChatFinishReason.ToolCalls && value.ToolCalls.Count > 0)
-        {
-            var toolCallThinkingRaw = value.Content.Count > 0 ? value.Content[0].Text : null;
-            var (_, toolCallThinking) = ExtractThinking(toolCallThinkingRaw);
-
-            return new LLMChatResponse
-            {
-                IsToolCall = true,
-                ThinkingContent = toolCallThinking,
-                ToolCalls = value.ToolCalls.Select(tc => new LLMToolCallInfo
-                {
-                    CallId = tc.Id,
-                    FunctionName = tc.FunctionName,
-                    Arguments = tc.FunctionArguments.ToString()
-                }).ToList(),
-                AssistantMessage = new AssistantChatMessage(value.ToolCalls),
-                InputTokens = value.Usage?.InputTokenCount ?? 0,
-                OutputTokens = value.Usage?.OutputTokenCount ?? 0
-            };
-        }
-
-        var rawText = value.Content.Count > 0 ? value.Content[0].Text : "";
-        var (cleanedText, thinking) = ExtractThinking(rawText);
-        return new LLMChatResponse
-        {
-            IsToolCall = false,
-            TextContent = cleanedText,
-            ThinkingContent = thinking,
-            AssistantMessage = new AssistantChatMessage(rawText ?? ""),
             InputTokens = value.Usage?.InputTokenCount ?? 0,
             OutputTokens = value.Usage?.OutputTokenCount ?? 0
         };

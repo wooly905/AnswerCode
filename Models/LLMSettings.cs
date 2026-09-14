@@ -31,7 +31,8 @@ public class LLMProviderSettings
     public string Endpoint { get; set; } = "";
 
     /// <summary>
-    /// API key for authentication. Consider using appsettings.Local.json for local overrides.
+    /// API key for authentication. Not used by Foundry providers, which use TokenCredential.
+    /// Consider using appsettings.Local.json for local overrides.
     /// </summary>
     public string ApiKey { get; set; } = "";
 

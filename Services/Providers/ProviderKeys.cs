@@ -8,6 +8,7 @@ public static class ProviderKeys
 {
     public const string OpenAI = "OpenAI";
     public const string AzureOpenAI = "AzureOpenAI";
+    public const string Foundry = "Foundry";
     public const string Ollama = "Ollama";
 
     /// <summary>
@@ -19,6 +20,7 @@ public static class ProviderKeys
         {
             "openai" or "open-ai" => OpenAI,
             "azure" or "azureopenai" or "azure-openai" => AzureOpenAI,
+            "foundry" or "azurefoundry" or "azure-foundry" => Foundry,
             "ollama" => Ollama,
             _ => providerName.Trim()
         };

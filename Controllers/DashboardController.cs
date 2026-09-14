@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AnswerCode.Services;
+using AnswerCode.Services.Uploads;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,15 +16,15 @@ namespace AnswerCode.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly IUserStorageService _userStorage;
-    private readonly IWebHostEnvironment _env;
+    private readonly ISourceUploadService _uploadService;
     private readonly ILogger<DashboardController> _logger;
 
     public DashboardController(IUserStorageService userStorage,
-                               IWebHostEnvironment env,
+                               ISourceUploadService uploadService,
                                ILogger<DashboardController> logger)
     {
         _userStorage = userStorage;
-        _env = env;
+        _uploadService = uploadService;
         _logger = logger;
     }
 
@@ -44,33 +45,7 @@ public class DashboardController : ControllerBase
     /// List all folders belonging to the current user.
     /// </summary>
     [HttpGet("folders")]
-    public IActionResult ListFolders()
-    {
-        var userPath = _userStorage.GetUserStoragePath(User);
-
-        if (!Directory.Exists(userPath))
-            return Ok(Array.Empty<object>());
-
-        var folders = Directory.GetDirectories(userPath)
-            .Select(d => new DirectoryInfo(d))
-            .Select(d =>
-            {
-                var allFiles = d.GetFiles("*", SearchOption.AllDirectories)
-                    .Where(f => f.Name != ".project-meta.json").ToArray();
-                return new
-                {
-                    folderId = d.Name,
-                    displayName = CodeQAController.ReadDisplayName(d.FullName) ?? d.Name,
-                    fileCount = allFiles.Length,
-                    sizeMB = Math.Round(allFiles.Sum(f => f.Length) / (1024.0 * 1024.0), 2),
-                    createdAt = d.CreationTimeUtc
-                };
-            })
-            .OrderByDescending(f => f.createdAt)
-            .ToList();
-
-        return Ok(folders);
-    }
+    public IActionResult ListFolders() => Ok(_uploadService.ListUserProjects(User));
 
     /// <summary>
     /// Rename a folder (update its displayName).

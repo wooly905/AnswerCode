@@ -33,15 +33,11 @@ public class ToolRegistry
     public IReadOnlyList<ITool> GetAllTools() => _tools.Values.ToList();
 
     /// <summary>
-    /// Get all tool definitions for the OpenAI ChatCompletionOptions
-    /// </summary>
-    public IReadOnlyList<ChatTool> GetChatToolDefinitions() => _tools.Values.Select(t => t.GetChatToolDefinition()).ToList();
-
-    /// <summary>
     /// Generate text-based tool descriptions for the ReAct system prompt.
     /// Includes tool name, description, and JSON schema parameters.
     /// </summary>
     public string GetReActToolDescriptions()
+
     {
         var sb = new StringBuilder();
 

@@ -2,22 +2,22 @@
 
 > 🌐 **English** | [繁體中文](README.zh-TW.md)
 
-AI-powered code Q&A system. Ask questions about your codebase and get intelligent answers using large language models (LLMs) with an agentic tool-calling loop.
+AI-powered code Q&A system built on Microsoft Agent Framework. Ask questions about your codebase and get evidence-backed answers from a Harness-powered agentic tool-calling loop.
 
 ## Features
 
-- **Source Code Upload**: Upload your project files directly in the browser (drag & drop files or folders) — no server-side path configuration required
+- **Secure Source Code Upload**: Upload project files directly in the browser. Source allowlists, executable signature checks, rooted-path rejection, and destination confinement keep files inside the assigned workspace
 - **Google Login & Persistent Storage**: Sign in with Google to get dedicated persistent storage (default 300 MB quota) — uploaded projects survive across browser sessions and can be managed from the Dashboard
 - **User Dashboard**: Authenticated users get a `/dashboard` page showing all uploaded projects, storage usage with a visual progress bar, and the ability to delete individual projects
-- **Agentic Q&A**: An AI agent uses tools (grep, read file, read symbol, list directory, glob search, file outline, find definition, find references, find tests, related files, repo map, call graph, web search, config lookup) to explore your codebase and answer questions autonomously
+- **Agentic Q&A with Microsoft Agent Framework**: Native function-calling providers run through `HarnessAgent`; existing AnswerCode tools are exposed as `AIFunction` instances while the current SSE event contract remains stable
 - **Clarifying Questions**: The agent can pause mid-run and ask the user a direct question via the `ask_user` tool when it hits a genuinely ambiguous or high-impact decision, then resume once the answer is submitted
 - **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
-- **Multiple LLM Providers**: Dynamically configurable — add any number of OpenAI-compatible, Azure OpenAI, or Ollama providers via `appsettings.json`
+- **Multiple LLM Providers**: Dynamically configurable — add OpenAI-compatible, Azure OpenAI, Microsoft Foundry, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
 - **SubAgent Architecture**: Follow-up questions use a 3-phase SubAgent design — (1) resolve the follow-up into a standalone question using conversation history, (2) run the agentic tool loop without history to save tokens, (3) synthesize the final answer with history context. History length is controlled by a **200K token budget** instead of a fixed turn limit, with automatic compression when approaching the threshold
 - **Adaptive Iteration Budgets**: A rule-based question-complexity classifier (no extra LLM call) sizes the tool-loop iteration cap per question — simple lookups get a small budget, complex multi-hop questions keep the full budget
 - **Pre-fetched Symbol Context**: When a question names a real symbol in the codebase, the agent verifies it and pre-fetches its definition, call graph, and references before the tool loop starts, cutting down on discovery round-trips
-- **Concurrent Tool Execution**: Tool calls returned in the same LLM turn run concurrently (except `ask_user`, which always runs alone) to cut wall-clock latency
+- **Runtime-Aware Tool Scheduling**: Agent Framework manages native function invocation; the ReAct fallback can run independent calls concurrently while always isolating `ask_user`
 - **Conversation History Inspector**: Click the **Main** token counter in the top bar to view the exact conversation turns the LLM remembers, with a download button to export the history as Markdown
 - **Download Chat**: Export the entire visible conversation — every question, tool call input/output, and final answer — as a single Markdown file with one click
 - **Streaming Progress**: Real-time SSE streaming shows each tool call as it happens, including a result summary, expandable detail items, and duration
@@ -25,13 +25,14 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
 - **Multi-Language Project Support**: Auto-detects and summarizes project metadata for .NET, Node.js, Python, Go, Rust, Java, and C/C++ projects
 - **Hybrid Multi-Language Code Analysis**: `C#` uses Roslyn for precise symbol reads and reference lookup; TypeScript, JavaScript, Python, Go, and Rust use LSP servers (typescript-language-server, Pyright, gopls, rust-analyzer) for semantic definition, reference, and symbol analysis with heuristic fallback; Java and C/C++ use heuristic symbol, reference, and test discovery
 - **Dark Theme UI**: Web interface with syntax highlighting, Markdown rendering, Mermaid diagram support with interactive zoom/pan and fullscreen view
-- **Automatic Upload Cleanup**: Anonymous uploads are automatically deleted when the user leaves the page (`beforeunload` + `sendBeacon`), with a background service as a safety net that removes expired uploads based on a configurable TTL
+- **Protected Upload Lifecycle**: Anonymous cleanup uses ASP.NET Core Data Protection signed delete tokens. The browser removes uploads on exit when possible, with a TTL-based background cleanup service as a safety net
 - **Structured Logging**: Request/response logging via Serilog with console and rolling file sinks
 
 ## Prerequisites
 
 - [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- LLM API access (OpenAI, Azure OpenAI, or Ollama)
+- LLM API access (OpenAI, Azure OpenAI, Microsoft Foundry, or Ollama)
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) with `az login` when using Microsoft Foundry locally
 
 ## Quick Start
 
@@ -40,7 +41,7 @@ AI-powered code Q&A system. Ask questions about your codebase and get intelligen
    cd AnswerCode
    ```
 
-2. Configure LLM providers in `appsettings.json` (see [Configuration](#configuration) below).
+2. Configure provider metadata in `appsettings.json`. Put API keys and local overrides in the gitignored `appsettings.Local.json` (see [Configuration](#configuration) below).
 
 3. Run the application:
    ```bash
@@ -82,6 +83,8 @@ Source code is uploaded directly from the browser:
 
 The uploaded folder ID is automatically used as the `projectPath` for all Q&A requests.
 
+Upload paths are treated as untrusted input. Rooted paths, traversal segments, ignored build/dependency directories, unsupported file types, and common executable binary signatures are rejected. Anonymous delete tokens are signed with ASP.NET Core Data Protection and do not depend on process-local controller state.
+
 ## Authentication & Dashboard
 
 AnswerCode supports optional Google OAuth login. Authentication is **not required** to use the Q&A feature — anonymous users can upload code and ask questions as before.
@@ -95,7 +98,7 @@ A **dev-login** shortcut (`/api/auth/dev-login`) is available in Development mod
 
 ## Configuration
 
-All settings are configured in `appsettings.json`.
+Non-secret defaults are configured in `appsettings.json`. Use the gitignored `appsettings.Local.json` for API keys and machine-specific overrides. Never commit live credentials.
 
 ### LLM Providers
 
@@ -120,6 +123,11 @@ LLM providers are configured under the `LLM` section. You can add as many provid
         "DisplayName": "Azure GPT-5.5",
         "UseReasoningModelParameters": true
       },
+      "Foundry": {
+        "Endpoint": "https://your-resource.services.ai.azure.com/api/projects/your-project",
+        "Model": "your-model-deployment",
+        "DisplayName": "Microsoft Foundry"
+      },
       "Ollama": {
         "Endpoint": "http://localhost:11434/v1/",
         "ApiKey": "ollama",
@@ -134,7 +142,8 @@ LLM providers are configured under the `LLM` section. You can add as many provid
 ### Provider Types
 
 - **AzureOpenAI**: Use `Endpoint`, `ApiKey`, `DeploymentName`, and optionally `Model`, `DisplayName`, and `UseReasoningModelParameters`. Set `UseReasoningModelParameters` to `true` for GPT-5.2/GPT-5.4/GPT-5.5 deployments whose Azure deployment name does not include the model name.
-- **OpenAI / OpenAI-compatible** (any other key, including Ollama): Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The factory treats every non-AzureOpenAI key as an OpenAI-compatible provider — Ollama works out of the box via its `/v1/` endpoint.
+- **Foundry**: Use the `Foundry` key with the project `Endpoint`, `Model`, and optionally `DisplayName`. Authentication uses `DefaultAzureCredential`; run `az login` locally or configure Managed Identity in production. Native tool calling runs through Microsoft Agent Framework `HarnessAgent`.
+- **OpenAI / OpenAI-compatible** (any other key, including Ollama): Use `Endpoint`, `ApiKey`, `Model`, and optionally `DisplayName`. The factory treats keys other than AzureOpenAI and Foundry as OpenAI-compatible providers — Ollama works out of the box via its `/v1/` endpoint.
 
 ### Model Configuration Guide
 
@@ -206,7 +215,7 @@ Automatic cleanup of expired anonymous uploads is configured under the `UploadCl
 
 ### Agent Behavior Tuning
 
-Symbol context pre-fetching, question-complexity iteration budgets, and concurrent tool execution are configured under the `AgentSettings` section:
+Symbol context pre-fetching, question-complexity iteration budgets, and ReAct fallback concurrency are configured under the `AgentSettings` section:
 
 ```json
 {
@@ -221,10 +230,24 @@ Symbol context pre-fetching, question-complexity iteration budgets, and concurre
 }
 ```
 
+- Providers with native tool-calling support always run through Microsoft Agent Framework `HarnessAgent`. Providers without native tool calling use the ReAct fallback. Harness tool calls are currently invoked sequentially so `ask_user` cannot overlap another tool.
 - `EnableSymbolContextExpansion`: Pre-fetch verified symbol definitions, call graphs, and references for symbols detected in the question (default: `true`).
 - `EnableComplexityRouting`: Size the tool-loop iteration budget based on a rule-based question complexity classification (default: `true`). When disabled, every question uses `ComplexQuestionMaxIterations`.
-- `EnableParallelToolExecution`: Run tool calls returned in the same LLM turn concurrently instead of sequentially (default: `true`). The `ask_user` tool is always excluded and runs alone.
+- `EnableParallelToolExecution`: Run tool calls from the ReAct fallback concurrently instead of sequentially (default: `true`). The `ask_user` tool is always excluded and runs alone. Harness tool scheduling is managed by Agent Framework.
 - `SimpleQuestionMaxIterations` / `StandardQuestionMaxIterations` / `ComplexQuestionMaxIterations`: Max tool-loop iterations per complexity tier (defaults: 8 / 25 / 50).
+
+### Microsoft Agent Framework Runtime
+
+Providers with native function calling use Microsoft Agent Framework as the primary runtime:
+
+- `AnswerCodeOpenAIClient` and `AnswerCodeFoundryClient` create `IChatClient` instances for the configured transport.
+- `AnswerCodeAgentHarness` builds a `HarnessAgent` with AnswerCode instructions, iteration limits, and adapted tools.
+- `AnswerCodeToolFunction` preserves each existing tool's JSON schema and delegates execution to its `ITool` implementation.
+- `AgentFrameworkEventAdapter` maps text, reasoning, function calls/results, usage, and errors to the existing SSE event model.
+- If a provider returns reasoning without a tool call or final answer, the harness retries in the same `AgentSession` up to three times with a targeted reminder.
+- Providers explicitly configured without native tool support use `ReActAgentRunner` instead.
+
+Harness defaults that overlap AnswerCode behavior (file memory, hosted web search, todo/mode/skills providers, and built-in OpenTelemetry wrapping) are disabled. AnswerCode remains responsible for its prompts, code-analysis tools, conversation phases, and UI protocol.
 
 ## Agent Tools
 
@@ -285,13 +308,15 @@ If the user does not respond within 5 minutes, the tool returns a timeout messag
 
 When the user asks a follow-up question (i.e., conversation history exists), the system splits the work into three phases to reduce token consumption:
 
-| Phase | Role | History Included | LLM Calls |
-|-------|------|-----------------|-----------|
+| Phase | Role | History Included | Request Pattern |
+|-------|------|-----------------|-----------------|
 | **1. Context Resolution** | Resolve the follow-up into a self-contained question | Yes | 1 |
-| **2. SubAgent Tool Loop** | Run the full agentic research loop | **No** | 8–50 (complexity-based, see below) |
+| **2. SubAgent Tool Loop** | Run the full agentic research loop | **No** | Complexity-based function-loop cap |
 | **3. Answer Synthesis** | Combine research findings with conversation context | Yes | 1 |
 
 The first question in a session (no history) skips directly to the tool loop with zero overhead.
+
+The Phase 2 values 8 / 25 / 50 are maximum function-loop iterations per request, not hard limits on individual tool calls. One model turn may request multiple tools. If Harness receives no visible final answer, it may issue up to two additional requests in the same `AgentSession`.
 
 **Why it matters:** In the previous design, conversation history was sent with every LLM call in the tool loop (5–50 calls). With SubAgent, history is only sent twice (Phase 1 + Phase 3), making the token cost nearly independent of history length.
 
@@ -303,7 +328,9 @@ Instead of a fixed turn limit, conversation history is managed by a **200K token
 2. Older turns are summarized into a single condensed turn via an LLM call.
 3. The compressed history replaces the original in the session store.
 
-Compression is **chain-capable** — when the history grows again after a previous compression, the old summary is included in the next compression cycle. This allows indefinite conversation length within the token budget.
+Compression is **chain-capable** — when history grows again after a previous compression, the old summary is included in the next compression cycle. This supports long-running conversations while the compressed result remains within the hard limit.
+
+The 200K limit is a hard guard: if compression fails while history is already above the limit, or the compressed history still exceeds it, the request stops instead of sending an oversized prompt to the model.
 
 The top bar shows **Main** (Phase 1 + 3) and **Sub** (Phase 2) token usage separately. Clicking **Main** opens a modal showing the exact conversation turns the LLM remembers (including compressed summary turns highlighted in yellow), with a button to download the history as Markdown.
 
@@ -327,9 +354,38 @@ Ambiguous questions never classify as Simple, so misclassification can only use 
 
 Before the tool loop starts, the agent scans the question for symbol-like identifiers (e.g. `AgentService`, `resolveSymbol`) and verifies each candidate against the codebase via symbol analysis. Verified symbols get their definition, one-hop call graph (callers + callees), and references pre-fetched and injected into the first message — so the agent can start with evidence already in hand instead of spending iterations on `find_definition` → `read_symbol` → `find_references`. Unverified candidates (ordinary words that happen to look like identifiers) are silently discarded, so fabricated context is never injected.
 
-### Concurrent Tool Execution
+### Tool Scheduling
 
-When the model returns multiple tool calls in a single turn, they now execute concurrently instead of one at a time, cutting wall-clock latency. The `ask_user` tool is always excluded from concurrent batches and runs alone, since it pauses the run waiting for a human reply. System prompts also encourage the model to batch independent lookups (e.g. checking two unrelated files) into the same turn instead of spreading them across turns.
+Microsoft Agent Framework owns scheduling for native function calls. The text-based ReAct fallback can execute independent calls from the same turn concurrently when `EnableParallelToolExecution` is enabled. In both runtimes, `ask_user` is isolated because it pauses the run while waiting for human input.
+
+## Application Architecture
+
+- Controllers are transport-focused and share the existing `/api/CodeQA/*` route surface: `UploadController`, `AskController`, `FileController`, and `HistoryController`.
+- `QuestionExecutionService` owns session lookup, conversation persistence, result mapping, and elapsed-time tracking for both synchronous and SSE requests.
+- `AgentService` is a small orchestration facade for no-history execution and the three follow-up phases.
+- `ConversationContextService` owns history estimation, compression, hard-cap enforcement, context resolution, and answer synthesis.
+- `AgentResearchService` selects Harness or ReAct; `ReActAgentRunner` owns only the compatibility loop and its tool batching.
+- Upload responsibilities are separated into `SourceUploadService`, `SourceFilePolicy`, `ProjectPathResolver`, and `DeleteTokenService`.
+
+The controller split preserves the existing API paths:
+
+| Controller | Routes |
+|------------|--------|
+| `UploadController` | `POST /api/CodeQA/upload`, delete/cleanup, upload and user-project lists |
+| `AskController` | synchronous/SSE questions, user answers, provider discovery |
+| `FileController` | project structure and file reads |
+| `HistoryController` | conversation history by session |
+
+## Verification
+
+Run the complete test suite and a Release build before deployment:
+
+```bash
+dotnet test AnswerCode.Tests/AnswerCode.Tests.csproj
+dotnet build AnswerCode.csproj --configuration Release
+```
+
+Tests cover Agent Framework tool invocation and empty-response recovery, controller route compatibility, question execution, history hard caps, upload path confinement, signed delete tokens, analysis services, and existing storage/tool behavior.
 
 ## User Experience Notes
 
@@ -345,14 +401,21 @@ When the model returns multiple tool calls in a single turn, they now execute co
 AnswerCode/
 ├── Controllers/
 │   ├── AuthController.cs         # Google OAuth login/logout + dev-login
-│   ├── CodeQAController.cs       # Upload, Q&A, and project management endpoints
-│   └── DashboardController.cs    # Authenticated dashboard API (usage, folders)
+│   ├── AskController.cs          # Q&A, SSE, user answers, and provider endpoints
+│   ├── DashboardController.cs    # Authenticated dashboard API (usage, folders)
+│   ├── FileController.cs         # Project structure and file-reading endpoints
+│   ├── HistoryController.cs      # Conversation history endpoint
+│   └── UploadController.cs       # Upload, delete, cleanup, and project-list endpoints
 ├── Models/                       # DTOs and configuration models
 ├── Services/
+│   ├── Agents/                   # Agent orchestration policies, prompts, and runners
+│   ├── AgentFramework/           # Harness, IChatClient, AIFunction, and SSE adapters
 │   ├── Analysis/                 # Roslyn + heuristic multi-language analysis services
 │   ├── Lsp/                      # LSP client infrastructure (JSON-RPC, server manager)
-│   ├── Providers/                # LLM provider implementations (OpenAI, AzureOpenAI)
+│   ├── Providers/                # OpenAI, Azure OpenAI, compatible, and Foundry bridges
+│   ├── Questions/                # Shared synchronous/streaming question execution
 │   ├── Tools/                    # Agent tools + ReActParser
+│   ├── Uploads/                  # Upload policy, path confinement, tokens, and storage
 │   ├── UploadCleanupService.cs   # Background service for expired upload cleanup
 │   └── UserStorageService.cs     # Per-user storage management and quota enforcement
 ├── lsp-servers/

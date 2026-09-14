@@ -1,9 +1,15 @@
 using AnswerCode.Models;
 using AnswerCode.Services;
+using AnswerCode.Services.AgentFramework;
+using AnswerCode.Services.Agents;
 using AnswerCode.Services.Analysis;
 using AnswerCode.Services.Lsp;
 using AnswerCode.Services.Providers;
+using AnswerCode.Services.Questions;
 using AnswerCode.Services.Tools;
+using AnswerCode.Services.Uploads;
+using Azure.Core;
+using Azure.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -31,6 +37,7 @@ builder.Services.Configure<LLMSettings>(builder.Configuration.GetSection(LLMSett
 
 // Register LLM provider creators (OCP-compliant: add new creators to support new providers)
 builder.Services.AddSingleton<ILLMProviderCreator, AzureOpenAIProviderCreator>();
+builder.Services.AddSingleton<ILLMProviderCreator, FoundryProviderCreator>();
 builder.Services.AddSingleton<ILLMProviderCreator, OpenAIProviderCreator>(); // fallback for all OpenAI-compatible
 
 // Register LLM Service Factory (Singleton - creates providers once)
@@ -73,6 +80,19 @@ builder.Services.AddSingleton<IConfigLookupService, ConfigLookupService>();
 // Agent tuning: deterministic symbol context pre-fetch + question-complexity iteration budgets
 builder.Services.Configure<AgentSettings>(builder.Configuration.GetSection(AgentSettings.SectionName));
 builder.Services.AddSingleton<IContextExpansionService, ContextExpansionService>();
+builder.Services.AddSingleton<IConversationContextService, ConversationContextService>();
+builder.Services.AddScoped<ReActAgentRunner>();
+builder.Services.AddScoped<IAgentResearchService, AgentResearchService>();
+builder.Services.AddSingleton<ISourceFilePolicy, SourceFilePolicy>();
+builder.Services.AddSingleton<IProjectPathResolver, ProjectPathResolver>();
+builder.Services.AddSingleton<IDeleteTokenService, DeleteTokenService>();
+builder.Services.AddSingleton<ISourceUploadService, SourceUploadService>();
+builder.Services.AddSingleton<TokenCredential, DefaultAzureCredential>();
+builder.Services.AddSingleton<AnswerCodeOpenAIClient>();
+builder.Services.AddSingleton<AnswerCodeFoundryClient>();
+builder.Services.AddSingleton<IAnswerCodeChatClientFactory, AnswerCodeChatClientFactory>();
+builder.Services.AddSingleton<AnswerCodeToolAdapter>();
+builder.Services.AddScoped<AnswerCodeAgentHarness>();
 
 // Register tools via DI (add new tools here)
 builder.Services.AddSingleton<ITool, GrepTool>();
@@ -97,6 +117,7 @@ builder.Services.AddSingleton<IUserInputService, UserInputService>();
 
 // Register Agent Service (agentic tool-calling loop)
 builder.Services.AddScoped<IAgentService, AgentService>();
+builder.Services.AddScoped<IQuestionExecutionService, QuestionExecutionService>();
 
 // Register Conversation History Service (in-memory chat history per session)
 builder.Services.AddSingleton<IConversationHistoryService, ConversationHistoryService>();

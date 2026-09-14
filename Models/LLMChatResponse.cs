@@ -1,38 +1,14 @@
-using OpenAI.Chat;
-
 namespace AnswerCode.Models;
 
 /// <summary>
-/// Response from a tool-calling LLM chat round
+/// Text response and token usage from an LLM chat round.
 /// </summary>
 public class LLMChatResponse
 {
     /// <summary>
-    /// Whether this response contains tool calls (vs. a final text answer)
-    /// </summary>
-    public bool IsToolCall { get; init; }
-
-    /// <summary>
-    /// Text content (only set when IsToolCall is false)
+    /// Text content returned by the model.
     /// </summary>
     public string? TextContent { get; init; }
-
-    /// <summary>
-    /// Thinking/reasoning content extracted from thinking model tags (e.g. &lt;thought&gt;, &lt;think&gt;).
-    /// Null when the model does not produce thinking content.
-    /// </summary>
-    public string? ThinkingContent { get; init; }
-
-    /// <summary>
-    /// Tool calls requested by the model
-    /// </summary>
-    public IReadOnlyList<LLMToolCallInfo> ToolCalls { get; init; } = [];
-
-    /// <summary>
-    /// The ChatMessage representing the assistant's response, to be added back to conversation history.
-    /// This preserves tool call metadata required by the API.
-    /// </summary>
-    public required ChatMessage AssistantMessage { get; init; }
 
     /// <summary>
     /// Number of input (prompt) tokens consumed by this LLM call.

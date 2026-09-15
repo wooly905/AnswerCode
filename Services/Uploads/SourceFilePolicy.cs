@@ -46,9 +46,12 @@ public sealed class SourceFilePolicy : ISourceFilePolicy
             return null;
         }
 
-        string normalized = relativePath.Replace('/', Path.DirectorySeparatorChar);
-        if (Path.IsPathRooted(normalized)
-            || normalized.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries).Contains(".."))
+        // Normalize both separators so Windows-style paths are rejected on Linux CI too.
+        string normalized = relativePath
+            .Replace('/', Path.DirectorySeparatorChar)
+            .Replace('\\', Path.DirectorySeparatorChar);
+
+        if (IsUnsafeRelativePath(relativePath, normalized))
         {
             return null;
         }
@@ -58,6 +61,26 @@ public sealed class SourceFilePolicy : ISourceFilePolicy
         return destination.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
             ? destination
             : null;
+    }
+
+    private static bool IsUnsafeRelativePath(string original, string normalized)
+    {
+        if (Path.IsPathRooted(normalized)
+            || normalized.StartsWith(Path.DirectorySeparatorChar)
+            || normalized.StartsWith(Path.AltDirectorySeparatorChar))
+        {
+            return true;
+        }
+
+        // Drive-letter absolute paths (C:\...) are not rooted on Unix, but must still be rejected.
+        if (original.Length >= 2 && char.IsAsciiLetter(original[0]) && original[1] == ':')
+        {
+            return true;
+        }
+
+        return normalized
+            .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)
+            .Contains("..");
     }
 
     public async Task<bool> IsSafeContentAsync(IFormFile file, CancellationToken cancellationToken = default)

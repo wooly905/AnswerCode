@@ -73,6 +73,8 @@ public class AgentService(ILogger<AgentService> logger,
 
             noHistoryResult.ComplexityLabel = noHistoryComplexity.ToString();
             noHistoryResult.UsedPrefetchedContext = !string.IsNullOrWhiteSpace(noHistorySymbolContext);
+            noHistoryResult.MainAgentInputTokens = noHistoryResult.TotalInputTokens;
+            noHistoryResult.MainAgentOutputTokens = noHistoryResult.TotalOutputTokens;
             return noHistoryResult;
         }
 

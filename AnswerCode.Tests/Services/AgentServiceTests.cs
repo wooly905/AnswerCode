@@ -33,7 +33,12 @@ public class AgentServiceTests : IDisposable
                 "session",
                 8,
                 null))
-            .ReturnsAsync(new AgentResult { Answer = "answer" });
+            .ReturnsAsync(new AgentResult
+            {
+                Answer = "answer",
+                TotalInputTokens = 11,
+                TotalOutputTokens = 4
+            });
         var service = new AgentService(
             NullLogger<AgentService>.Instance,
             factory.Object,
@@ -58,6 +63,8 @@ public class AgentServiceTests : IDisposable
 
         Assert.Equal("answer", result.Answer);
         Assert.Equal(nameof(QuestionComplexity.Simple), result.ComplexityLabel);
+        Assert.Equal(11, result.MainAgentInputTokens);
+        Assert.Equal(4, result.MainAgentOutputTokens);
         Assert.Equal(AgentEventType.Started, Assert.Single(events).Type);
         research.VerifyAll();
         conversationContext.VerifyNoOtherCalls();

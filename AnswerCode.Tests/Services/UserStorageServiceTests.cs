@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using AnswerCode.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -98,6 +100,23 @@ public class UserStorageServiceTests : IDisposable
 
         Assert.True(Directory.Exists(path));
         Assert.Equal(Path.Combine(_webRoot, "source-code", "users", "someone@gmail.com"), path);
+    }
+
+    [Fact]
+    public void GetUserStoragePath_MigratesLegacyHashedDirectory()
+    {
+        const string email = "someone@gmail.com";
+        var service = CreateService();
+        var usersPath = Directory.CreateDirectory(Path.Combine(_webRoot, "source-code", "users")).FullName;
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(email)))[..16].ToLowerInvariant();
+        var legacyPath = Directory.CreateDirectory(Path.Combine(usersPath, hash, "project-a")).Parent!.FullName;
+        File.WriteAllText(Path.Combine(legacyPath, "project-a", "Program.cs"), "class Program { }");
+        Directory.CreateDirectory(Path.Combine(usersPath, email));
+
+        var path = service.GetUserStoragePath(CreateUser(email));
+
+        Assert.True(File.Exists(Path.Combine(path, "project-a", "Program.cs")));
+        Assert.False(Directory.Exists(legacyPath));
     }
 
     [Fact]

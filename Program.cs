@@ -17,6 +17,9 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load gitignored local overrides before any services consume configuration.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration).WriteTo
                                                .Console().WriteTo
@@ -24,9 +27,6 @@ Log.Logger = new LoggerConfiguration().ReadFrom.Configuration(builder.Configurat
                                                .CreateLogger();
 
 builder.Host.UseSerilog();
-
-// Load appsettings.Local.json for local overrides (gitignored - copy from appsettings.Example.json)
-builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true);
 
 // Add services to the container.
 builder.Services.AddControllers();

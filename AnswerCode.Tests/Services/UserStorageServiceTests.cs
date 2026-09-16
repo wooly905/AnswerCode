@@ -46,59 +46,58 @@ public class UserStorageServiceTests : IDisposable
     }
 
     [Fact]
-    public void GetUserHashedId_NoEmailClaim_Throws()
+    public void GetUserStoragePath_NoEmailClaim_Throws()
     {
         var service = CreateService();
         var user = CreateUser(email: null);
 
-        Assert.Throws<InvalidOperationException>(() => service.GetUserHashedId(user));
+        Assert.Throws<InvalidOperationException>(() => service.GetUserStoragePath(user));
     }
 
     [Fact]
-    public void GetUserHashedId_SameEmail_ReturnsSameHash()
+    public void GetUserStoragePath_SameEmail_ReturnsSamePath()
     {
         var service = CreateService();
         var user = CreateUser("someone@example.com");
 
-        var first = service.GetUserHashedId(user);
-        var second = service.GetUserHashedId(user);
+        var first = service.GetUserStoragePath(user);
+        var second = service.GetUserStoragePath(user);
 
         Assert.Equal(first, second);
-        Assert.Equal(16, first.Length);
     }
 
     [Fact]
-    public void GetUserHashedId_IsCaseInsensitiveOnEmail()
+    public void GetUserStoragePath_IsCaseInsensitiveOnEmail()
     {
         var service = CreateService();
 
-        var lower = service.GetUserHashedId(CreateUser("someone@example.com"));
-        var upper = service.GetUserHashedId(CreateUser("SOMEONE@EXAMPLE.COM"));
+        var lower = service.GetUserStoragePath(CreateUser("someone@example.com"));
+        var upper = service.GetUserStoragePath(CreateUser("SOMEONE@EXAMPLE.COM"));
 
         Assert.Equal(lower, upper);
     }
 
     [Fact]
-    public void GetUserHashedId_DifferentEmails_ProduceDifferentHashes()
+    public void GetUserStoragePath_DifferentEmails_ProduceDifferentPaths()
     {
         var service = CreateService();
 
-        var a = service.GetUserHashedId(CreateUser("a@example.com"));
-        var b = service.GetUserHashedId(CreateUser("b@example.com"));
+        var a = service.GetUserStoragePath(CreateUser("a@example.com"));
+        var b = service.GetUserStoragePath(CreateUser("b@example.com"));
 
         Assert.NotEqual(a, b);
     }
 
     [Fact]
-    public void GetUserStoragePath_CreatesDirectoryUnderWebRoot()
+    public void GetUserStoragePath_UsesLowercaseEmailDirectoryUnderWebRoot()
     {
         var service = CreateService();
-        var user = CreateUser("someone@example.com");
+        var user = CreateUser("Someone@Gmail.com");
 
         var path = service.GetUserStoragePath(user);
 
         Assert.True(Directory.Exists(path));
-        Assert.StartsWith(Path.Combine(_webRoot, "source-code", "users"), path);
+        Assert.Equal(Path.Combine(_webRoot, "source-code", "users", "someone@gmail.com"), path);
     }
 
     [Fact]

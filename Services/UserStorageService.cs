@@ -1,12 +1,9 @@
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace AnswerCode.Services;
 
 public interface IUserStorageService
 {
-    string GetUserHashedId(ClaimsPrincipal user);
     string GetUserStoragePath(ClaimsPrincipal user);
     double GetUsageMB(ClaimsPrincipal user);
     bool CheckQuota(ClaimsPrincipal user, long additionalBytes);
@@ -24,20 +21,30 @@ public class UserStorageService : IUserStorageService
         _maxSizeMB = configuration.GetValue("UserStorage:MaxSizeMB", 300);
     }
 
-    public string GetUserHashedId(ClaimsPrincipal user)
+    private static string GetUserDirectoryName(ClaimsPrincipal user)
     {
-        var email = user.FindFirst(ClaimTypes.Email)?.Value?.ToLowerInvariant();
-        if (string.IsNullOrEmpty(email))
+        var email = user.FindFirst(ClaimTypes.Email)?.Value?.Trim().ToLowerInvariant();
+        
+        if (string.IsNullOrWhiteSpace(email))
+        {
             throw new InvalidOperationException("User email claim not found");
+        }
 
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(email));
-        return Convert.ToHexString(hash)[..16].ToLowerInvariant();
+        if (email is "." or ".."
+            || email.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || email.Contains(Path.DirectorySeparatorChar)
+            || email.Contains(Path.AltDirectorySeparatorChar))
+        {
+            throw new InvalidOperationException("User email claim is not a valid directory name");
+        }
+
+        return email;
     }
 
     public string GetUserStoragePath(ClaimsPrincipal user)
     {
-        var hashedId = GetUserHashedId(user);
-        var path = Path.Combine(_env.WebRootPath, "source-code", "users", hashedId);
+        var directoryName = GetUserDirectoryName(user);
+        var path = Path.Combine(_env.WebRootPath, "source-code", "users", directoryName);
         Directory.CreateDirectory(path);
         return path;
     }

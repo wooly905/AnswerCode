@@ -30,7 +30,7 @@ public class AgentService(ILogger<AgentService> logger,
                                       string rootPath,
                                       string? sessionId = null,
                                       string? modelProvider = null,
-                                      string? userRole = null,
+                                      AnswerRole userRole = AnswerRole.Developer,
                                       List<ConversationTurn>? conversationHistory = null)
     {
         return RunAsync(question, rootPath, _ => Task.CompletedTask, sessionId, modelProvider, userRole, conversationHistory);
@@ -45,7 +45,7 @@ public class AgentService(ILogger<AgentService> logger,
                                             Func<AgentEvent, Task> onProgress,
                                             string? sessionId = null,
                                             string? modelProvider = null,
-                                            string? userRole = null,
+                                            AnswerRole userRole = AnswerRole.Developer,
                                             List<ConversationTurn>? conversationHistory = null)
     {
         logger.LogInformation("Agent starting for question: {Question}, project: {RootPath}", question, rootPath);

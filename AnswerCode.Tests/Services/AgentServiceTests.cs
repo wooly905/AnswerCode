@@ -28,7 +28,7 @@ public class AgentServiceTests : IDisposable
                 _rootPath,
                 provider,
                 It.IsAny<Func<AgentEvent, Task>>(),
-                "Developer",
+                AnswerRole.Developer,
                 It.IsAny<string>(),
                 "session",
                 8,
@@ -58,7 +58,7 @@ public class AgentServiceTests : IDisposable
             },
             "session",
             "provider",
-            "Developer",
+            AnswerRole.Developer,
             []);
 
         Assert.Equal("answer", result.Answer);

@@ -17,33 +17,31 @@ public sealed class QuestionExecutionService(
         cancellationToken.ThrowIfCancellationRequested();
         string sessionId = request.SessionId ?? Guid.NewGuid().ToString();
         List<ConversationTurn> history = conversationHistory.GetHistory(sessionId);
+        AnswerRole userRole = request.UserRole ?? AnswerRole.Developer;
         var stopwatch = Stopwatch.StartNew();
 
         AgentResult result = onProgress is null
-            ? await agentService.RunAsync(
-                request.Question,
-                projectPath,
-                sessionId,
-                request.ModelProvider,
-                request.UserRole,
-                history).ConfigureAwait(false)
-            : await agentService.RunAsync(
-                request.Question,
-                projectPath,
-                onProgress,
-                sessionId,
-                request.ModelProvider,
-                request.UserRole,
-                history).ConfigureAwait(false);
+            ? await agentService.RunAsync(request.Question,
+                                          projectPath,
+                                          sessionId,
+                                          request.ModelProvider,
+                                          userRole,
+                                          history)
+            : await agentService.RunAsync(request.Question,
+                                          projectPath,
+                                          onProgress,
+                                          sessionId,
+                                          request.ModelProvider,
+                                          userRole,
+                                          history);
 
         conversationHistory.AddTurn(sessionId, new ConversationTurn { Role = "user", Content = request.Question });
         conversationHistory.AddTurn(sessionId, new ConversationTurn { Role = "assistant", Content = result.Answer });
 
-        logger.LogInformation(
-            "Question answered in {ElapsedMs}ms ({ToolCalls} tool calls, {Iterations} iterations)",
-            stopwatch.ElapsedMilliseconds,
-            result.TotalToolCalls,
-            result.IterationCount);
+        logger.LogInformation("Question answered in {ElapsedMs}ms ({ToolCalls} tool calls, {Iterations} iterations)",
+                              stopwatch.ElapsedMilliseconds,
+                              result.TotalToolCalls,
+                              result.IterationCount);
 
         return new AnswerResponse
         {

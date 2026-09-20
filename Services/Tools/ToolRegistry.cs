@@ -44,7 +44,7 @@ public class ToolRegistry
         foreach (var tool in _tools.Values)
         {
             var def = tool.GetChatToolDefinition();
-            sb.AppendLine($"### {def.FunctionName}");
+            sb.AppendLine($"#### {def.FunctionName}");
             sb.AppendLine($"Description: {def.FunctionDescription}");
             sb.AppendLine($"Parameters: {def.FunctionParameters}");
             sb.AppendLine();

@@ -1,9 +1,27 @@
+using AnswerCode.Services.Agents;
 using AnswerCode.Services.Tools;
 
 namespace AnswerCode.Tests.Services.Tools;
 
 public class ReActParserTests
 {
+    [Fact]
+    public void BuildReActSystemPrompt_IncludesRoleInstructionsAndToolProtocol()
+    {
+        const string toolDescriptions = "grep_search: Search source files";
+
+        string prompt = ReActParser.BuildReActSystemPrompt(AgentPromptCatalog.ForRole(AnswerCode.Models.AnswerRole.CustomerService),
+                                                           toolDescriptions);
+
+        Assert.Contains("helping customer service representatives", prompt);
+        Assert.Contains("Never invent product policy", prompt);
+        Assert.Contains("## ReAct Tool Calling Protocol", prompt);
+        Assert.Contains(toolDescriptions, prompt);
+        Assert.Contains("<tool_call>", prompt);
+        Assert.DoesNotContain("cite specific file paths and line numbers", prompt);
+        Assert.DoesNotContain("Use markdown formatting for code snippets", prompt);
+    }
+
     [Fact]
     public void ParseToolCalls_StandardFormat_ReturnsToolCall()
     {

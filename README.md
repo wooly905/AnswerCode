@@ -11,7 +11,7 @@ AI-powered code Q&A system built on Microsoft Agent Framework. Ask questions abo
 - **User Dashboard**: Authenticated users get a `/dashboard` page showing all uploaded projects, storage usage with a visual progress bar, and the ability to delete individual projects
 - **Agentic Q&A with Microsoft Agent Framework**: Native function-calling providers run through `HarnessAgent`; existing AnswerCode tools are exposed as `AIFunction` instances while the current SSE event contract remains stable
 - **Clarifying Questions**: The agent can pause mid-run and ask the user a direct question via the `ask_user` tool when it hits a genuinely ambiguous or high-impact decision, then resume once the answer is submitted
-- **Dual Answer Modes**: Choose between **Developer** mode (technical, with file paths and line numbers) and **PM** mode (plain language, business-focused, no code snippets) for each question
+- **Role-Based Answer Modes**: Choose **Developer** mode for technical analysis, **PM** mode for business workflows, or **Customer Service** mode for customer-ready guidance and escalation criteria
 - **Multiple LLM Providers**: Dynamically configurable — add OpenAI-compatible, Azure OpenAI, Microsoft Foundry, or Ollama providers via `appsettings.json`
 - **ReAct Fallback Loop**: Providers that do not support native function calling automatically fall back to a text-based ReAct loop using `<tool_call>` XML tags, so any LLM can act as an agent
 - **SubAgent Architecture**: Follow-up questions use a 3-phase SubAgent design — (1) resolve the follow-up into a standalone question using conversation history, (2) run the agentic tool loop without history to save tokens, (3) synthesize the final answer with history context. History length is controlled by a **200K token budget** instead of a fixed turn limit, with automatic compression when approaching the threshold
@@ -50,18 +50,19 @@ AI-powered code Q&A system built on Microsoft Agent Framework. Ask questions abo
 
 4. Open a browser to **http://localhost:5000**.
 
-5. **Upload your source code** using the drag-and-drop area or the Browse Files / Browse Folder buttons. Select a model provider, enter your question, and click **Answer as Developer** or **Answer as PM**.
+5. **Upload your source code** using the drag-and-drop area or the Browse Files / Browse Folder buttons. Select a model provider and answer mode, enter your question, and submit it.
 
 ## Answer Modes
 
-Two distinct modes tailor the agent's behavior and response style:
+Three modes tailor the agent's behavior and response style:
 
-| Mode | Button | Audience | Style |
+| Mode | UI option | Audience | Style |
 |------|--------|----------|-------|
-| **Developer** | Answer as Developer | Engineers | Technical; cites file paths, line numbers, class/method names, and code snippets |
-| **PM** | Answer as PM | Program/Project Managers | Plain language; describes business workflows and module interactions without raw code |
+| **Developer** | Developer | Engineers | Technical; cites file paths, line numbers, class/method names, and code snippets |
+| **PM** | PM | Program/Project Managers | Plain language; describes business workflows and module interactions without raw code |
+| **Customer Service** | Customer Service | Support teams | Customer-ready response, troubleshooting steps, information to collect, and engineering escalation criteria |
 
-The mode is selected directly from the UI using **Answer as Developer** or **Answer as PM**.
+Select the mode directly from the role options above the chat.
 
 ## Source Code Upload
 

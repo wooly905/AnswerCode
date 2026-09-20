@@ -8,8 +8,13 @@ namespace AnswerCode.Tests.Services.Questions;
 
 public class QuestionExecutionServiceTests
 {
-    [Fact]
-    public async Task ExecuteAsync_MapsResultAndPersistsConversation()
+    [Theory]
+    [InlineData(null, AnswerRole.Developer)]
+    [InlineData(AnswerRole.PM, AnswerRole.PM)]
+    [InlineData(AnswerRole.CustomerService, AnswerRole.CustomerService)]
+    public async Task ExecuteAsync_MapsResultPersistsConversationAndResolvesRole(
+        AnswerRole? requestedRole,
+        AnswerRole expectedRole)
     {
         var agent = new Mock<IAgentService>();
         var history = new ConversationHistoryService();
@@ -19,14 +24,14 @@ public class QuestionExecutionServiceTests
             ProjectPath = "project",
             SessionId = "session-1",
             ModelProvider = "provider",
-            UserRole = "Developer"
+            UserRole = requestedRole
         };
         agent.Setup(service => service.RunAsync(
                 request.Question,
                 "resolved-project",
                 request.SessionId,
                 request.ModelProvider,
-                request.UserRole,
+                expectedRole,
                 It.IsAny<List<ConversationTurn>>()))
             .ReturnsAsync(new AgentResult
             {

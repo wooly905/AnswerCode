@@ -1,12 +1,12 @@
+using AnswerCode.Models;
 using AnswerCode.Services.Providers;
 using AnswerCode.Services.Tools;
 using OpenAI.Chat;
 
 namespace AnswerCode.Services.Agents;
 
-public sealed class ConversationContextService(
-    IConversationHistoryService historyService,
-    ILogger<ConversationContextService> logger) : IConversationContextService
+public sealed class ConversationContextService(IConversationHistoryService historyService,
+                                               ILogger<ConversationContextService> logger) : IConversationContextService
 {
     internal const int MaxHistoryTokens = 200_000;
     internal const int CompressAtTokens = 180_000;
@@ -39,11 +39,10 @@ public sealed class ConversationContextService(
                 historyService.ReplaceTurns(sessionId, compressed);
             }
 
-            logger.LogInformation(
-                "History compressed: {OldTokens} -> {NewTokens} tokens, {Turns} turns",
-                estimatedTokens,
-                compressedTokens,
-                compressed.Count);
+            logger.LogInformation("History compressed: {OldTokens} -> {NewTokens} tokens, {Turns} turns",
+                                  estimatedTokens,
+                                  compressedTokens,
+                                  compressed.Count);
             return compressed;
         }
         catch (Exception ex) when (estimatedTokens < MaxHistoryTokens)
@@ -59,10 +58,9 @@ public sealed class ConversationContextService(
         }
     }
 
-    public async Task<(string Question, int InputTokens, int OutputTokens)> ResolveQuestionAsync(
-        ILLMProvider provider,
-        string question,
-        List<ConversationTurn> history)
+    public async Task<(string Question, int InputTokens, int OutputTokens)> ResolveQuestionAsync(ILLMProvider provider,
+                                                                                                 string question,
+                                                                                                 List<ConversationTurn> history)
     {
         var messages = new List<ChatMessage> { new SystemChatMessage(AgentPromptCatalog.ContextResolution) };
         InjectHistory(messages, history);
@@ -73,12 +71,11 @@ public sealed class ConversationContextService(
         return (string.IsNullOrWhiteSpace(resolved) ? question : resolved, response.InputTokens, response.OutputTokens);
     }
 
-    public async Task<(string Answer, int InputTokens, int OutputTokens)> SynthesizeAnswerAsync(
-        ILLMProvider provider,
-        string question,
-        List<ConversationTurn> history,
-        string findings,
-        string? userRole)
+    public async Task<(string Answer, int InputTokens, int OutputTokens)> SynthesizeAnswerAsync(ILLMProvider provider,
+                                                                                                string question,
+                                                                                                List<ConversationTurn> history,
+                                                                                                string findings,
+                                                                                                AnswerRole userRole)
     {
         var messages = new List<ChatMessage> { new SystemChatMessage(AgentPromptCatalog.SynthesisForRole(userRole)) };
         InjectHistory(messages, history);
@@ -91,9 +88,8 @@ public sealed class ConversationContextService(
     internal static int EstimateTokens(List<ConversationTurn> history) =>
         (int)(history.Sum(turn => (long)turn.Content.Length) / 3);
 
-    private async Task<List<ConversationTurn>> CompressAsync(
-        ILLMProvider provider,
-        List<ConversationTurn> history)
+    private async Task<List<ConversationTurn>> CompressAsync(ILLMProvider provider,
+                                                             List<ConversationTurn> history)
     {
         int keepCount = Math.Max(2, (int)(history.Count * KeepRecentFraction));
         if (keepCount % 2 != 0)

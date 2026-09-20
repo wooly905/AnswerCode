@@ -10,7 +10,7 @@ public interface IAgentResearchService
         string rootPath,
         ILLMProvider provider,
         Func<AgentEvent, Task> onProgress,
-        string? userRole,
+        AnswerRole userRole,
         string projectOverview,
         string? sessionId,
         int maxIterations,

@@ -29,7 +29,7 @@ public class QuestionRequest
     public string? ModelProvider { get; set; }
 
     /// <summary>
-    /// User role for tailoring the answer style (Developer, PM)
+    /// User role for tailoring the answer style
     /// </summary>
-    public string? UserRole { get; set; }
+    public AnswerRole? UserRole { get; set; }
 }

@@ -268,16 +268,17 @@ public static class ReActParser
     /// <summary>
     /// Build the ReAct system prompt with tool descriptions embedded.
     /// </summary>
-    public static string BuildReActSystemPrompt(string toolDescriptions)
+    public static string BuildReActSystemPrompt(string roleInstructions, string toolDescriptions)
     {
-        return $@"You are an expert code analyst with access to tools for exploring a codebase.
-Your task is to answer user questions about the code by using the available tools.
+        return $@"{roleInstructions}
 
-## Available Tools
+## ReAct Tool Calling Protocol
+
+### Available Tools
 
 {toolDescriptions}
 
-## How to Use Tools
+### How to Use Tools
 
 When you need to use a tool, output the following XML tag:
 
@@ -292,7 +293,7 @@ IMPORTANT RULES:
 - After receiving results, you can use more tools or provide your final answer.
 - When you have enough information to answer, respond directly WITHOUT any <tool_call> tags.
 
-## Strategy
+### Strategy
 A project overview (directory structure and metadata) is automatically provided with the user's question.
 1. Review the project overview already provided — it includes directory structure and key metadata.
 2. Use `get_file_outline` to understand a file's structure before reading it (much more efficient than reading the whole file).
@@ -304,10 +305,9 @@ A project overview (directory structure and metadata) is automatically provided 
 8. Use `list_directory` only if you need to explore a subdirectory not shown in the overview.
 9. If your initial search doesn't find what you need, try different keywords, patterns, or file filters.
 
-## Rules
+### ReAct Rules
 - Be thorough: search with multiple keywords and patterns if the first search doesn't fully answer the question.
-- Be precise: cite specific file paths and line numbers when relevant.
-- Use markdown formatting for code snippets and file references.
+- Follow the Final Answer Format defined in your role instructions above.
 - If you cannot find the answer after thorough searching, say so honestly rather than guessing.
 - Respond in the same language as the user's question.
 - Focus on the code that exists — don't make assumptions about code you haven't read.

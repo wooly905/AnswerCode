@@ -14,7 +14,7 @@ public interface IAgentService
                                string rootPath,
                                string? sessionId = null,
                                string? modelProvider = null,
-                               string? userRole = null,
+                               AnswerRole userRole = AnswerRole.Developer,
                                List<ConversationTurn>? conversationHistory = null);
 
     /// <summary>
@@ -25,6 +25,6 @@ public interface IAgentService
                                Func<AgentEvent, Task> onProgress,
                                string? sessionId = null,
                                string? modelProvider = null,
-                               string? userRole = null,
+                               AnswerRole userRole = AnswerRole.Developer,
                                List<ConversationTurn>? conversationHistory = null);
 }

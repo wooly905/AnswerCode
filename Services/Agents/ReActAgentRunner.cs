@@ -15,15 +15,15 @@ public sealed class ReActAgentRunner(
 {
     private readonly AgentSettings _settings = settingsOptions.Value;
 
-    public async Task<AgentResult> RunAsync(
-        string question,
-        string rootPath,
-        ILLMProvider provider,
-        Func<AgentEvent, Task> onProgress,
-        string projectOverview,
-        string? sessionId,
-        int maxIterations,
-        string? prefetchedContext)
+    public async Task<AgentResult> RunAsync(string question,
+                                            string rootPath,
+                                            ILLMProvider provider,
+                                            Func<AgentEvent, Task> onProgress,
+                                            AnswerRole userRole,
+                                            string projectOverview,
+                                            string? sessionId,
+                                            int maxIterations,
+                                            string? prefetchedContext)
     {
         logger.LogInformation("Starting ReAct agent loop for provider {Provider}", provider.Name);
         var context = new ToolContext
@@ -39,7 +39,8 @@ public sealed class ReActAgentRunner(
         int emptyResponses = 0;
         var messages = new List<ChatMessage>
         {
-            new SystemChatMessage(ReActParser.BuildReActSystemPrompt(toolRegistry.GetReActToolDescriptions())),
+            new SystemChatMessage(ReActParser.BuildReActSystemPrompt(AgentPromptCatalog.ForRole(userRole),
+                                                                     toolRegistry.GetReActToolDescriptions())),
             new UserChatMessage($"## Project Overview\n{projectOverview}")
         };
         if (!string.IsNullOrWhiteSpace(prefetchedContext))
@@ -98,14 +99,13 @@ public sealed class ReActAgentRunner(
             }
 
             emptyResponses = 0;
-            string[] toolResults = await ExecuteBatchAsync(
-                toolCalls.Select(call => (call.FunctionName, call.Arguments)).ToList(),
-                context,
-                rootPath,
-                iteration + 1,
-                result,
-                filesAccessed,
-                onProgress).ConfigureAwait(false);
+            string[] toolResults = await ExecuteBatchAsync(toolCalls.Select(call => (call.FunctionName, call.Arguments)).ToList(),
+                                                           context,
+                                                           rootPath,
+                                                           iteration + 1,
+                                                           result,
+                                                           filesAccessed,
+                                                           onProgress).ConfigureAwait(false);
             messages.Add(new UserChatMessage(ReActParser.FormatToolResults(
                 toolCalls.Select((call, index) => (call.FunctionName, toolResults[index])).ToList())));
         }
@@ -117,14 +117,13 @@ public sealed class ReActAgentRunner(
         return result;
     }
 
-    private async Task<string[]> ExecuteBatchAsync(
-        IReadOnlyList<(string FunctionName, string Arguments)> calls,
-        ToolContext context,
-        string rootPath,
-        int iteration,
-        AgentResult result,
-        HashSet<string> filesAccessed,
-        Func<AgentEvent, Task> onProgress)
+    private async Task<string[]> ExecuteBatchAsync(IReadOnlyList<(string FunctionName, string Arguments)> calls,
+                                                   ToolContext context,
+                                                   string rootPath,
+                                                   int iteration,
+                                                   AgentResult result,
+                                                   HashSet<string> filesAccessed,
+                                                   Func<AgentEvent, Task> onProgress)
     {
         var results = new string[calls.Count];
         var summaries = new string[calls.Count];

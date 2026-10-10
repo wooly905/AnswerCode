@@ -9,7 +9,7 @@ permissions:
 
 env:
   AZURE_WEBAPP_NAME: AnswerCode
-  AZURE_RESOURCE_GROUP: appservice
+  AZURE_RESOURCE_GROUP: AnswerCode2026031621230ResourceGroup
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "20.x"
 

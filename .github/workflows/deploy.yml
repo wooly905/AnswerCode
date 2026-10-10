@@ -8,7 +8,7 @@ permissions:
   id-token: write   # required for Azure OIDC login
 
 env:
-  AZURE_WEBAPP_NAME: AnswerCode123
+  AZURE_WEBAPP_NAME: AnswerCode
   AZURE_RESOURCE_GROUP: appservice
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "20.x"

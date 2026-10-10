@@ -10,6 +10,7 @@ permissions:
 env:
   AZURE_WEBAPP_NAME: AnswerCode
   AZURE_RESOURCE_GROUP: AnswerCode2026031621230ResourceGroup
+  AZURE_WEBAPP_HOST: answercode-e8eyd8auaxhdawfv.westus3-01.azurewebsites.net
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "20.x"
 
@@ -69,7 +70,7 @@ jobs:
       - name: Verify deployed commit
         shell: bash
         run: |
-          url="https://${AZURE_WEBAPP_NAME}.azurewebsites.net/deployment.txt"
+          url="https://${AZURE_WEBAPP_HOST}/deployment.txt"
 
           for attempt in {1..12}; do
             deployed_sha="$(curl --fail --silent --show-error \

@@ -113,7 +113,7 @@ public abstract class BaseLLMProvider(ChatClient chatClient,
         return options;
     }
 
-    protected static bool IsKnownReasoningChatModel(string? modelName)
+    protected internal static bool IsKnownReasoningChatModel(string? modelName)
     {
         if (string.IsNullOrWhiteSpace(modelName))
         {
@@ -133,7 +133,7 @@ public abstract class BaseLLMProvider(ChatClient chatClient,
     /// Regex that matches thinking tags produced by various models:
     /// Gemma 4 uses &lt;thought&gt;, DeepSeek R1 / Qwen QwQ use &lt;think&gt;.
     /// </summary>
-    private static readonly Regex ThinkingTagRegex = new(
+    private static readonly Regex _thinkingTagRegex = new(
         @"<(thought|think)>([\s\S]*?)</\1>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -141,31 +141,38 @@ public abstract class BaseLLMProvider(ChatClient chatClient,
     /// Extract thinking content from the text and return (cleanedText, thinkingContent).
     /// Returns null for thinkingContent when no thinking tags are found.
     /// </summary>
-    protected static (string cleanedText, string? thinkingContent) ExtractThinking(string? text)
+    protected internal static (string cleanedText, string? thinkingContent) ExtractThinking(string? text)
     {
         if (string.IsNullOrEmpty(text))
+        {
             return (text ?? "", null);
+        }
 
-        var matches = ThinkingTagRegex.Matches(text);
+        var matches = _thinkingTagRegex.Matches(text);
         if (matches.Count == 0)
+        {
             return (text, null);
+        }
 
         var thinkingParts = new StringBuilder();
         foreach (Match match in matches)
         {
             if (thinkingParts.Length > 0)
+            {
                 thinkingParts.AppendLine();
+            }
+
             thinkingParts.Append(match.Groups[2].Value.Trim());
         }
 
-        var cleaned = ThinkingTagRegex.Replace(text, "").Trim();
+        var cleaned = _thinkingTagRegex.Replace(text, "").Trim();
         return (cleaned, thinkingParts.ToString());
     }
 
     /// <summary>
     /// Parse a JSON keyword array from the LLM response, handling optional markdown fences.
     /// </summary>
-    protected static List<string> ParseKeywords(string response)
+    protected internal static List<string> ParseKeywords(string response)
     {
         try
         {

@@ -30,16 +30,22 @@ public sealed class AnswerCodeOpenAIClient(ILogger<AnswerCodeOpenAIClient> logge
         string apiKey = Require(settings.ApiKey, $"{providerKey}:ApiKey");
         string model = Require(settings.Model, $"{providerKey}:Model");
 
-        var chatClient = new OpenAI.Chat.ChatClient(
-            credential: new ApiKeyCredential(apiKey),
-            model: model,
-            options: new OpenAIClientOptions
+        var openAIClient = new OpenAIClient(
+            new ApiKeyCredential(apiKey),
+            new OpenAIClientOptions
             {
                 Endpoint = new Uri(endpoint),
                 Transport = CreateTransport()
             });
 
-        return chatClient.AsIChatClient();
+#pragma warning disable OPENAI001
+        // store=false keeps history client-side, so each turn sends full input instead of previous_response_id.
+        return openAIClient.GetResponsesClient().AsIChatClient(model)
+            .AsBuilder()
+            .ConfigureOptions(options => options.RawRepresentationFactory ??=
+                _ => new OpenAI.Responses.CreateResponseOptions { StoredOutputEnabled = false })
+            .Build();
+#pragma warning restore OPENAI001
     }
 
     private IChatClient CreateAzureOpenAIClient(LLMProviderSettings settings)

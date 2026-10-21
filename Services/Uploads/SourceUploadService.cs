@@ -13,6 +13,7 @@ public sealed class SourceUploadService(
 {
     public const long AnonymousMaxUploadBytes = 20 * 1024 * 1024;
     public const long AuthenticatedMaxUploadBytes = 300 * 1024 * 1024;
+    internal const string UsersDirectoryName = "users";
 
     public async Task<SourceUploadResult> UploadAsync(
         IReadOnlyList<IFormFile> files,
@@ -85,7 +86,7 @@ public sealed class SourceUploadService(
             .GetFiles("*", SearchOption.AllDirectories);
         string displayName = !string.IsNullOrWhiteSpace(projectName)
             ? projectName.Trim()
-            : DetectProjectName(relativePaths);
+            : ReadDisplayName(destinationRoot) ?? DetectProjectName(relativePaths);
         await File.WriteAllTextAsync(
             Path.Combine(destinationRoot, ".project-meta.json"),
             JsonSerializer.Serialize(new { displayName, createdAt = DateTime.UtcNow }, new JsonSerializerOptions { WriteIndented = true }),
@@ -137,7 +138,9 @@ public sealed class SourceUploadService(
     }
 
     public IReadOnlyList<SourceProjectSummary> ListAnonymousUploads() =>
-        ListProjects(Path.Combine(environment.WebRootPath, "source-code"));
+        ListProjects(Path.Combine(environment.WebRootPath, "source-code"))
+            .Where(project => !project.FolderId.Equals(UsersDirectoryName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
     public IReadOnlyList<SourceProjectSummary> ListUserProjects(ClaimsPrincipal user) =>
         ListProjects(userStorage.GetUserStoragePath(user));
@@ -167,8 +170,10 @@ public sealed class SourceUploadService(
             .ToList();
     }
 
-    private static bool IsValidFolderId(string folderId) =>
+    internal static bool IsValidFolderId(string folderId) =>
         !string.IsNullOrWhiteSpace(folderId)
+        && folderId != "."
+        && !folderId.Equals(UsersDirectoryName, StringComparison.OrdinalIgnoreCase)
         && !folderId.Contains("..", StringComparison.Ordinal)
         && !folderId.Contains('/')
         && !folderId.Contains('\\')

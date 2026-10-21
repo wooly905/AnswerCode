@@ -20,7 +20,9 @@ public sealed class ProjectPathResolver(
         }
 
         string anonymousRoot = Path.GetFullPath(Path.Combine(environment.WebRootPath, "source-code"));
-        if (IsWithin(fullPath, anonymousRoot))
+        string usersRoot = Path.Combine(anonymousRoot, SourceUploadService.UsersDirectoryName);
+        if (fullPath.StartsWith(anonymousRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            && !IsWithin(fullPath, usersRoot))
         {
             return true;
         }
@@ -53,7 +55,7 @@ public sealed class ProjectPathResolver(
         if (!input.Contains('/') && !input.Contains('\\') && !input.Contains(':'))
         {
             string folderPath = ResolveFolderPath(input, user);
-            if (Directory.Exists(folderPath))
+            if (Directory.Exists(folderPath) && IsPathAllowed(folderPath, user))
             {
                 return folderPath;
             }

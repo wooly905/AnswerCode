@@ -22,7 +22,7 @@
             background: var(--bg-primary); color: var(--text-primary);
             min-height: 100vh;
         }
-        .dashboard-container { max-width:900px; margin:0 auto; padding:24px; }
+        .dashboard-container { max-width:1200px; margin:0 auto; padding:24px; }
 
         .dash-header {
             background: linear-gradient(135deg, #1a1f35 0%, #0d1117 100%);
@@ -81,16 +81,34 @@
             background:var(--bg-tertiary); border:1px solid var(--accent-color); border-radius:4px;
             color:var(--text-primary); padding:4px 8px; font-size:.9rem; width:100%; outline:none;
         }
-        .btn-delete {
-            padding:5px 12px; background:transparent; border:1px solid var(--danger-color);
-            color:var(--danger-color); border-radius:6px; cursor:pointer; font-size:.8rem; transition:background .2s;
-        }
-        .btn-delete:hover { background:rgba(248,81,73,.15); }
-        .btn-delete:disabled { opacity:.6; cursor:not-allowed; }
-        .btn-spinner { display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:4px; }
-        @keyframes spin { to { transform:rotate(360deg); } }
         .empty-msg { color:var(--text-secondary); text-align:center; padding:32px; font-size:.95rem; }
         .loading { color:var(--text-secondary); text-align:center; padding:24px; }
+
+        .manager { display:grid; grid-template-columns:280px 1fr; gap:16px; align-items:start; }
+        @media (max-width:760px) { .manager { grid-template-columns:1fr; } }
+        .tree-panel { padding:12px; max-height:70vh; overflow:auto; }
+        .tree-panel h2 { padding:4px 8px; }
+        .tree-node { display:flex; align-items:center; gap:4px; padding:4px 6px; border-radius:6px; cursor:pointer;
+                     font-size:.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .tree-node:hover { background:var(--bg-tertiary); }
+        .tree-node.selected { background:rgba(88,166,255,.15); color:var(--accent-color); }
+        .tree-toggle { width:16px; flex:none; text-align:center; color:var(--text-secondary); font-size:.7rem; }
+        .tree-children { margin-left:14px; }
+        .toolbar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+        .breadcrumb { font-size:.95rem; font-weight:600; word-break:break-all; }
+        .breadcrumb a { color:var(--accent-color); cursor:pointer; text-decoration:none; }
+        .toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .btn { padding:6px 12px; background:var(--bg-tertiary); border:1px solid var(--border-color); color:var(--text-primary);
+               border-radius:6px; cursor:pointer; font-size:.82rem; transition:background .2s; }
+        .btn:hover { background:#30363d; }
+        .btn.danger { background:transparent; border-color:var(--danger-color); color:var(--danger-color); }
+        .btn.danger:hover { background:rgba(248,81,73,.15); }
+        .btn:disabled { opacity:.5; cursor:not-allowed; }
+        .status { font-size:.85rem; margin-bottom:10px; min-height:1.2em; color:var(--text-secondary); }
+        .status.error { color:var(--danger-color); }
+        .status.ok { color:var(--success-color); }
+        .entry-dir { color:var(--accent-color); cursor:pointer; }
+        td.check, th.check { width:32px; }
     </style>
 </head>
 <body>
@@ -117,9 +135,27 @@
             </div>
         </div>
 
-        <div class="folders-section">
-            <h2>Your Projects</h2>
-            <div id="foldersContent"><div class="loading">Loading...</div></div>
+        <div class="manager">
+            <aside class="folders-section tree-panel">
+                <h2>Folders</h2>
+                <div id="tree"><div class="loading">Loading...</div></div>
+            </aside>
+            <section class="folders-section">
+                <div class="toolbar">
+                    <div class="breadcrumb" id="breadcrumb"></div>
+                    <div class="toolbar-actions">
+                        <button class="btn" id="btnUploadFile">Upload File</button>
+                        <button class="btn" id="btnUploadFolder">Upload Folder</button>
+                        <button class="btn" id="btnRename">Rename</button>
+                        <button class="btn danger" id="btnRemoveFile">Remove File</button>
+                        <button class="btn danger" id="btnRemoveFolder">Remove Folder</button>
+                    </div>
+                    <input type="file" id="fileInput" multiple hidden>
+                    <input type="file" id="folderInput" webkitdirectory multiple hidden>
+                </div>
+                <div class="status" id="status"></div>
+                <div id="detailContent"><div class="loading">Loading...</div></div>
+            </section>
         </div>
     </div>
 
@@ -144,7 +180,15 @@
             return;
         }
 
-        await Promise.all([loadUsage(), loadFolders()]);
+        document.getElementById('btnUploadFile').onclick = () => document.getElementById('fileInput').click();
+        document.getElementById('btnUploadFolder').onclick = () => document.getElementById('folderInput').click();
+        document.getElementById('fileInput').onchange = e => uploadSelected(e.target);
+        document.getElementById('folderInput').onchange = e => uploadSelected(e.target);
+        document.getElementById('btnRemoveFile').onclick = removeFiles;
+        document.getElementById('btnRemoveFolder').onclick = removeFolders;
+        document.getElementById('btnRename').onclick = renameChecked;
+
+        await refreshAll();
     }
 
     async function loadUsage() {
@@ -161,107 +205,391 @@
         } catch (e) { /* ignore */ }
     }
 
-    async function loadFolders() {
-        const container = document.getElementById('foldersContent');
-        try {
-            const res = await fetch('/api/dashboard/folders');
-            if (!res.ok) { container.innerHTML = '<div class="empty-msg">Failed to load folders.</div>'; return; }
-            const folders = await res.json();
+    // current.folderId === null means the "My Projects" root.
+    let current = { folderId: null, path: '' };
+    let projects = [];
+    const expanded = new Set();
 
-            if (folders.length === 0) {
-                container.innerHTML = '<div class="empty-msg">No projects uploaded yet. Go to the <a href="/" style="color:var(--accent-color)">Q&A page</a> to upload source code.</div>';
-                return;
+    const nodeKey = (folderId, path) => `${folderId ?? ''}|${path}`;
+    const query = (folderId, path) =>
+        `folderId=${encodeURIComponent(folderId)}&path=${encodeURIComponent(path || '')}`;
+
+    function el(tag, props = {}, ...children) {
+        const node = document.createElement(tag);
+        Object.assign(node, props);
+        children.forEach(child => node.append(child));
+        return node;
+    }
+
+    function showStatus(message, kind = '') {
+        const status = document.getElementById('status');
+        status.textContent = message;
+        status.className = 'status' + (kind ? ' ' + kind : '');
+    }
+
+    async function readError(res, fallback) {
+        const data = await res.json().catch(() => ({}));
+        if (data.error) return data.error;
+        // ASP.NET Core ValidationProblemDetails: { title, errors: { field: [messages] } }
+        const details = data.errors ? Object.values(data.errors).flat().join(' ') : '';
+        const message = [data.title, details].filter(Boolean).join(' ');
+        return message ? `${message} (HTTP ${res.status})` : `${fallback} (HTTP ${res.status} ${res.statusText})`;
+    }
+
+    async function refreshAll() {
+        await Promise.all([loadUsage(), loadTree()]);
+        if (current.folderId && !folderExists(current.folderId, current.path)) {
+            current = { folderId: null, path: '' };
+        }
+        renderTree();
+        await loadDetail();
+    }
+
+    async function loadTree() {
+        const res = await fetch('/api/manage/tree');
+        projects = res.ok ? await res.json() : [];
+    }
+
+    function folderExists(folderId, path) {
+        const project = projects.find(p => p.folderId === folderId);
+        if (!project) return false;
+        if (!path) return true;
+        let nodes = project.children;
+        let node = null;
+        for (const part of path.split('/')) {
+            node = nodes.find(n => n.name === part);
+            if (!node) return false;
+            nodes = node.children;
+        }
+        return true;
+    }
+
+    function navigate(folderId, path = '') {
+        current = { folderId, path };
+        if (folderId) {
+            expanded.add(nodeKey(folderId, ''));
+            let acc = '';
+            for (const part of path.split('/').filter(Boolean)) {
+                acc = acc ? `${acc}/${part}` : part;
+                expanded.add(nodeKey(folderId, acc));
             }
+        }
+        showStatus('');
+        renderTree();
+        loadDetail();
+    }
 
-            let html = `<table><thead><tr>
-                <th>Project Name</th><th>Files</th><th>Size</th><th>Created</th><th></th>
-            </tr></thead><tbody>`;
+    function renderTree() {
+        const container = document.getElementById('tree');
+        container.replaceChildren(
+            treeNode('My Projects', null, '', projects.map(p => ({ name: p.displayName, folderId: p.folderId, path: '', children: p.children })), true));
+    }
 
-            folders.forEach(f => {
-                const date = new Date(f.createdAt).toLocaleDateString();
-                const name = f.displayName || f.folderId;
-                html += `<tr id="row-${f.folderId}">
-                    <td>
-                        <span class="display-name" id="name-${f.folderId}"
-                            onclick="startRename('${esc(f.folderId)}')"
-                            title="Click to rename">${esc(name)}</span>
-                        <div class="folder-id">${esc(f.folderId)}</div>
-                    </td>
-                    <td>${f.fileCount}</td>
-                    <td>${f.sizeMB} MB</td>
-                    <td>${date}</td>
-                    <td><button class="btn-delete" onclick="deleteFolder('${esc(f.folderId)}')">Delete</button></td>
-                </tr>`;
-            });
+    function treeNode(label, folderId, path, children, isRoot = false) {
+        const key = nodeKey(folderId, path);
+        const isOpen = isRoot || expanded.has(key);
+        const selected = current.folderId === folderId && current.path === path;
+        const toggle = el('span', { className: 'tree-toggle', textContent: children.length ? (isOpen ? '\u25BE' : '\u25B8') : '' });
+        toggle.onclick = e => {
+            e.stopPropagation();
+            if (isRoot) return;
+            expanded.has(key) ? expanded.delete(key) : expanded.add(key);
+            renderTree();
+        };
+        const row = el('div', { className: 'tree-node' + (selected ? ' selected' : ''), title: label },
+            toggle, el('span', { textContent: (isRoot ? '\uD83D\uDCC2 ' : '\uD83D\uDCC1 ') + label }));
+        row.onclick = () => navigate(folderId, path);
 
-            html += '</tbody></table>';
-            container.innerHTML = html;
-        } catch (e) {
-            container.innerHTML = '<div class="empty-msg">Error loading folders.</div>';
+        const wrapper = el('div', {}, row);
+        if (isOpen && children.length) {
+            wrapper.append(el('div', { className: 'tree-children' },
+                ...children.map(c => treeNode(c.name, c.folderId ?? folderId, c.folderId ? '' : c.path, c.children))));
+        }
+        return wrapper;
+    }
+
+    function renderBreadcrumb() {
+        const bc = document.getElementById('breadcrumb');
+        const rootLink = el('a', { textContent: 'My Projects' });
+        rootLink.onclick = () => navigate(null);
+        bc.replaceChildren(rootLink);
+        if (!current.folderId) return;
+
+        const project = projects.find(p => p.folderId === current.folderId);
+        const projectLink = el('a', { textContent: project?.displayName || current.folderId });
+        projectLink.onclick = () => navigate(current.folderId);
+        bc.append(' / ', projectLink);
+
+        let acc = '';
+        for (const part of current.path.split('/').filter(Boolean)) {
+            acc = acc ? `${acc}/${part}` : part;
+            const target = acc;
+            const link = el('a', { textContent: part });
+            link.onclick = () => navigate(current.folderId, target);
+            bc.append(' / ', link);
         }
     }
 
-    function startRename(folderId) {
-        const span = document.getElementById('name-' + folderId);
-        if (!span) return;
-        const current = span.textContent;
-        const input = document.createElement('input');
-        input.className = 'rename-input';
-        input.id = 'rename-' + folderId;
-        input.value = current;
-        input.onblur = () => commitRename(folderId);
-        input.onkeydown = (e) => {
+    async function loadDetail() {
+        renderBreadcrumb();
+        document.getElementById('btnRemoveFile').disabled = !current.folderId;
+        const container = document.getElementById('detailContent');
+
+        if (!current.folderId) {
+            renderProjects(container);
+            return;
+        }
+
+        const res = await fetch(`/api/manage/entries?${query(current.folderId, current.path)}`);
+        if (!res.ok) {
+            container.replaceChildren(el('div', { className: 'empty-msg', textContent: await readError(res, 'Failed to load folder.') }));
+            return;
+        }
+        const entries = await res.json();
+        if (entries.length === 0) {
+            container.replaceChildren(el('div', { className: 'empty-msg', textContent: 'This folder is empty.' }));
+            return;
+        }
+
+        const tbody = el('tbody');
+        for (const entry of entries) {
+            const name = el('span', { textContent: (entry.isDirectory ? '\uD83D\uDCC1 ' : '\uD83D\uDCC4 ') + entry.name });
+            if (entry.isDirectory) {
+                name.className = 'entry-dir';
+                name.onclick = () => navigate(current.folderId, entry.path);
+            }
+            const check = el('input', { type: 'checkbox' });
+            check.dataset.path = entry.path;
+            check.dataset.dir = entry.isDirectory ? '1' : '';
+            tbody.append(el('tr', {},
+                el('td', { className: 'check' }, check),
+                el('td', {}, name),
+                el('td', { textContent: entry.isDirectory ? '\u2014' : formatSize(entry.sizeBytes) }),
+                el('td', { textContent: new Date(entry.modifiedUtc).toLocaleString() })));
+        }
+        container.replaceChildren(table(['', 'Name', 'Size', 'Modified'], tbody));
+    }
+
+    function renderProjects(container) {
+        if (projects.length === 0) {
+            container.replaceChildren(el('div', { className: 'empty-msg', textContent: 'No projects yet. Use Upload File or Upload Folder to create one.' }));
+            return;
+        }
+        // Tree only carries names; fetch counts and sizes from the existing dashboard API.
+        fetch('/api/dashboard/folders').then(r => r.ok ? r.json() : []).then(folders => {
+            const tbody = el('tbody');
+            for (const f of folders) {
+                const check = el('input', { type: 'checkbox' });
+                check.dataset.folderId = f.folderId;
+                check.dataset.dir = '1';
+                const nameSpan = el('span', { className: 'display-name', title: 'Click to rename', textContent: f.displayName || f.folderId });
+                nameSpan.onclick = () => startRename(nameSpan, f.folderId);
+                const open = el('a', { className: 'entry-dir', textContent: ' open \u2192' });
+                open.onclick = () => navigate(f.folderId);
+                tbody.append(el('tr', {},
+                    el('td', { className: 'check' }, check),
+                    el('td', {}, nameSpan, open, el('div', { className: 'folder-id', textContent: f.folderId })),
+                    el('td', { textContent: f.fileCount }),
+                    el('td', { textContent: `${f.sizeMB} MB` }),
+                    el('td', { textContent: new Date(f.createdAt).toLocaleDateString() })));
+            }
+            container.replaceChildren(table(['', 'Project Name', 'Files', 'Size', 'Created'], tbody));
+        });
+    }
+
+    function table(headers, tbody) {
+        const tr = el('tr', {}, ...headers.map((h, i) => el('th', { className: i === 0 ? 'check' : '', textContent: h })));
+        return el('table', {}, el('thead', {}, tr), tbody);
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    function checkedRows(dir) {
+        return [...document.querySelectorAll('#detailContent input[type=checkbox]:checked')]
+            .filter(c => (c.dataset.dir === '1') === dir);
+    }
+
+    // Mirrors SourceFilePolicy so ignored files are never sent.
+    const ALLOWED_EXTS = ['.cs','.fs','.vb','.js','.ts','.jsx','.tsx','.py','.go','.rs','.java','.c','.cpp','.cc','.cxx','.h','.hpp','.hxx','.htm','.html','.css','.json','.md','.xml','.toml','.yml','.yaml','.csproj','.fsproj','.vbproj','.sln','.sql'];
+    const ALLOWED_FILES = ['package.json','package-lock.json','requirements.txt','pyproject.toml','go.mod','go.sum','cargo.toml','cargo.lock','pom.xml','build.gradle','cmakelists.txt','.gitignore','.editorconfig','dockerfile','makefile'];
+    const IGNORED_DIRS = ['.git','node_modules','bin','obj','.vs','.vscode','.idea','dist','build','out','target','__pycache__','venv','.venv'];
+
+    function isUploadable(relativePath) {
+        const parts = relativePath.toLowerCase().split('/');
+        const name = parts.pop();
+        if (parts.some(p => IGNORED_DIRS.includes(p))) return false;
+        return ALLOWED_FILES.includes(name) || ALLOWED_EXTS.some(ext => name.endsWith(ext));
+    }
+
+    async function uploadSelected(input) {
+        const selected = [...input.files];
+        input.value = '';
+        if (selected.length === 0) return;
+
+        const files = selected.filter(f => isUploadable(f.webkitRelativePath || f.name));
+        const skipped = selected.length - files.length;
+        if (files.length === 0) {
+            showStatus(`No supported source files selected (${skipped} file(s) skipped).`, 'error');
+            return;
+        }
+
+        const prefix = current.path ? current.path + '/' : '';
+        const batches = toBatches(files);
+        let folderId = current.folderId;
+        let data = null;
+        let error = null;
+        try {
+            for (let i = 0; i < batches.length; i++) {
+                const form = new FormData();
+                for (const file of batches[i]) {
+                    const rel = prefix + (file.webkitRelativePath || file.name);
+                    form.append('files', file, rel);
+                    form.append('relativePaths', rel);
+                }
+                if (folderId) form.append('folderId', folderId);
+
+                showStatus(`Uploading batch ${i + 1}/${batches.length} (${files.length} file(s) total)\u2026`);
+                const res = await fetch('/api/CodeQA/upload', { method: 'POST', body: form });
+                if (!res.ok) {
+                    const saved = i > 0 ? ` Batches 1-${i} were saved.` : '';
+                    error = `Batch ${i + 1}/${batches.length} failed: ${await readError(res, 'Upload failed')}${saved}`;
+                    break;
+                }
+                data = await res.json();
+                folderId = data.folderId;
+            }
+        } catch (e) {
+            error = 'Upload error: ' + e.message;
+        }
+
+        if (folderId) {
+            if (!current.folderId) current = { folderId, path: '' };
+            expanded.add(nodeKey(current.folderId, ''));
+            await refreshAll();
+        }
+        if (error) {
+            showStatus(error, 'error');
+        } else {
+            showStatus(`Upload complete. Project now has ${data.fileCount} file(s); ${skipped} unsupported file(s) skipped.`, 'ok');
+        }
+    }
+
+    // Each file adds 2 form values; the server allows 10000 values and about 300 MB per request.
+    const MAX_FILES_PER_BATCH = 2000;
+    const MAX_BYTES_PER_BATCH = 100 * 1024 * 1024;
+
+    function toBatches(files) {
+        const batches = [];
+        let batch = [];
+        let bytes = 0;
+        for (const file of files) {
+            if (batch.length > 0 && (batch.length >= MAX_FILES_PER_BATCH || bytes + file.size > MAX_BYTES_PER_BATCH)) {
+                batches.push(batch);
+                batch = [];
+                bytes = 0;
+            }
+            batch.push(file);
+            bytes += file.size;
+        }
+        if (batch.length > 0) batches.push(batch);
+        return batches;
+    }
+
+    async function removeFiles() {
+        const rows = checkedRows(false);
+        if (rows.length === 0) { showStatus('Select one or more files to remove.', 'error'); return; }
+        if (!confirm(`Delete ${rows.length} file(s)? This cannot be undone.`)) return;
+
+        const failed = [];
+        for (const row of rows) {
+            const res = await fetch(`/api/manage/file?${query(current.folderId, row.dataset.path)}`, { method: 'DELETE' });
+            if (!res.ok) failed.push(row.dataset.path);
+        }
+        await refreshAll();
+        showStatus(failed.length ? `Failed to delete: ${failed.join(', ')}` : 'File(s) deleted.', failed.length ? 'error' : 'ok');
+    }
+
+    // Deletes checked folders; with nothing checked, deletes the folder selected in the tree.
+    async function removeFolders() {
+        let targets = checkedRows(true).map(c => ({ folderId: c.dataset.folderId || current.folderId, path: c.dataset.folderId ? '' : c.dataset.path }));
+        let label;
+        if (targets.length > 0) {
+            label = `${targets.length} folder(s)`;
+        } else if (current.folderId) {
+            targets = [{ ...current }];
+            label = current.path ? `folder "${current.path}"` : 'this entire project';
+        } else {
+            showStatus('Select one or more folders to remove.', 'error');
+            return;
+        }
+        if (!confirm(`Delete ${label} and all contents? This cannot be undone.`)) return;
+
+        const failed = [];
+        for (const t of targets) {
+            const res = await fetch(`/api/manage/folder?${query(t.folderId, t.path)}`, { method: 'DELETE' });
+            if (!res.ok) failed.push(t.path || t.folderId);
+        }
+        if (targets.some(t => t.folderId === current.folderId && t.path === current.path)) {
+            const parent = current.path.split('/').slice(0, -1).join('/');
+            current = current.path ? { folderId: current.folderId, path: parent } : { folderId: null, path: '' };
+        }
+        await refreshAll();
+        showStatus(failed.length ? `Failed to delete: ${failed.join(', ')}` : 'Folder(s) deleted.', failed.length ? 'error' : 'ok');
+    }
+
+    async function renameChecked() {
+        const checked = [...document.querySelectorAll('#detailContent input[type=checkbox]:checked')];
+        if (checked.length !== 1) { showStatus('Select exactly one file or folder to rename.', 'error'); return; }
+        const row = checked[0];
+        const projectId = row.dataset.folderId;
+        const oldName = projectId
+            ? row.closest('tr').querySelector('.display-name').textContent
+            : row.dataset.path.split('/').pop();
+        const newName = prompt('New name:', oldName)?.trim();
+        if (!newName || newName === oldName) return;
+
+        const res = projectId
+            ? await fetch(`/api/dashboard/folders/${encodeURIComponent(projectId)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ displayName: newName })
+            })
+            : await fetch('/api/manage/rename', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folderId: current.folderId, path: row.dataset.path, newName })
+            });
+        const error = res.ok ? null : await readError(res, 'Rename failed');
+        await refreshAll();
+        showStatus(error ?? `Renamed "${oldName}" to "${newName}".`, error ? 'error' : 'ok');
+    }
+
+    function startRename(span, folderId) {
+        const input = el('input', { className: 'rename-input', value: span.textContent });
+        let cancelled = false;
+        input.onkeydown = e => {
             if (e.key === 'Enter') input.blur();
-            if (e.key === 'Escape') { input.dataset.cancel = '1'; input.blur(); }
+            if (e.key === 'Escape') { cancelled = true; input.blur(); }
+        };
+        input.onblur = async () => {
+            const newName = input.value.trim();
+            if (!cancelled && newName) {
+                const res = await fetch(`/api/dashboard/folders/${encodeURIComponent(folderId)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ displayName: newName })
+                });
+                if (!res.ok) showStatus(await readError(res, 'Failed to rename'), 'error');
+            }
+            await refreshAll();
         };
         span.replaceWith(input);
         input.focus();
         input.select();
-    }
-
-    async function commitRename(folderId) {
-        const input = document.getElementById('rename-' + folderId);
-        if (!input) return;
-        if (input.dataset.cancel === '1') {
-            await loadFolders(); // restore original
-            return;
-        }
-        const newName = input.value.trim();
-        if (!newName) { await loadFolders(); return; }
-        try {
-            const res = await fetch(`/api/dashboard/folders/${folderId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ displayName: newName })
-            });
-            if (!res.ok) { alert('Failed to rename'); }
-        } catch (e) { alert('Error: ' + e.message); }
-        await loadFolders();
-    }
-
-    async function deleteFolder(folderId) {
-        if (!confirm(`Delete project "${folderId}"? This cannot be undone.`)) return;
-        const btn = document.querySelector(`#row-${folderId} .btn-delete`);
-        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span>Deleting\u2026'; }
-        try {
-            const res = await fetch(`/api/dashboard/folders/${folderId}`, { method: 'DELETE' });
-            if (!res.ok) { if (btn) { btn.disabled = false; btn.textContent = 'Delete'; } alert('Failed to delete folder'); return; }
-            const row = document.getElementById('row-' + folderId);
-            if (row) row.remove();
-            await loadUsage();
-            // If table is now empty, reload to show empty message
-            const tbody = document.querySelector('tbody');
-            if (tbody && tbody.children.length === 0) loadFolders();
-        } catch (e) {
-            if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
-            alert('Error: ' + e.message);
-        }
-    }
-
-    function esc(s) {
-        const d = document.createElement('div');
-        d.textContent = s;
-        return d.innerHTML;
     }
 
     init();

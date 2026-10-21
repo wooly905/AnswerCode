@@ -32,6 +32,20 @@ public class ProjectPathResolverTests : IDisposable
         Assert.Empty(result);
     }
 
+    [Theory]
+    [InlineData("users")]
+    [InlineData("users/someone@example.com")]
+    [InlineData(".")]
+    public void ResolveProjectPath_UserStorageOrSourceRoot_AnonymousCaller_ReturnsEmpty(string input)
+    {
+        Directory.CreateDirectory(Path.Combine(_webRoot, "source-code", "users", "someone@example.com"));
+        var resolver = CreateResolver();
+
+        string result = resolver.ResolveProjectPath(input, new ClaimsPrincipal());
+
+        Assert.Empty(result);
+    }
+
     public void Dispose() => Directory.Delete(_webRoot, recursive: true);
 
     private ProjectPathResolver CreateResolver()

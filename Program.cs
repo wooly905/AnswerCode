@@ -87,6 +87,7 @@ builder.Services.AddSingleton<ISourceFilePolicy, SourceFilePolicy>();
 builder.Services.AddSingleton<IProjectPathResolver, ProjectPathResolver>();
 builder.Services.AddSingleton<IDeleteTokenService, DeleteTokenService>();
 builder.Services.AddSingleton<ISourceUploadService, SourceUploadService>();
+builder.Services.AddSingleton<IUserFileManager, UserFileManager>();
 builder.Services.AddSingleton<TokenCredential, DefaultAzureCredential>();
 builder.Services.AddSingleton<AnswerCodeOpenAIClient>();
 builder.Services.AddSingleton<AnswerCodeFoundryClient>();
@@ -195,6 +196,18 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+
+// Uploaded source is reachable only through authorized APIs, never as static content.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/source-code", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
 
 // Serve static files (for the frontend)
 app.UseDefaultFiles();

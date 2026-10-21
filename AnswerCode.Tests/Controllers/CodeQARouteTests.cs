@@ -29,4 +29,20 @@ public class CodeQARouteTests
         Assert.Equal(template, attribute.Template);
         Assert.Contains(verb, attribute.HttpMethods);
     }
+
+    [Theory]
+    [InlineData("GetTree", "GET", "tree")]
+    [InlineData("ListEntries", "GET", "entries")]
+    [InlineData("DeleteFile", "DELETE", "file")]
+    [InlineData("DeleteFolder", "DELETE", "folder")]
+    [InlineData("Rename", "PATCH", "rename")]
+    public void ManageEndpoint_RequiresAuthorization(string methodName, string verb, string template)
+    {
+        Assert.Equal("api/manage", typeof(ManageController).GetCustomAttribute<RouteAttribute>()?.Template);
+        Assert.NotNull(typeof(ManageController).GetCustomAttribute<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>());
+        HttpMethodAttribute attribute = Assert.Single(typeof(ManageController).GetMethod(methodName)!.GetCustomAttributes<HttpMethodAttribute>());
+
+        Assert.Equal(template, attribute.Template);
+        Assert.Contains(verb, attribute.HttpMethods);
+    }
 }

@@ -41,5 +41,26 @@ public class SourceUploadServiceTests : IDisposable
         Assert.False(File.Exists(outsidePath));
     }
 
+    [Theory]
+    [InlineData("users")]
+    [InlineData("USERS")]
+    [InlineData(".")]
+    public async Task UploadAsync_ReservedFolderId_Throws(string folderId)
+    {
+        var environment = new Mock<IWebHostEnvironment>();
+        environment.SetupGet(item => item.WebRootPath).Returns(_webRoot);
+        var service = new SourceUploadService(
+            environment.Object,
+            Mock.Of<IUserStorageService>(),
+            new SourceFilePolicy(),
+            Mock.Of<IDeleteTokenService>(),
+            NullLogger<SourceUploadService>.Instance);
+        await using var content = new MemoryStream(Encoding.UTF8.GetBytes("class Example {}"));
+        IFormFile file = new FormFile(content, 0, content.Length, "files", "Example.cs");
+
+        await Assert.ThrowsAsync<SourceUploadException>(() =>
+            service.UploadAsync([file], ["Example.cs"], folderId, "Test", new ClaimsPrincipal()));
+    }
+
     public void Dispose() => Directory.Delete(_webRoot, recursive: true);
 }

@@ -10,7 +10,7 @@ permissions:
 env:
   AZURE_WEBAPP_NAME: AnswerCode
   AZURE_RESOURCE_GROUP: AnswerCode2026031621230ResourceGroup
-  AZURE_WEBAPP_HOST: answercode-e8eyd8auaxhdawfv.westus3-01.azurewebsites.net
+  AZURE_WEBAPP_HOST: answercode.azurewebsites.net
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "20.x"
 

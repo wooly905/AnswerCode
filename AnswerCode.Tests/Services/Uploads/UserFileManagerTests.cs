@@ -159,6 +159,68 @@ public class UserFileManagerTests : IDisposable
         Assert.True(Directory.Exists(Path.Combine(_userRoot, "proj", "src")));
     }
 
+    [Fact]
+    public void CreateFolder_ProjectRoot_CreatesEmptyDirectory()
+    {
+        ManagedFileStatus status = CreateManager().CreateFolder(_user, "proj", null, "docs");
+
+        Assert.Equal(ManagedFileStatus.Success, status);
+        string created = Path.Combine(_userRoot, "proj", "docs");
+        Assert.True(Directory.Exists(created));
+        Assert.Empty(Directory.GetFileSystemEntries(created));
+    }
+
+    [Fact]
+    public void CreateFolder_Subdirectory_CreatesNestedDirectory()
+    {
+        ManagedFileStatus status = CreateManager().CreateFolder(_user, "proj", "src", "  helpers  ");
+
+        Assert.Equal(ManagedFileStatus.Success, status);
+        Assert.True(Directory.Exists(Path.Combine(_userRoot, "proj", "src", "helpers")));
+        Assert.True(File.Exists(Path.Combine(_userRoot, "proj", "src", "A.cs")));
+    }
+
+    [Theory]
+    [InlineData("proj", "", "")]
+    [InlineData("proj", "", "   ")]
+    [InlineData("proj", "", ".")]
+    [InlineData("proj", "", "..")]
+    [InlineData("proj", "", "a/b")]
+    [InlineData("proj", "", "a\\b")]
+    [InlineData("proj", "", ".project-meta.json")]
+    [InlineData("proj", "../../b@example.com/other", "x")]
+    [InlineData("..", "", "x")]
+    [InlineData("proj", "C:\\Windows", "x")]
+    public void CreateFolder_InvalidInput_ReturnsInvalidPath(string folderId, string path, string name)
+    {
+        ManagedFileStatus status = CreateManager().CreateFolder(_user, folderId, path, name);
+
+        Assert.Equal(ManagedFileStatus.InvalidPath, status);
+        Assert.False(Directory.Exists(Path.Combine(_userRoot, "proj", "x")));
+    }
+
+    [Theory]
+    [InlineData(null, "src")]
+    [InlineData("src", "sub")]
+    [InlineData("", "README.md")]
+    public void CreateFolder_TargetExists_ReturnsConflict(string? path, string name)
+    {
+        ManagedFileStatus status = CreateManager().CreateFolder(_user, "proj", path, name);
+
+        Assert.Equal(ManagedFileStatus.Conflict, status);
+        Assert.True(File.Exists(Path.Combine(_userRoot, "proj", "README.md")));
+        Assert.True(Directory.Exists(Path.Combine(_userRoot, "proj", "src", "sub")));
+    }
+
+    [Fact]
+    public void CreateFolder_MissingParent_ReturnsNotFound()
+    {
+        ManagedFileStatus status = CreateManager().CreateFolder(_user, "proj", "missing", "child");
+
+        Assert.Equal(ManagedFileStatus.NotFound, status);
+        Assert.False(Directory.Exists(Path.Combine(_userRoot, "proj", "missing")));
+    }
+
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
     private UserFileManager CreateManager()

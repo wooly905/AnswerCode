@@ -146,6 +146,7 @@
                     <div class="toolbar-actions">
                         <button class="btn" id="btnUploadFile">Upload File</button>
                         <button class="btn" id="btnUploadFolder">Upload Folder</button>
+                        <button class="btn" id="btnCreateFolder">Create Folder</button>
                         <button class="btn" id="btnRename">Rename</button>
                         <button class="btn danger" id="btnRemoveFile">Remove File</button>
                         <button class="btn danger" id="btnRemoveFolder">Remove Folder</button>
@@ -187,6 +188,7 @@
         document.getElementById('btnRemoveFile').onclick = removeFiles;
         document.getElementById('btnRemoveFolder').onclick = removeFolders;
         document.getElementById('btnRename').onclick = renameChecked;
+        document.getElementById('btnCreateFolder').onclick = createFolder;
 
         await refreshAll();
     }
@@ -333,6 +335,7 @@
     async function loadDetail() {
         renderBreadcrumb();
         document.getElementById('btnRemoveFile').disabled = !current.folderId;
+        document.getElementById('btnCreateFolder').disabled = !current.folderId;
         const container = document.getElementById('detailContent');
 
         if (!current.folderId) {
@@ -539,6 +542,25 @@
         }
         await refreshAll();
         showStatus(failed.length ? `Failed to delete: ${failed.join(', ')}` : 'Folder(s) deleted.', failed.length ? 'error' : 'ok');
+    }
+
+    async function createFolder() {
+        if (!current.folderId) {
+            showStatus('Open a project before creating a folder.', 'error');
+            return;
+        }
+
+        const name = prompt('Folder name:')?.trim();
+        if (!name) return;
+
+        const res = await fetch('/api/manage/folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folderId: current.folderId, path: current.path, name })
+        });
+        const error = res.ok ? null : await readError(res, 'Create folder failed');
+        await refreshAll();
+        showStatus(error ?? `Created folder "${name}".`, error ? 'error' : 'ok');
     }
 
     async function renameChecked() {

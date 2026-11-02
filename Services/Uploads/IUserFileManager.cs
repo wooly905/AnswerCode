@@ -13,4 +13,6 @@ public interface IUserFileManager
     ManagedFileStatus DeleteFolder(ClaimsPrincipal user, string folderId, string? path);
 
     ManagedFileStatus Rename(ClaimsPrincipal user, string folderId, string path, string newName);
+
+    ManagedFileStatus CreateFolder(ClaimsPrincipal user, string folderId, string? path, string name);
 }

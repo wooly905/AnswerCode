@@ -148,6 +148,39 @@ public sealed class UserFileManager(
         }
     }
 
+    public ManagedFileStatus CreateFolder(ClaimsPrincipal user, string folderId, string? path, string name)
+    {
+        string? parentPath = ResolvePath(user, folderId, path);
+        name = name?.Trim() ?? string.Empty;
+        if (parentPath is null || !IsValidName(name))
+        {
+            return ManagedFileStatus.InvalidPath;
+        }
+
+        if (!Directory.Exists(parentPath))
+        {
+            return ManagedFileStatus.NotFound;
+        }
+
+        string targetPath = Path.Combine(parentPath, name);
+        if (File.Exists(targetPath) || Directory.Exists(targetPath))
+        {
+            return ManagedFileStatus.Conflict;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(targetPath);
+            logger.LogInformation("Manage: created folder '{Name}' under '{Path}' in {FolderId}", name, path, folderId);
+            return ManagedFileStatus.Success;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogError(ex, "Manage: failed to create folder '{Name}' in {FolderId}", name, folderId);
+            return ManagedFileStatus.Failed;
+        }
+    }
+
     // An empty path resolves to the project root; null means the input is invalid.
     private string? ResolvePath(ClaimsPrincipal user, string folderId, string? path)
     {

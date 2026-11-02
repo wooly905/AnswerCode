@@ -36,6 +36,7 @@ public class CodeQARouteTests
     [InlineData("DeleteFile", "DELETE", "file")]
     [InlineData("DeleteFolder", "DELETE", "folder")]
     [InlineData("Rename", "PATCH", "rename")]
+    [InlineData("CreateFolder", "POST", "folder")]
     public void ManageEndpoint_RequiresAuthorization(string methodName, string verb, string template)
     {
         Assert.Equal("api/manage", typeof(ManageController).GetCustomAttribute<RouteAttribute>()?.Template);

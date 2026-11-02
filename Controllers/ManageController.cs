@@ -40,7 +40,16 @@ public sealed class ManageController(IUserFileManager fileManager) : ControllerB
         return status == ManagedFileStatus.Success ? Ok(new { message = "Renamed" }) : ToError(status);
     }
 
+    [HttpPost("folder")]
+    public IActionResult CreateFolder([FromBody] CreateFolderRequest request)
+    {
+        ManagedFileStatus status = fileManager.CreateFolder(User, request.FolderId, request.Path, request.Name);
+        return status == ManagedFileStatus.Success ? Ok(new { message = "Folder created" }) : ToError(status);
+    }
+
     public sealed record RenameRequest(string FolderId, string Path, string NewName);
+
+    public sealed record CreateFolderRequest(string FolderId, string? Path, string Name);
 
     private IActionResult ToError(ManagedFileStatus status) => status switch
     {
